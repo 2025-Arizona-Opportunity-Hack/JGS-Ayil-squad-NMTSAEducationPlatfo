@@ -16,11 +16,13 @@ import {
   Calendar,
   CheckCheck,
   Ban,
-  Plus
+  Plus,
+  History
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
+import { ContentVersionHistory } from "./ContentVersionHistory";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +38,7 @@ export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected">("all");
@@ -136,6 +139,11 @@ export function ContentManager() {
   const handleEditContent = (content: any) => {
     setSelectedContent(content);
     setShowEditModal(true);
+  };
+
+  const handleViewVersionHistory = (content: any) => {
+    setSelectedContent(content);
+    setShowVersionHistory(true);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -566,14 +574,24 @@ export function ContentManager() {
                       variant="ghost"
                       onClick={() => handleEditContent(item)}
                     >
+                      <FileEdit className="w-4 h-4 mr-1" />
                       Edit
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleViewVersionHistory(item)}
+                    >
+                      <History className="w-4 h-4 mr-1" />
+                      History
                     </Button>
                     <Button 
                       size="sm"
                       variant="ghost"
                       onClick={() => handleManageAccess(item)}
                     >
-                      Manage Access
+                      <Eye className="w-4 h-4 mr-1" />
+                      Access
                     </Button>
                   </div>
                 </div>
@@ -605,6 +623,19 @@ export function ContentManager() {
             setSelectedContent(null);
           }}
           content={selectedContent}
+        />
+      )}
+
+      {/* Version History Modal */}
+      {selectedContent && (
+        <ContentVersionHistory
+          isOpen={showVersionHistory}
+          onClose={() => {
+            setShowVersionHistory(false);
+            setSelectedContent(null);
+          }}
+          contentId={selectedContent._id}
+          contentTitle={selectedContent.title}
         />
       )}
     </div>

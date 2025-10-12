@@ -43,11 +43,36 @@ export const createContent = mutation({
     }
 
     // All new content starts as draft
-    return await ctx.db.insert("content", {
+    const contentId = await ctx.db.insert("content", {
       ...args,
       createdBy: userId,
       status: "draft",
+      currentVersion: 1,
     });
+
+    // Create initial version
+    await ctx.db.insert("contentVersions", {
+      contentId,
+      versionNumber: 1,
+      title: args.title,
+      description: args.description,
+      type: args.type,
+      fileId: args.fileId,
+      externalUrl: args.externalUrl,
+      richTextContent: args.richTextContent,
+      body: args.body,
+      isPublic: args.isPublic,
+      tags: args.tags,
+      active: args.active,
+      startDate: args.startDate,
+      endDate: args.endDate,
+      status: "draft",
+      createdBy: userId,
+      createdAt: Date.now(),
+      changeDescription: "Initial version",
+    });
+
+    return contentId;
   },
 });
 
@@ -411,8 +436,38 @@ export const updateContent = mutation({
       throw new Error("Start date must be before end date");
     }
 
+    // Get current version number
+    const currentVersion = content.currentVersion || 1;
+    const newVersion = currentVersion + 1;
+
+    // Create version snapshot before updating
+    await ctx.db.insert("contentVersions", {
+      contentId: args.contentId,
+      versionNumber: newVersion,
+      title: args.title,
+      description: args.description,
+      type: args.type,
+      fileId: args.fileId,
+      externalUrl: args.externalUrl,
+      richTextContent: args.richTextContent,
+      body: args.body,
+      isPublic: args.isPublic,
+      tags: args.tags,
+      active: args.active,
+      startDate: args.startDate,
+      endDate: args.endDate,
+      status: content.status,
+      createdBy: userId,
+      createdAt: Date.now(),
+      changeDescription: "Content updated",
+    });
+
+    // Update content with new data and version number
     const { contentId, ...updateData } = args;
-    await ctx.db.patch(contentId, updateData);
+    await ctx.db.patch(contentId, {
+      ...updateData,
+      currentVersion: newVersion,
+    });
   },
 });
 

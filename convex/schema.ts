@@ -64,6 +64,8 @@ const applicationTables = {
     reviewedBy: v.optional(v.id("users")),
     reviewNotes: v.optional(v.string()),
     publishedAt: v.optional(v.number()),
+    // Version control
+    currentVersion: v.optional(v.number()), // Track current version number
     // Temporary field for migration
     organizationId: v.optional(v.string()),
   })
@@ -76,6 +78,42 @@ const applicationTables = {
       searchField: "title",
       filterFields: ["type", "isPublic", "status", "active"],
     }),
+
+  // Content versions (version control like Git)
+  contentVersions: defineTable({
+    contentId: v.id("content"),
+    versionNumber: v.number(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    type: v.union(
+      v.literal("video"),
+      v.literal("article"),
+      v.literal("document"),
+      v.literal("audio")
+    ),
+    fileId: v.optional(v.id("_storage")),
+    externalUrl: v.optional(v.string()),
+    richTextContent: v.optional(v.string()),
+    body: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")),
+    isPublic: v.boolean(),
+    tags: v.optional(v.array(v.string())),
+    active: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("review"),
+      v.literal("published"),
+      v.literal("rejected")
+    ),
+    // Version metadata
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    changeDescription: v.optional(v.string()), // What changed in this version
+  })
+    .index("by_content", ["contentId"])
+    .index("by_content_version", ["contentId", "versionNumber"]),
 
   // Content groups
   contentGroups: defineTable({
