@@ -20,7 +20,16 @@ export const getCurrentUserProfile = query({
       return null;
     }
 
-    return profile;
+    // Get profile picture URL if exists
+    let profilePictureUrl = null;
+    if (profile.profilePictureId) {
+      profilePictureUrl = await ctx.storage.getUrl(profile.profilePictureId);
+    }
+
+    return {
+      ...profile,
+      profilePictureUrl,
+    };
   },
 });
 
@@ -96,6 +105,7 @@ export const updateProfile = mutation({
   args: {
     firstName: v.string(),
     lastName: v.string(),
+    profilePictureId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -111,7 +121,19 @@ export const updateProfile = mutation({
     await ctx.db.patch(profile._id, {
       firstName: args.firstName,
       lastName: args.lastName,
+      profilePictureId: args.profilePictureId || undefined,
     });
+  },
+});
+
+// Generate upload URL for profile pictures
+export const generateProfilePictureUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    return await ctx.storage.generateUploadUrl();
   },
 });
 

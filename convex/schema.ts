@@ -16,6 +16,7 @@ const applicationTables = {
     ),
     firstName: v.string(),
     lastName: v.string(),
+    profilePictureId: v.optional(v.id("_storage")),
     isActive: v.boolean(),
     invitedBy: v.optional(v.id("users")),
     inviteAcceptedAt: v.optional(v.number()),
@@ -52,12 +53,14 @@ const applicationTables = {
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     // Workflow fields
-    status: v.union(
-      v.literal("draft"),
-      v.literal("review"),
-      v.literal("published"),
-      v.literal("rejected"),
-      v.literal("changes_requested")
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("review"),
+        v.literal("published"),
+        v.literal("rejected"),
+        v.literal("changes_requested")
+      )
     ),
     submittedForReviewAt: v.optional(v.number()),
     submittedForReviewBy: v.optional(v.id("users")),
@@ -104,12 +107,14 @@ const applicationTables = {
     active: v.boolean(),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
-    status: v.union(
-      v.literal("draft"),
-      v.literal("review"),
-      v.literal("published"),
-      v.literal("rejected"),
-      v.literal("changes_requested")
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("review"),
+        v.literal("published"),
+        v.literal("rejected"),
+        v.literal("changes_requested")
+      )
     ),
     // Version metadata
     createdBy: v.id("users"),
