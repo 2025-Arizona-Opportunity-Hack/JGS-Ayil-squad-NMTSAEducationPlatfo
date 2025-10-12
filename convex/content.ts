@@ -14,6 +14,7 @@ export const createContent = mutation({
       v.literal("audio")
     ),
     fileId: v.optional(v.id("_storage")),
+    thumbnailId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     richTextContent: v.optional(v.string()),
     body: v.optional(v.string()),
@@ -611,6 +612,112 @@ export const unpublishContent = mutation({
 
     await ctx.db.patch(args.contentId, {
       status: "draft",
+    });
+  },
+});
+
+// Delete content
+export const deleteContent = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    // Permission checks
+    if (profile?.role === "admin") {
+      // Admins can delete any content
+    } else if (profile?.role === "editor") {
+      // Editors can delete draft and rejected content
+      if (content.status !== "draft" && content.status !== "rejected") {
+        throw new Error("Editors can only delete content in draft or rejected status");
+      }
+    } else if (profile?.role === "contributor") {
+      // Contributors can only delete their own draft or rejected content
+      if (content.createdBy !== userId) {
+        throw new Error("Contributors can only delete their own content");
+      }
+      if (content.status !== "draft" && content.status !== "rejected") {
+        throw new Error("Contributors can only delete content in draft or rejected status");
+      }
+    } else {
+      throw new Error("You don't have permission to delete content");
+    }
+
+    // Delete related records
+    // 1. Delete all versions
+    const versions = await ctx.db
+      .query("contentVersions")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .collect();
+    
+    for (const version of versions) {
+      await ctx.db.delete(version._id);
+    }
+
+    // 2. Delete content access records
+    const accessRecords = await ctx.db
+      .query("contentAccess")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .collect();
+    
+    for (const access of accessRecords) {
+      await ctx.db.delete(access._id);
+    }
+
+    // 3. Delete from content groups
+    const groupItems = await ctx.db
+      .query("contentGroupItems")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .collect();
+    
+    for (const item of groupItems) {
+      await ctx.db.delete(item._id);
+    }
+
+    // 4. Delete content shares
+    const shares = await ctx.db
+      .query("contentShares")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .collect();
+    
+    for (const share of shares) {
+      await ctx.db.delete(share._id);
+    }
+
+    // Finally, delete the content itself
+    await ctx.db.delete(args.contentId);
+
+    // Note: Files in storage are not deleted to prevent data loss
+    // You may want to implement a cleanup job for orphaned files
+  },
+});
+
+// Update content thumbnail ID
+export const updateContentThumbnailId = mutation({
+  args: {
+    contentId: v.id("content"),
+    thumbnailId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    // Update thumbnail
+    await ctx.db.patch(args.contentId, {
+      thumbnailId: args.thumbnailId,
     });
   },
 });

@@ -163,11 +163,25 @@ export const getVersion = query({
       .withIndex("by_user_id", (q) => q.eq("userId", version.createdBy))
       .unique();
 
+    // Get file URL if fileId exists
+    let fileUrl = null;
+    if (version.fileId) {
+      fileUrl = await ctx.storage.getUrl(version.fileId);
+    }
+
+    // Get thumbnail URL if thumbnailId exists
+    let thumbnailUrl = null;
+    if (version.thumbnailId) {
+      thumbnailUrl = await ctx.storage.getUrl(version.thumbnailId);
+    }
+
     return {
       ...version,
       creatorName: creator
         ? `${creator.firstName} ${creator.lastName}`
         : "Unknown User",
+      fileUrl,
+      thumbnailUrl,
     };
   },
 });

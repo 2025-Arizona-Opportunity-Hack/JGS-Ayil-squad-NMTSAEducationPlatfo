@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { History, RotateCcw, Eye, Clock, User } from "lucide-react";
+import { History, RotateCcw, Eye, Clock, User, Video, FileText, FileAudio, Newspaper, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
+import { VideoThumbnail } from "./VideoThumbnail";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +39,7 @@ interface Version {
   versionNumber: number;
   title: string;
   description?: string;
-  type: string;
+  type: "video" | "article" | "document" | "audio";
   createdBy: string;
   createdAt: number;
   changeDescription?: string;
@@ -35,6 +47,14 @@ interface Version {
   status: string;
   isPublic: boolean;
   active: boolean;
+  fileId?: string;
+  externalUrl?: string;
+  richTextContent?: string;
+  body?: string;
+  thumbnailId?: string;
+  tags?: string[];
+  startDate?: number;
+  endDate?: number;
 }
 
 export function ContentVersionHistory({
@@ -45,28 +65,35 @@ export function ContentVersionHistory({
 }: ContentVersionHistoryProps) {
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [versionToRevert, setVersionToRevert] = useState<number | null>(null);
 
   const versions = useQuery(api.contentVersions.getVersionHistory, {
     contentId: contentId as any,
   });
 
+  const versionDetails = useQuery(
+    api.contentVersions.getVersion,
+    selectedVersion && showPreview
+      ? { contentId: contentId as any, versionNumber: selectedVersion.versionNumber }
+      : "skip" as any
+  );
+
   const revertToVersion = useMutation(api.contentVersions.revertToVersion);
 
   const handleRevert = async (versionNumber: number) => {
-    if (!confirm(`Are you sure you want to revert to version ${versionNumber}? This will create a new version with the content from version ${versionNumber}.`)) {
-      return;
-    }
-
+    const toastId = toast.loading(`Reverting to version ${versionNumber}...`);
+    
     try {
       await revertToVersion({
         contentId: contentId as any,
         versionNumber,
       });
-      alert(`Successfully reverted to version ${versionNumber}`);
+      toast.success(`Successfully reverted to version ${versionNumber}`, { id: toastId });
+      setVersionToRevert(null);
       onClose();
     } catch (error) {
       console.error("Error reverting to version:", error);
-      alert(error instanceof Error ? error.message : "Failed to revert to version");
+      toast.error(error instanceof Error ? error.message : "Failed to revert to version", { id: toastId });
     }
   };
 
@@ -93,6 +120,129 @@ export function ContentVersionHistory({
       case "draft": return "outline";
       case "rejected": return "destructive";
       default: return "outline";
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "video": return <Video className="w-5 h-5 text-primary" />;
+      case "article": return <Newspaper className="w-5 h-5 text-primary" />;
+      case "document": return <FileText className="w-5 h-5 text-primary" />;
+      case "audio": return <FileAudio className="w-5 h-5 text-primary" />;
+      default: return <FileText className="w-5 h-5 text-primary" />;
+    }
+  };
+
+  const renderContentPreview = (version: any) => {
+    if (!version) return null;
+
+    const fileUrl = version.fileUrl;
+    const thumbnailUrl = version.thumbnailUrl;
+
+    switch (version.type) {
+      case "video":
+        return (
+          <div className="space-y-4">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+              {fileUrl ? (
+                <video 
+                  src={fileUrl} 
+                  controls 
+                  className="w-full h-full"
+                  preload="metadata"
+                >
+                  Your browser does not support video playback.
+                </video>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <Video className="w-16 h-16 mx-auto mb-2" />
+                    <p>Video file not available</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            {thumbnailUrl && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Thumbnail:</span>
+                <img src={thumbnailUrl} alt="Thumbnail" className="h-16 rounded border" />
+              </div>
+            )}
+          </div>
+        );
+
+      case "audio":
+        return (
+          <div className="space-y-4">
+            {fileUrl ? (
+              <audio src={fileUrl} controls className="w-full">
+                Your browser does not support audio playback.
+              </audio>
+            ) : (
+              <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <FileAudio className="w-16 h-16 mx-auto mb-2" />
+                  <p>Audio file not available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case "document":
+        return (
+          <div className="space-y-4">
+            {fileUrl ? (
+              <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
+                <FileText className="w-10 h-10 text-primary" />
+                <div className="flex-1">
+                  <p className="font-medium">Document File</p>
+                  <p className="text-sm text-muted-foreground">Click to download or view</p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    Open
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <FileText className="w-16 h-16 mx-auto mb-2" />
+                  <p>Document file not available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case "article":
+        return (
+          <div className="space-y-4">
+            {version.externalUrl && (
+              <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg">
+                <ExternalLink className="w-5 h-5 text-primary" />
+                <a 
+                  href={version.externalUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline font-medium"
+                >
+                  {version.externalUrl}
+                </a>
+              </div>
+            )}
+            {version.richTextContent && (
+              <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
+                <div dangerouslySetInnerHTML={{ __html: version.richTextContent }} />
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -175,7 +325,7 @@ export function ContentVersionHistory({
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => void handleRevert(version.versionNumber)}
+                            onClick={() => setVersionToRevert(version.versionNumber)}
                           >
                             <RotateCcw className="w-4 h-4 mr-1" />
                             Revert
@@ -232,7 +382,10 @@ export function ContentVersionHistory({
                   <Badge variant={getStatusBadgeVariant(selectedVersion.status)}>
                     {selectedVersion.status}
                   </Badge>
-                  <Badge variant="secondary">{selectedVersion.type}</Badge>
+                  <Badge variant="secondary">
+                    <span className="mr-1">{getTypeIcon(selectedVersion.type)}</span>
+                    {selectedVersion.type}
+                  </Badge>
                   {selectedVersion.isPublic && <Badge>Public</Badge>}
                   {selectedVersion.active && <Badge variant="outline">Active</Badge>}
                 </div>
@@ -252,8 +405,80 @@ export function ContentVersionHistory({
 
                 <Separator />
 
+                {/* Content Preview */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    {getTypeIcon(selectedVersion.type)}
+                    Content Preview
+                  </h4>
+                  {versionDetails ? (
+                    renderContentPreview(versionDetails)
+                  ) : (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Body Content */}
+                {versionDetails?.body && (
+                  <>
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Additional Content</h4>
+                      <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
+                        <div dangerouslySetInnerHTML={{ __html: versionDetails.body }} />
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+
+                {/* Tags */}
+                {versionDetails?.tags && versionDetails.tags.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Tags</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {versionDetails.tags.map((tag: string) => (
+                          <Badge key={tag} variant="secondary">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+
+                {/* Availability Dates */}
+                {(versionDetails?.startDate || versionDetails?.endDate) && (
+                  <>
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Availability</h4>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        {versionDetails.startDate && (
+                          <>
+                            <dt className="text-muted-foreground">Start Date:</dt>
+                            <dd>{formatDate(versionDetails.startDate)}</dd>
+                          </>
+                        )}
+                        {versionDetails.endDate && (
+                          <>
+                            <dt className="text-muted-foreground">End Date:</dt>
+                            <dd>{formatDate(versionDetails.endDate)}</dd>
+                          </>
+                        )}
+                      </dl>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+
+                {/* Version Details */}
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Version Details</h4>
+                  <h4 className="text-sm font-medium">Version Metadata</h4>
                   <dl className="grid grid-cols-2 gap-2 text-sm">
                     <dt className="text-muted-foreground">Version Number:</dt>
                     <dd className="font-medium">{selectedVersion.versionNumber}</dd>
@@ -278,7 +503,7 @@ export function ContentVersionHistory({
             <div className="flex justify-between">
               <Button
                 variant="secondary"
-                onClick={() => void handleRevert(selectedVersion.versionNumber)}
+                onClick={() => setVersionToRevert(selectedVersion.versionNumber)}
               >
                 <RotateCcw className="w-4 h-4 mr-1" />
                 Revert to This Version
@@ -293,6 +518,24 @@ export function ContentVersionHistory({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Confirmation Dialog for Revert */}
+      <AlertDialog open={versionToRevert !== null} onOpenChange={(open) => !open && setVersionToRevert(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert to Version {versionToRevert}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore the content from version {versionToRevert}. A new version will be created to preserve the current state. This action can be undone by reverting to another version.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => versionToRevert && void handleRevert(versionToRevert)}>
+              Revert
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

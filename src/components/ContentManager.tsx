@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
 import { 
   Video, 
   FileText, 
@@ -12,17 +15,25 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  Clock,
-  Calendar,
+  Calendar as CalendarIcon,
   CheckCheck,
   Ban,
   Plus,
-  History
+  History,
+  Search,
+  X,
+  Filter,
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  Trash2
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
 import { ContentVersionHistory } from "./ContentVersionHistory";
+import { VideoThumbnail } from "./VideoThumbnail";
+import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +44,20 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -42,8 +67,12 @@ export function ContentManager() {
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [contentToDelete, setContentToDelete] = useState<any>(null);
 
   // React Hook Form
   const {
@@ -51,6 +80,7 @@ export function ContentManager() {
     handleSubmit: handleFormSubmit,
     watch,
     reset,
+    control,
     formState: { errors },
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
@@ -75,19 +105,89 @@ export function ContentManager() {
   const allContent = useQuery(api.content.listContent, {});
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
+  const deleteContentMutation = useMutation(api.content.deleteContent);
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
     const typeMatch = contentTypeFilter === "all" || item.type === contentTypeFilter;
     const statusMatch = statusFilter === "all" || item.status === statusFilter;
-    return typeMatch && statusMatch;
+    
+    // Search by title or description
+    const searchMatch = !searchQuery || 
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description?.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    // Filter by tags
+    const tagMatch = selectedTags.length === 0 || 
+      (item.tags && selectedTags.some(tag => item.tags?.includes(tag)));
+    
+    return typeMatch && statusMatch && searchMatch && tagMatch;
   }) || [];
+
+  // Get all unique tags from content
+  const allTags = Array.from(
+    new Set(
+      allContent?.flatMap(item => item.tags || []) || []
+    )
+  ).sort();
+
+  // Generate thumbnail from video
+  const generateVideoThumbnail = (videoFile: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      
+      video.onloadeddata = () => {
+        // Seek to 1 second or 10% of video duration, whichever is smaller
+        video.currentTime = Math.min(1, video.duration * 0.1);
+      };
+      
+      video.onseeked = () => {
+        // Set canvas size to video dimensions (max 640px width to keep file size reasonable)
+        const maxWidth = 640;
+        const scale = Math.min(1, maxWidth / video.videoWidth);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        
+        // Draw video frame to canvas
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Convert canvas to blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to generate thumbnail'));
+            }
+            // Cleanup
+            URL.revokeObjectURL(video.src);
+          },
+          'image/jpeg',
+          0.8
+        );
+      };
+      
+      video.onerror = () => {
+        reject(new Error('Failed to load video'));
+        URL.revokeObjectURL(video.src);
+      };
+      
+      video.src = URL.createObjectURL(videoFile);
+    });
+  };
 
   const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
     
     try {
       let fileId = undefined;
+      let thumbnailId = undefined;
       
       // Handle file upload for videos, documents, and audio
       if (selectedFile && (data.type === "video" || data.type === "document" || data.type === "audio")) {
@@ -102,6 +202,33 @@ export function ContentManager() {
           throw new Error(`Upload failed: ${JSON.stringify(json)}`);
         }
         fileId = json.storageId;
+        
+        // Generate and upload thumbnail for videos
+        if (data.type === "video") {
+          try {
+            toast.loading("Generating thumbnail...", { id: "thumbnail" });
+            const thumbnailBlob = await generateVideoThumbnail(selectedFile);
+            
+            const thumbnailUploadUrl = await generateUploadUrl();
+            const thumbnailResult = await fetch(thumbnailUploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": "image/jpeg" },
+              body: thumbnailBlob,
+            });
+            const thumbnailJson = await thumbnailResult.json();
+            
+            if (thumbnailResult.ok) {
+              thumbnailId = thumbnailJson.storageId;
+              toast.success("Thumbnail generated!", { id: "thumbnail" });
+            } else {
+              toast.dismiss("thumbnail");
+            }
+          } catch (error) {
+            console.error("Error generating thumbnail:", error);
+            toast.dismiss("thumbnail");
+            // Continue without thumbnail if generation fails
+          }
+        }
       }
 
       await createContent({
@@ -109,6 +236,7 @@ export function ContentManager() {
         description: data.description || undefined,
         type: data.type,
         fileId: fileId,
+        thumbnailId: thumbnailId,
         externalUrl: data.externalUrl || undefined,
         richTextContent: data.richTextContent || undefined,
         body: data.body || undefined,
@@ -123,9 +251,10 @@ export function ContentManager() {
       reset();
       setSelectedFile(null);
       setShowCreateForm(false);
+      toast.success("Content created successfully!");
     } catch (error) {
       console.error("Error creating content:", error);
-      alert(error instanceof Error ? error.message : "Failed to create content");
+      toast.error(error instanceof Error ? error.message : "Failed to create content");
     } finally {
       setUploading(false);
     }
@@ -146,22 +275,35 @@ export function ContentManager() {
     setShowVersionHistory(true);
   };
 
+  const handleDeleteContent = async (contentId: string) => {
+    const toastId = toast.loading("Deleting content...");
+    
+    try {
+      await deleteContentMutation({ contentId: contentId as any });
+      toast.success("Content deleted successfully!", { id: toastId });
+      setContentToDelete(null);
+    } catch (error) {
+      console.error("Error deleting content:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete content", { id: toastId });
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Check file type based on content type
       if (formType === "video" && !file.type.startsWith('video/')) {
-        alert('Please select a video file');
+        toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
       if (formType === "audio" && !file.type.startsWith('audio/')) {
-        alert('Please select an audio file');
+        toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
       if (formType === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
-        alert('Please select a document file (PDF, DOC, etc.)');
+        toast.error('Please select a document file (PDF, DOC, etc.)');
         e.target.value = '';
         return;
       }
@@ -209,59 +351,197 @@ export function ContentManager() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-2 block">Status</Label>
+      {/* Search and Filters */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2 p-0 hover:bg-transparent">
+                  <Filter className="w-5 h-5" />
+                  <CardTitle>Search & Filters</CardTitle>
+                  {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedTags([]);
+                    setStatusFilter("all");
+                    setContentTypeFilter("all");
+                  }}
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Clear All
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+          {/* Search Bar */}
+          <div className="space-y-2">
+            <Label htmlFor="search" className="text-sm font-medium">Search Content</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                id="search"
+                type="text"
+                placeholder="Search by title or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-9"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {searchQuery && (
+              <p className="text-xs text-muted-foreground">
+                Found {filteredContent.length} result{filteredContent.length !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Status Filter */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Status</Label>
             <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
               <TabsList className="grid grid-cols-5 w-full">
                 <TabsTrigger value="all" className="text-xs">
-                  All ({allContent?.length || 0})
+                  All
                 </TabsTrigger>
                 <TabsTrigger value="draft" className="text-xs">
-                  Drafts ({allContent?.filter(c => c.status === "draft").length || 0})
+                  <span className="hidden sm:inline">Drafts</span>
+                  <span className="sm:hidden">Draft</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {allContent?.filter(c => c.status === "draft").length || 0}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="review" className="text-xs">
-                  Review ({allContent?.filter(c => c.status === "review").length || 0})
+                  Review
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {allContent?.filter(c => c.status === "review").length || 0}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="published" className="text-xs">
-                  Published ({allContent?.filter(c => c.status === "published").length || 0})
+                  <span className="hidden sm:inline">Published</span>
+                  <span className="sm:hidden">Pub</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {allContent?.filter(c => c.status === "published").length || 0}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="rejected" className="text-xs">
-                  Rejected ({allContent?.filter(c => c.status === "rejected").length || 0})
+                  <span className="hidden sm:inline">Rejected</span>
+                  <span className="sm:hidden">Rej</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {allContent?.filter(c => c.status === "rejected").length || 0}
+                  </Badge>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
+
+          <Separator />
           
-          <div>
-            <Label className="text-xs text-muted-foreground mb-2 block">Content Type</Label>
+          {/* Content Type Filter */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Content Type</Label>
             <Tabs value={contentTypeFilter} onValueChange={(value) => setContentTypeFilter(value as any)}>
               <TabsList className="grid grid-cols-5 w-full">
                 <TabsTrigger value="all" className="text-xs">
-                  All ({allContent?.length || 0})
+                  All
                 </TabsTrigger>
-                <TabsTrigger value="video" className="text-xs">
-                  Videos ({getContentTypeCount("video")})
+                <TabsTrigger value="video" className="text-xs flex items-center gap-1">
+                  <Video className="w-3 h-3" />
+                  <span className="hidden sm:inline">Video</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {getContentTypeCount("video")}
+                  </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="audio" className="text-xs">
-                  Audio ({getContentTypeCount("audio")})
+                <TabsTrigger value="audio" className="text-xs flex items-center gap-1">
+                  <FileAudio className="w-3 h-3" />
+                  <span className="hidden sm:inline">Audio</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {getContentTypeCount("audio")}
+                  </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="article" className="text-xs">
-                  Articles ({getContentTypeCount("article")})
+                <TabsTrigger value="article" className="text-xs flex items-center gap-1">
+                  <Newspaper className="w-3 h-3" />
+                  <span className="hidden sm:inline">Article</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {getContentTypeCount("article")}
+                  </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="document" className="text-xs">
-                  Documents ({getContentTypeCount("document")})
+                <TabsTrigger value="document" className="text-xs flex items-center gap-1">
+                  <FileText className="w-3 h-3" />
+                  <span className="hidden sm:inline">Doc</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {getContentTypeCount("document")}
+                  </Badge>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Tag Filter */}
+          {allTags.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Filter by Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {allTags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant={selectedTags.includes(tag) ? "default" : "outline"}
+                      className="cursor-pointer hover:bg-primary/90"
+                      onClick={() => {
+                        if (selectedTags.includes(tag)) {
+                          setSelectedTags(selectedTags.filter(t => t !== tag));
+                        } else {
+                          setSelectedTags([...selectedTags, tag]);
+                        }
+                      }}
+                    >
+                      {tag}
+                      {selectedTags.includes(tag) && (
+                        <X className="w-3 h-3 ml-1" />
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Results Summary */}
+          <Separator />
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              Showing {filteredContent.length} of {allContent?.length || 0} items
+            </span>
+            {filteredContent.length !== allContent?.length && (
+              <Badge variant="secondary">
+                Filtered
+              </Badge>
+            )}
+          </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {showCreateForm && (
         <Card>
@@ -380,13 +660,19 @@ export function ContentManager() {
 
               <div className="space-y-2">
                 <Label htmlFor="body">Body (optional rich text)</Label>
-                <Textarea
-                  id="body"
-                  {...register("body")}
-                  rows={8}
-                  placeholder="Add additional rich text content, notes, or descriptions here..."
+                <Controller
+                  name="body"
+                  control={control}
+                  render={({ field }) => (
+                    <LexicalEditor
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Add additional rich text content, notes, or descriptions here..."
+                      isRichText={true}
+                    />
+                  )}
                 />
-                <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information</p>
+                <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information. Use the toolbar for formatting.</p>
               </div>
 
               <div className="space-y-2">
@@ -441,31 +727,77 @@ export function ContentManager() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="startDate">Start Date (optional)</Label>
-                      <Input
-                        id="startDate"
-                        type="datetime-local"
-                        {...register("startDate")}
-                        className={errors.startDate ? "border-destructive" : ""}
+                      <Label>Start Date (optional)</Label>
+                      <Controller
+                        name="startDate"
+                        control={control}
+                        render={({ field }) => (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground",
+                                  errors.startDate && "border-destructive"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(new Date(field.value), "PPP") : "Pick a date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ? new Date(field.value) : undefined}
+                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       />
                       {errors.startDate && (
                         <p className="text-sm text-destructive">{errors.startDate.message}</p>
                       )}
-                      <p className="text-xs text-muted-foreground">Content becomes available at this date/time</p>
+                      <p className="text-xs text-muted-foreground">Content becomes available on this date</p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="endDate">End Date (optional)</Label>
-                      <Input
-                        id="endDate"
-                        type="datetime-local"
-                        {...register("endDate")}
-                        className={errors.endDate ? "border-destructive" : ""}
+                      <Label>End Date (optional)</Label>
+                      <Controller
+                        name="endDate"
+                        control={control}
+                        render={({ field }) => (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground",
+                                  errors.endDate && "border-destructive"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(new Date(field.value), "PPP") : "Pick a date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ? new Date(field.value) : undefined}
+                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       />
                       {errors.endDate && (
                         <p className="text-sm text-destructive">{errors.endDate.message}</p>
                       )}
-                      <p className="text-xs text-muted-foreground">Content expires at this date/time</p>
+                      <p className="text-xs text-muted-foreground">Content expires on this date</p>
                     </div>
                   </div>
                 </div>
@@ -521,16 +853,48 @@ export function ContentManager() {
           </Card>
         ) : (
           // Content list
-          filteredContent.map((item) => (
-            <Card key={item._id}>
+          filteredContent.map((item, index) => (
+            <motion.div
+              key={item._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <Card>
               <CardContent className="pt-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-start flex-1">
-                    <div className="mr-3 mt-1">{getTypeIcon(item.type)}</div>
+                <div className="flex justify-between items-start gap-4">
+                  {/* Thumbnail for video/audio content */}
+                  {item.type === "video" && (
+                    <VideoThumbnail
+                      contentId={item._id}
+                      videoUrl={(item as any).fileUrl}
+                      thumbnailUrl={(item as any).thumbnailUrl}
+                      title={item.title}
+                    />
+                  )}
+                  {item.type === "audio" && (item as any).thumbnailUrl && (
+                    <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+                      <img 
+                        src={(item as any).thumbnailUrl} 
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  {item.type === "audio" && !(item as any).thumbnailUrl && (
+                    <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
+                      {getTypeIcon(item.type)}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start flex-1 min-w-0">
+                    {item.type !== "video" && item.type !== "audio" && (
+                      <div className="mr-3 mt-1 flex-shrink-0">{getTypeIcon(item.type)}</div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-lg">{item.title}</h4>
                       {item.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                       )}
                       <div className="flex items-center flex-wrap gap-2 mt-3">
                         <Badge variant="secondary" className="capitalize">
@@ -552,12 +916,12 @@ export function ContentManager() {
                         </Badge>
                         {item.startDate && (
                           <Badge variant="outline" className="gap-1">
-                            <Calendar className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
+                            <CalendarDays className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
                           </Badge>
                         )}
                         {item.endDate && (
                           <Badge variant="outline" className="gap-1">
-                            <Clock className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
+                            <CalendarDays className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
                           </Badge>
                         )}
                         {item.tags && item.tags.length > 0 && item.tags.map((tag, index) => (
@@ -593,10 +957,20 @@ export function ContentManager() {
                       <Eye className="w-4 h-4 mr-1" />
                       Access
                     </Button>
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setContentToDelete(item)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            </motion.div>
           ))
         )}
       </div>
@@ -638,6 +1012,34 @@ export function ContentManager() {
           contentTitle={selectedContent.title}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={contentToDelete !== null} onOpenChange={(open) => !open && setContentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Content?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{contentToDelete?.title}"? This action cannot be undone and will:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Delete all version history</li>
+                <li>Remove from all content groups</li>
+                <li>Delete all access permissions</li>
+                <li>Remove all shares</li>
+              </ul>
+              <p className="mt-2 font-semibold text-destructive">This is a permanent action!</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => contentToDelete && void handleDeleteContent(contentToDelete._id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

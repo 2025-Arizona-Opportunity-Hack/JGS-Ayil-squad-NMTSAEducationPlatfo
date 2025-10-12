@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
+import { LexicalEditor } from "./LexicalEditor";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +63,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     watch,
     reset,
     setValue,
+    control,
     formState: { errors },
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
@@ -142,10 +145,11 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
         endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
       });
       
+      toast.success("Content updated successfully!");
       onClose();
     } catch (error) {
       console.error("Error updating content:", error);
-      alert(error instanceof Error ? error.message : "Failed to update content");
+      toast.error(error instanceof Error ? error.message : "Failed to update content");
     } finally {
       setUploading(false);
     }
@@ -156,17 +160,17 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     if (file) {
       // Check file type based on content type
       if (formType === "video" && !file.type.startsWith('video/')) {
-        alert('Please select a video file');
+        toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
       if (formType === "audio" && !file.type.startsWith('audio/')) {
-        alert('Please select an audio file');
+        toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
       if (formType === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
-        alert('Please select a document file (PDF, DOC, etc.)');
+        toast.error('Please select a document file (PDF, DOC, etc.)');
         e.target.value = '';
         return;
       }
@@ -295,13 +299,19 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
           <div className="space-y-2">
             <Label htmlFor="body">Body (optional rich text)</Label>
-            <Textarea
-              id="body"
-              {...register("body")}
-              rows={8}
-              placeholder="Add additional rich text content, notes, or descriptions here..."
+            <Controller
+              name="body"
+              control={control}
+              render={({ field }) => (
+                <LexicalEditor
+                  value={field.value || ""}
+                  onChange={field.onChange}
+                  placeholder="Add additional rich text content, notes, or descriptions here..."
+                  isRichText={true}
+                />
+              )}
             />
-            <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information</p>
+            <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information. Use the toolbar for formatting.</p>
           </div>
 
           <div className="space-y-2">

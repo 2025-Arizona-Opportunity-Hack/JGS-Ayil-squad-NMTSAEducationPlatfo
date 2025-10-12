@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientDashboard } from "./components/ClientDashboard";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function App() {
   const user = useQuery(api.auth.loggedInUser);
@@ -39,7 +39,7 @@ export default function App() {
 
   if (!userProfile && user) {
     // Create profile for new user
-    createProfile({});
+    void createProfile({});
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -52,6 +52,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Toaster />
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
