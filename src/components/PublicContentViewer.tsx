@@ -350,25 +350,27 @@ export function PublicContentViewer() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="border-b bg-gradient-to-r from-background to-muted/40">
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex items-start gap-3">
-              {getTypeIcon(content.type)}
-              <div className="flex-1">
-                <h1 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight">
+          <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="hidden sm:block">
+                {getTypeIcon(content.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight break-words">
                   {content.title}
                 </h1>
-                <p className="text-sm text-muted-foreground italic mt-2">
+                <p className="text-xs sm:text-sm text-muted-foreground italic mt-2">
                   By {content.authorName || "Neurological Music Therapy Services of Arizona"}
                 </p>
                 {content.description && (
-                  <p className="text-muted-foreground mt-3 max-w-3xl">
+                  <p className="text-sm sm:text-base text-muted-foreground mt-3 max-w-3xl">
                     {content.description}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 mt-5 text-sm">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 sm:mt-5 text-xs sm:text-sm">
               {content.publishedAt && (
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Calendar className="w-4 h-4" />
@@ -388,10 +390,10 @@ export function PublicContentViewer() {
         </div>
 
         {/* Main Content */}
-        <div className="container mx-auto px-4 py-10 max-w-5xl">
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-10 max-w-5xl">
           {/* Media Content */}
           {content.type === "video" && (content.fileUrl || content.externalUrl) && (
-            <Card className="mb-10 shadow-lg rounded-xl overflow-hidden border">
+            <Card className="mb-6 sm:mb-10 shadow-lg rounded-lg sm:rounded-xl overflow-hidden border">
               <CardContent className="p-0">
                 <div className="aspect-video bg-black rounded-lg overflow-hidden">
                   {content.fileUrl ? (
@@ -421,8 +423,8 @@ export function PublicContentViewer() {
           )}
 
           {content.type === "audio" && (content.fileUrl || content.externalUrl) && (
-            <Card className="mb-10 shadow-sm rounded-xl border">
-              <CardContent className="p-6 md:p-8">
+            <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
+              <CardContent className="p-4 sm:p-6 md:p-8">
                 {content.fileUrl ? (
                   <audio src={content.fileUrl} controls className="w-full">
                     Your browser does not support audio playback.
@@ -445,18 +447,19 @@ export function PublicContentViewer() {
           )}
 
           {content.type === "document" && content.fileUrl && (
-            <Card className="mb-10 shadow-sm rounded-xl border">
-              <CardContent className="p-6 md:p-8">
-                <div className="flex items-center gap-4">
-                  <FileText className="w-16 h-16 text-primary" />
+            <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
+              <CardContent className="p-4 sm:p-6 md:p-8">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-primary" />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-lg">Document File</h3>
-                    <p className="text-sm text-muted-foreground">Click to download or view</p>
+                    <h3 className="font-semibold text-base sm:text-lg">Document File</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Click to download or view</p>
                   </div>
-                  <Button asChild>
+                  <Button asChild className="w-full sm:w-auto">
                     <a href={content.fileUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      Open Document
+                      <span className="hidden sm:inline">Open Document</span>
+                      <span className="sm:hidden">Open</span>
                     </a>
                   </Button>
                 </div>
@@ -465,19 +468,19 @@ export function PublicContentViewer() {
           )}
 
           {content.type === "article" && content.externalUrl && !content.richTextContent && (
-            <Card className="mb-10 shadow-sm rounded-xl border">
-              <CardContent className="p-6 md:p-8">
-                <div className="flex items-center gap-2 p-4 bg-primary/10 rounded-lg">
-                  <ExternalLink className="w-5 h-5 text-primary" />
+            <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
+              <CardContent className="p-4 sm:p-6 md:p-8">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 sm:p-4 bg-primary/10 rounded-lg">
+                  <ExternalLink className="w-5 h-5 text-primary flex-shrink-0" />
                   <a
                     href={content.externalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline font-medium flex-1 truncate"
+                    className="text-primary hover:underline font-medium flex-1 truncate text-sm sm:text-base"
                   >
                     {content.externalUrl}
                   </a>
-                  <Button asChild variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                     <a href={content.externalUrl} target="_blank" rel="noopener noreferrer">
                       Visit
                     </a>
@@ -489,13 +492,13 @@ export function PublicContentViewer() {
 
           {/* Rich Text Content (not for articles) */}
           {content.type !== "article" && content.richTextContent && (
-            <Card className="mb-10 shadow-sm rounded-xl border">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold">Content</CardTitle>
+            <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-lg sm:text-xl font-semibold">Content</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <div
-                  className="prose prose-sm md:prose-base max-w-none"
+                  className="prose prose-sm md:prose-base max-w-none break-words"
                   dangerouslySetInnerHTML={{ __html: content.richTextContent }}
                 />
               </CardContent>
@@ -504,13 +507,13 @@ export function PublicContentViewer() {
 
           {/* Body Content */}
           {content.body && (
-            <Card className="mb-10 shadow-sm rounded-xl border">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold">Additional Information</CardTitle>
+            <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-lg sm:text-xl font-semibold">Additional Information</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <div
-                  className="prose prose-sm md:prose-base max-w-none"
+                  className="prose prose-sm md:prose-base max-w-none break-words"
                   dangerouslySetInnerHTML={{ __html: content.body }}
                 />
               </CardContent>
@@ -519,17 +522,17 @@ export function PublicContentViewer() {
 
           {/* Tags */}
           {content.tags && content.tags.length > 0 && (
-            <Card className="shadow-sm rounded-xl border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Tag className="w-5 h-5" />
+            <Card className="shadow-sm rounded-lg sm:rounded-xl border">
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <Tag className="w-4 h-4 sm:w-5 sm:h-5" />
                   Tags
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
+              <CardContent className="px-4 sm:px-6">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                   {content.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="capitalize">
+                    <Badge key={tag} variant="secondary" className="capitalize text-xs sm:text-sm">
                       {tag}
                     </Badge>
                   ))}
