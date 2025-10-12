@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
@@ -5,10 +6,20 @@ import { SignOutButton } from "./SignOutButton";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientDashboard } from "./components/ClientDashboard";
 import { RoleSelection } from "./components/RoleSelection";
+import { ProfileEditModal } from "./components/ProfileEditModal";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 export default function App() {
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
+
+  const handleProfileUpdated = () => {
+    // Force a refresh by incrementing the key
+    setProfileRefreshKey((prev) => prev + 1);
+  };
 
   console.log("App state:", {
     user: !!user,
@@ -77,9 +88,25 @@ export default function App() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">
-                {userProfile?.firstName} {userProfile?.lastName}
-              </span>
+              <Button
+                variant="ghost"
+                className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={() => setIsProfileModalOpen(true)}
+              >
+                <Avatar className="w-8 h-8">
+                  <AvatarImage
+                    src={userProfile?.profilePictureUrl || undefined}
+                    alt="Profile picture"
+                  />
+                  <AvatarFallback className="text-xs">
+                    {userProfile?.firstName?.charAt(0)}
+                    {userProfile?.lastName?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm text-gray-700">
+                  {userProfile?.firstName} {userProfile?.lastName}
+                </span>
+              </Button>
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                 {userProfile?.role}
               </span>
@@ -96,6 +123,21 @@ export default function App() {
           <ClientDashboard />
         )}
       </main>
+
+      {/* Profile Edit Modal */}
+      {userProfile && (
+        <ProfileEditModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          onProfileUpdated={handleProfileUpdated}
+          currentProfile={{
+            firstName: userProfile.firstName,
+            lastName: userProfile.lastName,
+            profilePictureId: userProfile.profilePictureId,
+            profilePictureUrl: userProfile.profilePictureUrl || undefined,
+          }}
+        />
+      )}
     </div>
   );
 }
