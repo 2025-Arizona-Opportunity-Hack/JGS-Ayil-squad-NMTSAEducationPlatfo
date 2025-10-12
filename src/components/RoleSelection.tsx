@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -24,15 +25,31 @@ export function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<
     "client" | "professional" | "parent"
   >("client");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const createProfile = useMutation(api.users.createUserProfile);
   const { signOut } = useAuthActions();
 
+  // Get current user to check if they have a name from Google
+  const user = useQuery(api.auth.loggedInUser);
+  const hasNameFromAuth = user?.name && user.name.trim().length > 0;
+
   const handleRoleSelection = async () => {
+    // Validate name fields for non-Google users
+    if (!hasNameFromAuth && (!firstName.trim() || !lastName.trim())) {
+      toast.error("Please enter your first and last name");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await createProfile({ role: selectedRole });
+      await createProfile({
+        role: selectedRole,
+        firstName: hasNameFromAuth ? undefined : firstName.trim(),
+        lastName: hasNameFromAuth ? undefined : lastName.trim(),
+      });
     } catch (error) {
       console.error("Error creating profile:", error);
 
@@ -59,7 +76,9 @@ export function RoleSelection() {
         <CardHeader>
           <CardTitle>Welcome to NMTSA!</CardTitle>
           <CardDescription>
-            Please select your role to personalize your experience.
+            {hasNameFromAuth
+              ? "Please select your role to personalize your experience."
+              : "Please provide your information to set up your profile."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -101,6 +120,34 @@ export function RoleSelection() {
               )}
             </div>
           </div>
+
+          {/* Name fields for non-Google users */}
+          {!hasNameFromAuth && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Enter your first name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Enter your last name"
+                  required
+                />
+              </div>
+            </div>
+          )}
 
           {error === "duplicate" ? (
             <div className="space-y-3">

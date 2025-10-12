@@ -2,7 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Plus, X, UserPlus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +32,7 @@ export function UserGroupManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       await createUserGroup({
         name: formData.name,
@@ -62,7 +68,7 @@ export function UserGroupManager() {
     }
   };
 
-  const nonAdminUsers = users?.filter(user => user.role !== "admin") || [];
+  const nonAdminUsers = users?.filter((user) => user.role !== "admin") || [];
 
   return (
     <div className="space-y-6">
@@ -71,7 +77,9 @@ export function UserGroupManager() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle>User Groups</CardTitle>
-              <CardDescription>Create and manage user groups for easier content access control</CardDescription>
+              <CardDescription>
+                Create and manage user groups for easier content access control
+              </CardDescription>
             </div>
             <Button onClick={() => setShowCreateForm(true)}>
               <Plus className="w-4 h-4 mr-1" />
@@ -83,17 +91,26 @@ export function UserGroupManager() {
           <CardContent>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Create New User Group</CardTitle>
+                <CardTitle className="text-base">
+                  Create New User Group
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+                <form
+                  onSubmit={(e) => {
+                    void handleSubmit(e);
+                  }}
+                  className="space-y-4"
+                >
                   <div className="space-y-2">
                     <Label htmlFor="groupName">Group Name</Label>
                     <Input
                       id="groupName"
                       required
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       placeholder="e.g., Advanced Practitioners"
                     />
                   </div>
@@ -103,16 +120,19 @@ export function UserGroupManager() {
                     <Textarea
                       id="groupDescription"
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                       rows={3}
                       placeholder="Describe this user group..."
                     />
                   </div>
 
                   <div className="flex gap-3">
-                    <Button type="submit">
-                      Create Group
-                    </Button>
+                    <Button type="submit">Create Group</Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -150,20 +170,39 @@ interface UserGroupCardProps {
   onRemoveUser: (groupId: string, userId: string) => void;
 }
 
-function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardProps) {
+function UserGroupCard({
+  group,
+  users,
+  onAddUser,
+  onRemoveUser,
+}: UserGroupCardProps) {
   const [showAddUser, setShowAddUser] = useState(false);
-  const groupMembers = useQuery(api.userGroups.getGroupMembers, { groupId: group._id });
+  const groupMembers = useQuery(api.userGroups.getGroupMembers, {
+    groupId: group._id,
+  });
 
-  const availableUsers = users.filter(user => 
-    !groupMembers?.some(member => member.userId === user.userId)
+  // Filter group members to only include those that have corresponding user data
+  const validGroupMembers =
+    groupMembers?.filter((member) =>
+      users.find((u) => u.userId === member.userId)
+    ) || [];
+
+  const availableUsers = users.filter(
+    (user) => !groupMembers?.some((member) => member.userId === user.userId)
   );
 
-  const getRoleBadgeVariant = (role: string): "default" | "secondary" | "outline" | "destructive" => {
+  const getRoleBadgeVariant = (
+    role: string
+  ): "default" | "secondary" | "outline" | "destructive" => {
     switch (role) {
-      case "professional": return "secondary";
-      case "parent": return "default";
-      case "client": return "outline";
-      default: return "outline";
+      case "professional":
+        return "secondary";
+      case "parent":
+        return "default";
+      case "client":
+        return "outline";
+      default:
+        return "outline";
     }
   };
 
@@ -185,7 +224,7 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
       <CardContent className="space-y-4">
         <div className="flex justify-between items-center">
           <h5 className="text-sm font-medium">
-            Members ({groupMembers?.length || 0})
+            Members ({validGroupMembers.length})
           </h5>
           <Button
             variant="ghost"
@@ -198,26 +237,30 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
         </div>
 
         {/* Current Members */}
-        {groupMembers && groupMembers.length > 0 && (
+        {validGroupMembers.length > 0 && (
           <div className="space-y-2">
-            {groupMembers.map((member) => {
-              const user = users.find(u => u.userId === member.userId);
+            {validGroupMembers.map((member) => {
+              const user = users.find((u) => u.userId === member.userId);
               if (!user) return null;
-              
+
               return (
                 <Card key={member.userId} className="bg-muted/50">
                   <CardContent className="flex items-center justify-between p-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="text-xs">
-                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          {user.firstName.charAt(0)}
+                          {user.lastName.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="text-sm font-medium">
                           {user.firstName} {user.lastName}
                         </p>
-                        <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                        <Badge
+                          variant={getRoleBadgeVariant(user.role)}
+                          className="text-xs"
+                        >
                           {user.role}
                         </Badge>
                       </div>
@@ -245,19 +288,26 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
               <h6 className="text-sm font-medium mb-3">Add Users to Group</h6>
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {availableUsers.map((user) => (
-                  <Card key={user.userId} className="hover:bg-accent/50 transition-colors">
+                  <Card
+                    key={user.userId}
+                    className="hover:bg-accent/50 transition-colors"
+                  >
                     <CardContent className="flex items-center justify-between p-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className="text-xs">
-                            {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                            {user.firstName.charAt(0)}
+                            {user.lastName.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="text-sm font-medium">
                             {user.firstName} {user.lastName}
                           </p>
-                          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                          <Badge
+                            variant={getRoleBadgeVariant(user.role)}
+                            className="text-xs"
+                          >
                             {user.role}
                           </Badge>
                         </div>
@@ -280,7 +330,9 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
         {showAddUser && availableUsers.length === 0 && (
           <>
             <Separator />
-            <p className="text-sm text-muted-foreground">All users are already in this group.</p>
+            <p className="text-sm text-muted-foreground">
+              All users are already in this group.
+            </p>
           </>
         )}
       </CardContent>
