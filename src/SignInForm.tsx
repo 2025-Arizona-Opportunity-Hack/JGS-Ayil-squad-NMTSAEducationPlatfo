@@ -213,9 +213,6 @@ export function SignInForm() {
                   errorMessage.includes("InvalidSecret") ||
                   errorName.includes("InvalidSecret") ||
                   errorString.includes("InvalidSecret") ||
-                  errorMessage.includes("InvalidAccountId") ||
-                  errorName.includes("InvalidAccountId") ||
-                  errorString.includes("InvalidAccountId") ||
                   (errorMessage.includes("Invalid password") &&
                     flow === "signIn") ||
                   (errorMessage.includes("password") && flow === "signIn") ||
@@ -236,6 +233,9 @@ export function SignInForm() {
                   setError("password");
                 } else if (
                   errorMessage.includes("User not found") ||
+                  errorMessage.includes("InvalidAccountId") ||
+                  errorName.includes("InvalidAccountId") ||
+                  errorString.includes("InvalidAccountId") ||
                   errorMessage.includes("email") ||
                   errorMessage.includes("account")
                 ) {
