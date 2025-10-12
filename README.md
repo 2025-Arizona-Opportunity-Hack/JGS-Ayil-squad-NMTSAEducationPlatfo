@@ -1,3 +1,5 @@
+📖 **[View Full Documentation](https://github.com/2025-Arizona-Opportunity-Hack/JGS-Ayil-squad-NMTSAEducationPlatfo/blob/main/DOCUMENTATION.md)**
+
 # Learning Management System for Neurological Music Therapy
 
 This is a project built with [Chef](https://chef.convex.dev) using [Convex](https://convex.dev) as its backend.
