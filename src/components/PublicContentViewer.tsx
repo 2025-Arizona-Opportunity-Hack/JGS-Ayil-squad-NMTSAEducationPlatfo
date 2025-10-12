@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, User, Calendar, Tag, Eye } from "lucide-react";
+import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
 import { Logo } from "./Logo";
@@ -302,6 +302,9 @@ export function PublicContentViewer() {
               {getTypeIcon(content.type)}
               <div className="flex-1">
                 <h1 className="text-3xl font-bold">{content.title}</h1>
+                <p className="text-sm text-muted-foreground italic mt-1">
+                  By {content.authorName || "Neurological Music Therapy Services of Arizona"}
+                </p>
                 {content.description && (
                   <p className="text-muted-foreground mt-2">{content.description}</p>
                 )}
@@ -309,12 +312,6 @@ export function PublicContentViewer() {
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-4 text-sm">
-              {content.creatorName && (
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <User className="w-4 h-4" />
-                  <span>{content.creatorName}</span>
-                </div>
-              )}
               {content.publishedAt && (
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Calendar className="w-4 h-4" />

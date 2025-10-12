@@ -10,9 +10,12 @@ interface Content {
   thumbnailUrl?: string | null;
   duration?: number;
   richTextContent?: string;
+  authorName?: string;
   tags?: string[];
   _creationTime: number;
 }
+
+const DEFAULT_AUTHOR = "Neurological Music Therapy Services of Arizona";
 
 interface ContentViewerProps {
   content: Content[];
@@ -58,6 +61,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 {getTypeIcon(selectedContent.type)} {selectedContent.title}
               </h2>
+              <p className="text-sm text-gray-500 italic mb-3">
+                By {selectedContent.authorName || DEFAULT_AUTHOR}
+              </p>
               {selectedContent.description && (
                 <p className="text-gray-600 mb-4">{selectedContent.description}</p>
               )}
@@ -154,6 +160,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
                 {getTypeIcon(item.type)} {item.title}
               </h3>
             </div>
+            <p className="text-xs text-gray-500 italic mb-2">
+              By {item.authorName || DEFAULT_AUTHOR}
+            </p>
             
             {item.description && (
               <p className="text-gray-600 text-sm mb-3 line-clamp-2">
