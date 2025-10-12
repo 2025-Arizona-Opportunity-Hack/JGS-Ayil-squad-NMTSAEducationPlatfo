@@ -61,8 +61,8 @@ export const getContentAnalytics = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view analytics");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view analytics");
     }
 
     // Get all views for this content
@@ -167,8 +167,8 @@ export const getAllContentAnalytics = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view analytics");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view analytics");
     }
 
     // Get all content
@@ -225,8 +225,8 @@ export const getContentViewCounts = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view analytics");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view analytics");
     }
 
     // Get all content views

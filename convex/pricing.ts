@@ -20,8 +20,8 @@ export const setPricing = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can set pricing");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can set pricing");
     }
 
     // Check if pricing already exists
@@ -69,8 +69,8 @@ export const removePricing = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can remove pricing");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can remove pricing");
     }
 
     const pricing = await ctx.db
@@ -152,7 +152,7 @@ export const listPricedContent = query({
   },
 });
 
-// Get all pricing (admin only)
+// Get all pricing (admin/owner only)
 export const listAllPricing = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -164,8 +164,11 @@ export const listAllPricing = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view all pricing");
+    if (
+      !userProfile ||
+      !["admin", "owner", "editor", "contributor"].includes(userProfile.role)
+    ) {
+      throw new Error("Only admins, owners, editors, or contributors can view pricing");
     }
 
     const allPricing = await ctx.db

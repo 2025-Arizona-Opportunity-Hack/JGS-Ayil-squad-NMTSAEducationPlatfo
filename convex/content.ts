@@ -94,8 +94,8 @@ export const normalizeArticlesRemoveRichText = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can run normalization");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can run normalization");
     }
 
     const all = await ctx.db
@@ -341,8 +341,8 @@ export const grantContentAccess = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can grant content access");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can grant content access");
     }
 
     return await ctx.db.insert("contentAccess", {
@@ -387,8 +387,8 @@ export const updateContentPublic = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can update content visibility");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can update content visibility");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -627,8 +627,8 @@ export const approveContent = mutation({
       .unique();
 
     // Only editors and admins can approve content
-    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
-      throw new Error("Only editors and admins can approve content");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
+      throw new Error("Only editors, admins, or the owner can approve content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -664,8 +664,8 @@ export const rejectContent = mutation({
       .unique();
 
     // Only editors and admins can reject content
-    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
-      throw new Error("Only editors and admins can reject content");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
+      throw new Error("Only editors, admins, or the owner can reject content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -700,8 +700,8 @@ export const requestChanges = mutation({
       .unique();
 
     // Only editors and admins can request changes
-    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
-      throw new Error("Only editors and admins can request changes");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
+      throw new Error("Only editors, admins, or the owner can request changes");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -734,9 +734,9 @@ export const unpublishContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only admins can unpublish content
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can unpublish content");
+    // Only admins or owner can unpublish content
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can unpublish content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -770,7 +770,7 @@ export const deleteContent = mutation({
     if (!content) throw new Error("Content not found");
 
     // Permission checks
-    if (profile?.role === "admin") {
+    if (profile?.role === "admin" || profile?.role === "owner") {
       // Admins can delete any content
     } else if (profile?.role === "editor") {
       // Editors can delete draft and rejected content
@@ -902,11 +902,76 @@ export const createDemoContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, editors, and contributors can create content");
+    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
+      throw new Error("Only admins, editors, contributors, or the owner can create content");
     }
 
     const demoContents = [
+      {
+        title: "Therapy Session Demo Video",
+        description: "Example video from the project assets for demo purposes",
+        type: "video" as const,
+        externalUrl: "/src/assets/examples/videos/example_video.mp4",
+        isPublic: true,
+        active: true,
+        tags: ["Demo", "Video", "Example"],
+      },
+      {
+        title: "Music Therapy Visuals",
+        description: "Demo article showcasing embedded example images",
+        type: "article" as const,
+        body: `<h2>Image Examples</h2>
+<p>Below are sample images bundled with the application for demonstration.</p>
+<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start">
+  <img src="/src/assets/examples/images/example_image.jpeg" alt="Example Image 1" style="max-width:300px; border-radius:8px; border:1px solid #ddd"/>
+  <img src="/src/assets/examples/images/example_image_2.jpg" alt="Example Image 2" style="max-width:300px; border-radius:8px; border:1px solid #ddd"/>
+</div>`,
+        isPublic: true,
+        active: true,
+        tags: ["Demo", "Images", "Article"],
+      },
+      // Autism Spectrum Disorder Resources
+      {
+        title: "Music Therapy for Autism Spectrum Disorder",
+        description: "Evidence-based approaches for using music therapy with individuals on the autism spectrum",
+        type: "article" as const,
+        body: `<h2>Music Therapy and Autism</h2>
+<p>Music therapy has emerged as a powerful intervention for individuals with Autism Spectrum Disorder (ASD), addressing communication, social interaction, and behavioral challenges.</p>
+<h3>Key Applications:</h3>
+<ul>
+<li>Enhancing verbal and non-verbal communication skills</li>
+<li>Promoting social engagement and turn-taking</li>
+<li>Reducing anxiety and sensory sensitivities</li>
+<li>Supporting emotional regulation and self-expression</li>
+<li>Developing motor coordination and body awareness</li>
+</ul>
+<h3>Techniques:</h3>
+<p>Improvisational music therapy, structured musical activities, and songwriting can help individuals with ASD develop communication skills, express emotions, and build meaningful connections with others.</p>
+<p>Research shows that music engages multiple areas of the brain simultaneously, making it an ideal medium for addressing the diverse needs of individuals on the spectrum.</p>`,
+        tags: ["Autism", "ASD", "Communication", "Social Skills", "Therapy"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Stress Reduction Through Music Therapy",
+        description: "Practical techniques for managing stress and anxiety using therapeutic music interventions",
+        type: "article" as const,
+        body: `<h2>Music Therapy for Stress Management</h2>
+<p>Music therapy offers evidence-based techniques for reducing stress, managing anxiety, and promoting relaxation and well-being.</p>
+<h3>Stress-Reducing Techniques:</h3>
+<ul>
+<li><strong>Receptive Music Listening:</strong> Carefully selected music to promote relaxation and reduce cortisol levels</li>
+<li><strong>Rhythmic Breathing:</strong> Synchronizing breath with musical rhythms to activate the parasympathetic nervous system</li>
+<li><strong>Progressive Muscle Relaxation with Music:</strong> Combining physical relaxation techniques with calming soundscapes</li>
+<li><strong>Musical Improvisation:</strong> Expressing and processing emotions through spontaneous music-making</li>
+<li><strong>Guided Imagery and Music (GIM):</strong> Using music to facilitate deep relaxation and emotional exploration</li>
+</ul>
+<h3>Physiological Benefits:</h3>
+<p>Research demonstrates that music therapy can lower heart rate, reduce blood pressure, decrease cortisol levels, and increase endorphin production, creating measurable improvements in stress markers.</p>`,
+        tags: ["Stress", "Anxiety", "Relaxation", "Wellness", "Mental Health"],
+        isPublic: true,
+        active: true,
+      },
       {
         title: "Introduction to Neurologic Music Therapy",
         description: "Learn about the fundamentals of NMT and how it helps patients with neurological conditions",
@@ -926,49 +991,244 @@ export const createDemoContent = mutation({
         active: true,
       },
       {
-        title: "Rhythmic Auditory Stimulation Demo",
-        description: "A sample session demonstrating RAS techniques for gait training",
-        type: "video" as const,
-        externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        tags: ["RAS", "Gait Training", "Demo", "Techniques"],
-        isPublic: false,
-        active: true,
-      },
-      {
-        title: "Melodic Intonation Therapy Guide",
-        description: "Comprehensive guide for using MIT in speech rehabilitation",
-        type: "document" as const,
-        body: "This document provides step-by-step instructions for implementing Melodic Intonation Therapy techniques with patients recovering from aphasia.",
-        tags: ["MIT", "Speech", "Aphasia", "Guide"],
-        isPublic: false,
-        active: true,
-      },
-      {
-        title: "Therapeutic Music Exercise Session",
-        description: "Audio recording of a guided music-based exercise routine",
-        type: "audio" as const,
-        externalUrl: "https://example.com/audio-demo.mp3",
-        tags: ["Exercise", "Audio", "Therapy", "Guided"],
+        title: "Sensory Processing and Music Therapy",
+        description: "How music therapy supports individuals with sensory processing challenges",
+        type: "article" as const,
+        body: `<h2>Music Therapy for Sensory Processing</h2>
+<p>Music therapy provides structured sensory experiences that can help individuals with sensory processing difficulties regulate their responses to environmental stimuli.</p>
+<h3>Sensory Integration Through Music:</h3>
+<ul>
+<li><strong>Auditory Processing:</strong> Developing discrimination, sequencing, and attention skills</li>
+<li><strong>Tactile Stimulation:</strong> Exploring different instrument textures and vibrations</li>
+<li><strong>Vestibular Input:</strong> Movement-based musical activities for balance and coordination</li>
+<li><strong>Proprioceptive Feedback:</strong> Using rhythm and movement to enhance body awareness</li>
+</ul>
+<p>Therapeutic music activities can be carefully calibrated to provide the right amount of sensory input, helping individuals achieve optimal arousal levels and improved self-regulation.</p>`,
+        tags: ["Sensory Processing", "Autism", "Regulation", "Integration"],
         isPublic: true,
         active: true,
       },
       {
-        title: "Music Therapy for Parkinson's Disease",
-        description: "Advanced techniques for using rhythm and movement in Parkinson's treatment",
+        title: "Music Therapy for ADHD and Executive Function",
+        description: "Using music-based interventions to support attention, focus, and executive functioning",
         type: "article" as const,
-        body: `<h2>Music Therapy and Parkinson's Disease</h2>
-<p>Music therapy has shown remarkable results in helping Parkinson's patients manage their symptoms and improve quality of life.</p>
-<h3>Rhythmic Interventions:</h3>
-<p>Using steady beats and rhythmic cues can help patients:</p>
+        body: `<h2>Music Therapy and ADHD</h2>
+<p>Music therapy offers unique approaches to supporting individuals with ADHD by engaging attention, promoting self-regulation, and developing executive function skills.</p>
+<h3>Therapeutic Approaches:</h3>
 <ul>
-<li>Maintain steady gait patterns</li>
-<li>Reduce freezing episodes</li>
-<li>Improve balance and coordination</li>
-<li>Enhance overall motor function</li>
+<li><strong>Rhythmic Entrainment:</strong> Using steady beats to improve sustained attention and task completion</li>
+<li><strong>Musical Games:</strong> Developing impulse control and turn-taking skills</li>
+<li><strong>Composition Activities:</strong> Enhancing planning, organization, and working memory</li>
+<li><strong>Movement to Music:</strong> Channeling energy productively while improving motor control</li>
 </ul>
-<p>Research continues to demonstrate the powerful impact of music on the brain's motor systems.</p>`,
-        tags: ["Parkinson's", "Movement", "Advanced", "Research"],
+<h3>Executive Function Development:</h3>
+<p>Structured musical activities naturally require planning, sequencing, self-monitoring, and flexible thinking—all key executive function skills that can transfer to daily life activities.</p>`,
+        tags: ["ADHD", "Attention", "Executive Function", "Focus", "Self-Regulation"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Trauma-Informed Music Therapy",
+        description: "Approaches for using music therapy with trauma survivors in a safe and supportive way",
+        type: "article" as const,
+        body: `<h2>Music Therapy and Trauma Recovery</h2>
+<p>Trauma-informed music therapy provides a safe, non-verbal medium for processing traumatic experiences and building resilience.</p>
+<h3>Core Principles:</h3>
+<ul>
+<li>Creating a safe therapeutic environment</li>
+<li>Empowering client choice and control</li>
+<li>Building trust through consistent structure</li>
+<li>Supporting emotional regulation before processing</li>
+<li>Honoring individual pace and readiness</li>
+</ul>
+<h3>Therapeutic Techniques:</h3>
+<p>Music therapy offers multiple pathways for trauma recovery, including songwriting for narrative reconstruction, improvisation for emotional expression, and receptive listening for grounding and stabilization.</p>
+<p>The non-verbal nature of music can access emotions and memories that may be difficult to verbalize, while providing a sense of safety and containment.</p>`,
+        tags: ["Trauma", "PTSD", "Recovery", "Mental Health", "Safety"],
         isPublic: false,
+        active: true,
+      },
+      {
+        title: "Music Therapy for Depression and Mood Disorders",
+        description: "Evidence-based music therapy interventions for managing depression and improving mood",
+        type: "article" as const,
+        body: `<h2>Music Therapy and Depression</h2>
+<p>Music therapy has demonstrated effectiveness in reducing symptoms of depression and supporting emotional well-being through active and receptive interventions.</p>
+<h3>Therapeutic Interventions:</h3>
+<ul>
+<li><strong>Songwriting:</strong> Processing emotions and creating meaning through lyric composition</li>
+<li><strong>Music-Assisted Relaxation:</strong> Reducing rumination and promoting positive mood states</li>
+<li><strong>Group Music-Making:</strong> Combating isolation and building social connections</li>
+<li><strong>Lyric Analysis:</strong> Exploring themes of hope, resilience, and recovery</li>
+<li><strong>Improvisation:</strong> Expressing difficult emotions in a safe, contained way</li>
+</ul>
+<h3>Neurobiological Effects:</h3>
+<p>Music therapy can influence neurotransmitter systems involved in mood regulation, including dopamine, serotonin, and oxytocin, while also reducing stress hormones.</p>`,
+        tags: ["Depression", "Mood", "Mental Health", "Emotional Wellness"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Rhythmic Auditory Stimulation for Gait Training",
+        description: "Using RAS techniques to improve walking patterns in neurological rehabilitation",
+        type: "article" as const,
+        body: `<h2>Rhythmic Auditory Stimulation (RAS)</h2>
+<p>RAS is a neurologic music therapy technique that uses rhythmic cues to improve motor control and coordination, particularly in gait rehabilitation.</p>
+<h3>Clinical Applications:</h3>
+<ul>
+<li>Parkinson's disease gait training</li>
+<li>Stroke rehabilitation</li>
+<li>Traumatic brain injury recovery</li>
+<li>Cerebral palsy motor development</li>
+<li>Multiple sclerosis mobility support</li>
+</ul>
+<h3>How It Works:</h3>
+<p>The auditory system has direct connections to motor areas of the brain. Rhythmic cues provide external timing signals that help organize and stabilize movement patterns, leading to improved gait velocity, stride length, and cadence.</p>
+<p>Research shows that RAS can produce immediate improvements in gait parameters, with benefits maintained through regular practice.</p>`,
+        tags: ["RAS", "Gait", "Movement", "Rehabilitation", "Parkinson's"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Music Therapy for Dementia and Alzheimer's",
+        description: "Using music to support memory, cognition, and quality of life in dementia care",
+        type: "article" as const,
+        body: `<h2>Music Therapy in Dementia Care</h2>
+<p>Music therapy is one of the most effective non-pharmacological interventions for individuals with dementia, accessing preserved musical memory even in advanced stages.</p>
+<h3>Benefits:</h3>
+<ul>
+<li>Stimulating long-term memory through familiar songs</li>
+<li>Reducing agitation and behavioral symptoms</li>
+<li>Improving mood and emotional expression</li>
+<li>Facilitating social interaction and communication</li>
+<li>Providing meaningful engagement and quality of life</li>
+</ul>
+<h3>Evidence-Based Approaches:</h3>
+<p>Personalized music listening, group singing, and reminiscence through music can all support cognitive function, reduce anxiety, and enhance well-being for individuals with dementia and their caregivers.</p>`,
+        tags: ["Dementia", "Alzheimer's", "Memory", "Elderly", "Cognition"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Melodic Intonation Therapy for Aphasia",
+        description: "Using MIT to support speech recovery after stroke or brain injury",
+        type: "article" as const,
+        body: `<h2>Melodic Intonation Therapy (MIT)</h2>
+<p>MIT is a specialized neurologic music therapy technique that uses melodic and rhythmic elements to facilitate speech production in individuals with non-fluent aphasia.</p>
+<h3>The MIT Process:</h3>
+<ul>
+<li>Phrases are intoned (sung) using simple melodic patterns</li>
+<li>Left hand tapping provides rhythmic cues</li>
+<li>Gradual progression from singing to speaking</li>
+<li>Systematic fading of musical elements</li>
+</ul>
+<h3>Neurological Basis:</h3>
+<p>MIT engages right hemisphere language areas and can help establish new neural pathways for speech production when left hemisphere language centers are damaged.</p>
+<p>Research demonstrates significant improvements in speech output for individuals with moderate to severe non-fluent aphasia.</p>`,
+        tags: ["MIT", "Aphasia", "Speech", "Stroke", "Language"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Music Therapy for Pain Management",
+        description: "Using music-based interventions to reduce pain perception and improve coping",
+        type: "article" as const,
+        body: `<h2>Music Therapy and Pain Management</h2>
+<p>Music therapy offers non-pharmacological approaches to pain management through multiple mechanisms including distraction, relaxation, and emotional support.</p>
+<h3>Pain Management Techniques:</h3>
+<ul>
+<li><strong>Music-Assisted Relaxation:</strong> Reducing muscle tension and stress-related pain</li>
+<li><strong>Rhythmic Breathing:</strong> Using musical phrasing to guide deep breathing</li>
+<li><strong>Active Music-Making:</strong> Providing distraction and sense of control</li>
+<li><strong>Lyric Analysis:</strong> Reframing pain experiences and building coping strategies</li>
+</ul>
+<h3>Clinical Evidence:</h3>
+<p>Studies show music therapy can reduce pain intensity, decrease anxiety related to pain, and reduce the need for pain medication in various medical settings.</p>`,
+        tags: ["Pain", "Chronic Pain", "Palliative Care", "Wellness"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Pediatric Music Therapy: Developmental Support",
+        description: "Using music therapy to support child development across multiple domains",
+        type: "article" as const,
+        body: `<h2>Music Therapy in Pediatric Care</h2>
+<p>Music therapy supports children's development across cognitive, motor, communication, social, and emotional domains through engaging, developmentally appropriate interventions.</p>
+<h3>Developmental Areas:</h3>
+<ul>
+<li><strong>Communication:</strong> Supporting speech and language development</li>
+<li><strong>Motor Skills:</strong> Developing fine and gross motor coordination</li>
+<li><strong>Social Skills:</strong> Practicing turn-taking, sharing, and cooperation</li>
+<li><strong>Emotional Regulation:</strong> Identifying and expressing feelings appropriately</li>
+<li><strong>Cognitive Skills:</strong> Enhancing attention, memory, and problem-solving</li>
+</ul>
+<h3>Populations Served:</h3>
+<p>Pediatric music therapy benefits children with autism, developmental delays, cerebral palsy, genetic disorders, and those in medical settings.</p>`,
+        tags: ["Pediatric", "Children", "Development", "Early Intervention"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Group Music Therapy: Building Community and Connection",
+        description: "The power of group music-making for social connection and therapeutic growth",
+        type: "article" as const,
+        body: `<h2>Group Music Therapy</h2>
+<p>Group music therapy harnesses the power of shared musical experiences to build community, develop social skills, and provide mutual support.</p>
+<h3>Group Benefits:</h3>
+<ul>
+<li>Reducing isolation and building social connections</li>
+<li>Providing peer support and validation</li>
+<li>Developing communication and cooperation skills</li>
+<li>Creating a sense of belonging and community</li>
+<li>Offering opportunities for leadership and contribution</li>
+</ul>
+<h3>Group Formats:</h3>
+<p>Drum circles, choir groups, songwriting groups, and improvisation ensembles each offer unique therapeutic benefits while fostering connection and shared meaning-making.</p>`,
+        tags: ["Group Therapy", "Community", "Social Skills", "Connection"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Music Therapy Assessment and Treatment Planning",
+        description: "Professional guide to conducting music therapy assessments and developing individualized treatment plans",
+        type: "article" as const,
+        body: `<h2>Music Therapy Assessment</h2>
+<p>Comprehensive assessment is the foundation of effective music therapy practice, informing individualized treatment planning and goal development.</p>
+<h3>Assessment Domains:</h3>
+<ul>
+<li>Musical preferences and history</li>
+<li>Cognitive functioning and attention</li>
+<li>Communication and language skills</li>
+<li>Motor abilities and coordination</li>
+<li>Social and emotional functioning</li>
+<li>Sensory processing and preferences</li>
+</ul>
+<h3>Treatment Planning:</h3>
+<p>Based on assessment findings, music therapists develop SMART goals (Specific, Measurable, Achievable, Relevant, Time-bound) and select evidence-based interventions matched to client needs and preferences.</p>
+<p>Regular progress monitoring and outcome measurement ensure accountability and guide treatment modifications.</p>`,
+        tags: ["Assessment", "Treatment Planning", "Professional", "Clinical Practice"],
+        isPublic: false,
+        active: true,
+      },
+      {
+        title: "Cultural Considerations in Music Therapy",
+        description: "Providing culturally responsive and inclusive music therapy services",
+        type: "article" as const,
+        body: `<h2>Culturally Responsive Music Therapy</h2>
+<p>Effective music therapy practice requires cultural humility, awareness, and responsiveness to the diverse backgrounds and identities of clients.</p>
+<h3>Key Principles:</h3>
+<ul>
+<li>Honoring clients' musical traditions and preferences</li>
+<li>Recognizing music's cultural meanings and contexts</li>
+<li>Addressing power dynamics and historical trauma</li>
+<li>Adapting interventions to cultural values and norms</li>
+<li>Engaging in ongoing cultural self-reflection</li>
+</ul>
+<h3>Inclusive Practice:</h3>
+<p>Music therapists must consider how race, ethnicity, language, religion, gender identity, sexual orientation, disability, and socioeconomic status shape clients' experiences and therapeutic needs.</p>
+<p>Building authentic relationships across difference requires humility, curiosity, and commitment to equity and justice.</p>`,
+        tags: ["Cultural Competence", "Diversity", "Inclusion", "Equity"],
+        isPublic: true,
         active: true,
       }
     ];

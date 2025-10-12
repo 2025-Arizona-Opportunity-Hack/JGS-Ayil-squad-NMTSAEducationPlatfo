@@ -85,8 +85,8 @@ export const getActiveViewers = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view presence data");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view presence data");
     }
 
     // Get all presence records updated in the last 2 minutes
@@ -115,8 +115,8 @@ export const getContentViewers = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view presence data");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view presence data");
     }
 
     // Get all presence records for this content updated in the last 2 minutes

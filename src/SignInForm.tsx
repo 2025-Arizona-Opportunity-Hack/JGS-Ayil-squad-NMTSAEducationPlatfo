@@ -1,7 +1,7 @@
 "use client";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,8 @@ import { Logo } from "./components/Logo";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
+  const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
+  const createOwnerProfile = useMutation(api.users.createOwnerProfile);
   const [flow, setFlow] = useState<"signIn" | "signUp" | "forgotPassword" | "resetSent">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,14 @@ export function SignInForm() {
     api.inviteCodes.validateInviteCode,
     showInviteCode && inviteCode.length >= 6 ? { code: inviteCode } : "skip"
   );
+
+  // If no profiles exist, guide user to create the owner account
+  useEffect(() => {
+    if (bootstrapNeeded) {
+      setFlow("signUp");
+      setShowInviteCode(false);
+    }
+  }, [bootstrapNeeded]);
 
   // Handle forgot password submission
   const handleForgotPassword = (e: React.FormEvent<HTMLFormElement>) => {
@@ -173,6 +183,11 @@ export function SignInForm() {
             ? "Welcome back! Please sign in to continue."
             : "Create a new account to get started."}
         </CardDescription>
+        {bootstrapNeeded && (
+          <div className="mt-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded">
+            This is the first time setup. Create your owner account. You will be able to promote other users to admin later.
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <form
@@ -193,8 +208,21 @@ export function SignInForm() {
             }
 
             void signIn("password", formData)
-              .then(() => {
-                // Success - reset submitting state will be handled by navigation
+              .then(async () => {
+                // If this is the very first account, make it the owner
+                if (flow === "signUp" && bootstrapNeeded) {
+                  try {
+                    await createOwnerProfile({});
+                    toast.success("Owner account created", {
+                      description: "You are the site owner. You can promote other users to admin in settings.",
+                    });
+                  } catch (err) {
+                    console.error("createOwnerProfile error:", err);
+                    toast.error("Failed to finalize owner setup", {
+                      description: "You're signed in, but owner setup did not complete. Try again or contact support.",
+                    });
+                  }
+                }
                 setSubmitting(false);
               })
               .catch((error) => {

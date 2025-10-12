@@ -18,8 +18,8 @@ export const createUserGroup = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can create user groups");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can create user groups");
     }
 
     return await ctx.db.insert("userGroups", {
@@ -42,7 +42,7 @@ export const listUserGroups = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return [];
     }
 
@@ -66,8 +66,8 @@ export const addUserToGroup = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can manage user groups");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can manage user groups");
     }
 
     // Check if user is already in the group
@@ -104,8 +104,8 @@ export const removeUserFromGroup = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can manage user groups");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can manage user groups");
     }
 
     // Find the membership
@@ -135,7 +135,7 @@ export const getGroupMembers = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return [];
     }
 

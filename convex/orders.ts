@@ -132,7 +132,7 @@ export const getUserOrders = query({
   },
 });
 
-// Get all orders (admin only)
+// Get all orders (admin/owner only)
 export const getAllOrders = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -144,8 +144,8 @@ export const getAllOrders = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view all orders");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view all orders");
     }
 
     const orders = await ctx.db
@@ -187,7 +187,7 @@ export const getAllOrders = query({
   },
 });
 
-// Get sales analytics (admin only)
+// Get sales analytics (admin/owner only)
 export const getSalesAnalytics = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -199,8 +199,8 @@ export const getSalesAnalytics = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || userProfile.role !== "admin") {
-      throw new Error("Only admins can view analytics");
+    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view analytics");
     }
 
     // Get all completed orders

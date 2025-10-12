@@ -7,6 +7,7 @@ const applicationTables = {
   userProfiles: defineTable({
     userId: v.id("users"),
     role: v.union(
+      v.literal("owner"),
       v.literal("admin"),
       v.literal("editor"),
       v.literal("contributor"),

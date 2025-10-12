@@ -33,6 +33,44 @@ export const getCurrentUserProfile = query({
   },
 });
 
+// Create the initial OWNER profile (only when no profiles exist)
+export const createOwnerProfile = mutation({
+  args: {
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Ensure this is the very first profile
+    const anyProfile = await ctx.db.query("userProfiles").first();
+    if (anyProfile) throw new Error("Bootstrap already completed");
+
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const newProfile = await ctx.db.insert("userProfiles", {
+      userId,
+      role: "owner",
+      firstName: args.firstName || user.name?.split(" ")[0] || "Owner",
+      lastName: args.lastName || user.name?.split(" ").slice(1).join(" ") || "",
+      isActive: true,
+    });
+
+    return newProfile;
+  },
+});
+
+// Check if initial bootstrap is needed (no user profiles exist)
+export const bootstrapNeeded = query({
+  args: {},
+  handler: async (ctx) => {
+    const anyProfile = await ctx.db.query("userProfiles").first();
+    return !anyProfile;
+  },
+});
+
 // Create user profile (called when user first logs in)
 export const createUserProfile = mutation({
   args: {
@@ -195,8 +233,8 @@ export const updateUserRole = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Only admins can update user roles");
+    if (!currentProfile || (currentProfile.role !== "admin" && currentProfile.role !== "owner")) {
+      throw new Error("Only admins or owners can update user roles");
     }
 
     const targetProfile = await ctx.db
@@ -212,6 +250,35 @@ export const updateUserRole = mutation({
   },
 });
 
+// Owner-only: Promote a user to admin
+export const promoteToAdmin = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) throw new Error("Not authenticated");
+
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
+      .unique();
+
+    if (!currentProfile || currentProfile.role !== "owner") {
+      throw new Error("Only the owner can promote admins");
+    }
+
+    const targetProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!targetProfile) throw new Error("User profile not found");
+
+    await ctx.db.patch(targetProfile._id, { role: "admin" });
+  },
+});
+
 // List all users (admin only)
 export const listUsers = query({
   args: {},
@@ -224,8 +291,8 @@ export const listUsers = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Only admins can list users");
+    if (!currentProfile || (currentProfile.role !== "admin" && currentProfile.role !== "owner")) {
+      throw new Error("Only admins or the owner can list users");
     }
 
     const profiles = await ctx.db.query("userProfiles").collect();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
@@ -17,6 +17,9 @@ export default function App() {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
+  const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
+  const createOwnerProfile = useMutation(api.users.createOwnerProfile);
+  const [ownerBootstrapping, setOwnerBootstrapping] = useState(false);
 
   const handleProfileUpdated = () => {
     // Force a refresh by incrementing the key
@@ -34,6 +37,24 @@ export default function App() {
       }
     }
   }, [user, userProfile, navigate]);
+
+  // If this is the very first login (no profiles exist), create owner profile
+  useEffect(() => {
+    if (user && userProfile === null && bootstrapNeeded && !ownerBootstrapping) {
+      setOwnerBootstrapping(true);
+      void (async () => {
+        try {
+          await createOwnerProfile({});
+          // Force refresh of profile
+          setProfileRefreshKey((prev) => prev + 1);
+        } catch (err) {
+          console.error("Owner bootstrap failed:", err);
+        } finally {
+          setOwnerBootstrapping(false);
+        }
+      })();
+    }
+  }, [user, userProfile, bootstrapNeeded, ownerBootstrapping, createOwnerProfile]);
 
   console.log("App state:", {
     user: !!user,
@@ -85,8 +106,21 @@ export default function App() {
     );
   }
 
-  // Authenticated but no profile - show role selection
+  // Authenticated but no profile
+  // If bootstrap needed, we're creating owner profile, so show loading
   if (user && !userProfile) {
+    if (bootstrapNeeded || ownerBootstrapping) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Initializing your owner account...
+            </h2>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      );
+    }
     console.log("Showing role selection for user:", user.email);
     return <RoleSelection />;
   }
@@ -131,7 +165,7 @@ export default function App() {
       </nav>
 
       <main className="mx-auto py-6 sm:px-6 lg:px-8">
-        {userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor" ? (
+        {userProfile?.role === "owner" || userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor" ? (
           <AdminDashboard />
         ) : (
           <ClientDashboard />

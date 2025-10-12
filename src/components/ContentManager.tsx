@@ -37,7 +37,8 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
-  BarChart3
+  BarChart3,
+  MoreVertical
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -78,6 +79,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export function ContentManager() {
@@ -140,6 +149,10 @@ export function ContentManager() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const activeViewers = useQuery(api.presence.getActiveViewers);
   const viewCounts = useQuery(api.analytics.getContentViewCounts);
+  const allPricing = useQuery(
+    api.pricing.listAllPricing,
+    (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor" || userProfile?.role === "contributor") ? undefined as any : "skip" as any
+  );
   const previewContent = useQuery(
     api.content.getContent,
     previewContentId ? { contentId: previewContentId as any } : "skip" as any
@@ -1228,6 +1241,19 @@ export function ContentManager() {
                               {viewCounts[item._id]} views
                             </Badge>
                           )}
+                          {allPricing && (allPricing as any[]).some((p: any) => p.contentId === item._id) && (
+                            <Badge 
+                              variant="outline" 
+                              className="gap-1 text-[10px] h-5 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                            >
+                              <DollarSign className="w-2.5 h-2.5" />
+                              {(() => {
+                                const p = (allPricing as any[]).find((x: any) => x.contentId === item._id);
+                                const dollars = p ? (p.price / 100).toFixed(2) : null;
+                                return dollars ? `$${dollars}` : "Priced";
+                              })()}
+                            </Badge>
+                          )}
                           {/* Live Viewers */}
                           {(() => {
                             const viewers = activeViewers?.filter(v => v.contentId === item._id) || [];
@@ -1300,190 +1326,130 @@ export function ContentManager() {
                     </div>
                   </div>
 
-                  {/* Action Buttons - Horizontal aligned to right */}
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-auto border-l pl-4">
-                    {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "editor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="default"
-                              onClick={() => handleReviewContent(item)}
-                              className="bg-yellow-600 hover:bg-yellow-700 h-8 w-8 p-0 shadow-sm"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Review Content</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
-                     (userProfile?.role === "admin" || userProfile?.role === "contributor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="default"
-                              onClick={() => void handleSubmitForReview(item._id)}
-                              className="bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0 shadow-sm"
-                            >
-                              <Send className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Submit for Review</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Everyone can preview */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handlePreviewContent(item)}
-                            className="h-8 w-8 p-0 hover:bg-primary/10"
+                  {/* Actions Menu - 3 Dots */}
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 hover:bg-primary/10"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        
+                        {/* Preview - Everyone */}
+                        <DropdownMenuItem onClick={() => handlePreviewContent(item)}>
+                          <Play className="w-4 h-4 mr-2" />
+                          Preview Content
+                        </DropdownMenuItem>
+
+                        {/* Review - Admins and Editors only, when in review status */}
+                        {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor") && (
+                          <DropdownMenuItem 
+                            onClick={() => handleReviewContent(item)}
+                            className="text-yellow-600 focus:text-yellow-600"
                           >
-                            <Play className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Preview Content</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    {/* Admins and Contributors can edit */}
-                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEditContent(item)}
-                              className="h-8 w-8 p-0 hover:bg-primary/10"
-                            >
-                              <FileEdit className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit Content</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Admins and Contributors can view history */}
-                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleViewVersionHistory(item)}
-                              className="h-8 w-8 p-0 hover:bg-primary/10"
-                            >
-                              <History className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Version History</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Only admins can manage access */}
-                    {userProfile?.role === "admin" && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleManageAccess(item)}
-                              className="h-8 w-8 p-0 hover:bg-primary/10"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Manage Access</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Everyone can share */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => void handleShareContent(item._id)}
-                            className={`h-8 w-8 p-0 ${copiedId === item._id ? "text-green-600 bg-green-50 hover:bg-green-100" : "hover:bg-primary/10"}`}
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Review Content
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Submit for Review - Admins and Contributors, when draft/rejected/changes_requested */}
+                        {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
+                         (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                          <DropdownMenuItem 
+                            onClick={() => void handleSubmitForReview(item._id)}
+                            className="text-blue-600 focus:text-blue-600"
                           >
-                            {copiedId === item._id ? (
-                              <Check className="w-4 h-4" />
-                            ) : (
-                              <Share2 className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{copiedId === item._id ? "Link Copied!" : "Share Content"}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    {/* Share with 3rd Party (admins, editors, contributors) */}
-                    {(userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleThirdPartyShare(item)}
-                              className="h-8 w-8 p-0 hover:bg-primary/10"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Share with 3rd Party</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Set Pricing (admins only) */}
-                    {userProfile?.role === "admin" && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedContent(item);
-                                setShowPricingModal(true);
-                              }}
-                              className="h-8 w-8 p-0 hover:bg-primary/10"
-                            >
-                              <DollarSign className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Set Pricing</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {/* Admins and Contributors can delete */}
-                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setContentToDelete(item)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete Content</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
+                            <Send className="w-4 h-4 mr-2" />
+                            Submit for Review
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Edit - Admins and Contributors */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                          <DropdownMenuItem onClick={() => handleEditContent(item)}>
+                            <FileEdit className="w-4 h-4 mr-2" />
+                            Edit Content
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Version History - Admins and Contributors */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                          <DropdownMenuItem onClick={() => handleViewVersionHistory(item)}>
+                            <History className="w-4 h-4 mr-2" />
+                            Version History
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Share Link - Everyone */}
+                        <DropdownMenuItem onClick={() => void handleShareContent(item._id)}>
+                          {copiedId === item._id ? (
+                            <><Check className="w-4 h-4 mr-2 text-green-600" /><span className="text-green-600">Link Copied!</span></>
+                          ) : (
+                            <><Share2 className="w-4 h-4 mr-2" />Copy Share Link</>
+                          )}
+                        </DropdownMenuItem>
+
+                        {/* Share with 3rd Party - Admins, Editors, Contributors */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor" || userProfile?.role === "contributor") && (
+                          <DropdownMenuItem onClick={() => handleThirdPartyShare(item)}>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Share with 3rd Party
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Manage Access - Admins and Owners only */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                          <DropdownMenuItem onClick={() => handleManageAccess(item)}>
+                            <Eye className="w-4 h-4 mr-2" />
+                            Manage Access
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Set Pricing - Admins and Owners only */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedContent(item);
+                            setShowPricingModal(true);
+                          }}>
+                            <DollarSign className="w-4 h-4 mr-2" />
+                            Set Pricing
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* View Analytics - If has views */}
+                        {viewCounts && viewCounts[item._id] && (
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedContent(item);
+                            setShowAnalyticsModal(true);
+                          }}>
+                            <BarChart3 className="w-4 h-4 mr-2" />
+                            View Analytics ({viewCounts[item._id]} views)
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Delete - Admins and Contributors */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                          <DropdownMenuItem 
+                            onClick={() => setContentToDelete(item)}
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Content
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -1651,6 +1617,16 @@ export function ContentManager() {
                 <Badge variant={selectedContent.isPublic ? "default" : "secondary"}>
                   {selectedContent.isPublic ? "Public" : "Private"}
                 </Badge>
+                {allPricing && (allPricing as any[]).some((p: any) => p.contentId === selectedContent._id) && (
+                  <Badge variant="outline" className="gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    {(() => {
+                      const p = (allPricing as any[]).find((x: any) => x.contentId === selectedContent._id);
+                      const dollars = p ? (p.price / 100).toFixed(2) : null;
+                      return dollars ? `$${dollars}` : "Priced";
+                    })()}
+                  </Badge>
+                )}
                 {selectedContent.status === "published" && !selectedContent.active && <Badge variant="destructive">Inactive</Badge>}
               </div>
 

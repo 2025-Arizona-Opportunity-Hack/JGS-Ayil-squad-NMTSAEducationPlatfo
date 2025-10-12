@@ -39,7 +39,7 @@ export function AdminDashboard() {
     );
   }
 
-  const isAdmin = userProfile.role === "admin";
+  const isAdmin = userProfile.role === "admin" || userProfile.role === "owner";
 
   return (
     <>

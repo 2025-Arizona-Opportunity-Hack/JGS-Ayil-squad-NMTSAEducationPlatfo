@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye } from "lucide-react";
+import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye, DollarSign } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { usePresence } from "@/hooks/usePresence";
 import { Navbar } from "./Navbar";
@@ -32,6 +32,10 @@ export function PublicContentViewer() {
   const result = useQuery(
     api.publicContent.getPublicContent,
     contentId ? { contentId: contentId as any, password: attemptedPassword } : ("skip" as any)
+  );
+  const pricing = useQuery(
+    api.pricing.getPricing,
+    contentId ? { contentId: contentId as any } : ("skip" as any)
   );
   const grantAccess = useMutation(api.content.grantAccessAfterPassword);
   const trackView = useMutation(api.analytics.trackView);
@@ -373,6 +377,12 @@ export function PublicContentViewer() {
               )}
               <Badge variant="secondary" className="capitalize">{content.type}</Badge>
               {content.isPublic && <Badge variant="outline">Public</Badge>}
+              {pricing && pricing.isActive && (
+                <Badge variant="outline" className="gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  {`$${(pricing.price / 100).toFixed(2)}`}
+                </Badge>
+              )}
             </div>
           </div>
         </div>

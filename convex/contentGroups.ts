@@ -18,8 +18,8 @@ export const createContentGroup = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can create content groups");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can create content groups");
     }
 
     return await ctx.db.insert("contentGroups", {
@@ -42,7 +42,7 @@ export const listContentGroups = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return [];
     }
 
@@ -62,7 +62,7 @@ export const getContentGroupWithItems = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return null;
     }
 
@@ -110,8 +110,8 @@ export const addContentToGroup = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can manage content groups");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can manage content groups");
     }
 
     // Check if content is already in the group
@@ -186,8 +186,8 @@ export const grantContentGroupAccess = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can grant content group access");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can grant content group access");
     }
 
     return await ctx.db.insert("contentGroupAccess", {
@@ -209,7 +209,7 @@ export const getAvailableContent = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return [];
     }
 
@@ -241,7 +241,7 @@ export const listAllContentGroupItems = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
       return [];
     }
 

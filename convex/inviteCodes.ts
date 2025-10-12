@@ -34,8 +34,8 @@ export const createInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can create invite codes");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can create invite codes");
     }
 
     // Generate a unique code
@@ -113,8 +113,8 @@ export const listInviteCodes = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can view invite codes");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view invite codes");
     }
 
     const inviteCodes = await ctx.db.query("inviteCodes").collect();
@@ -157,8 +157,8 @@ export const deactivateInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can deactivate invite codes");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can deactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {
@@ -184,8 +184,8 @@ export const reactivateInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can reactivate invite codes");
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can reactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {
