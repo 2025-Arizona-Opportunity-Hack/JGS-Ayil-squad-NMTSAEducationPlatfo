@@ -1,7 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 interface AccessManagementModalProps {
   isOpen: boolean;
@@ -32,8 +45,6 @@ export function AccessManagementModal({
   const grantContentAccess = useMutation(api.content.grantContentAccess);
   const grantContentGroupAccess = useMutation(api.contentGroups.grantContentGroupAccess);
   const updateContentPublic = useMutation(api.content.updateContentPublic);
-
-  if (!isOpen) return null;
 
   const handleUserToggle = (userId: string) => {
     setSelectedUsers(prev => 
@@ -156,69 +167,60 @@ export function AccessManagementModal({
   });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            Manage Access: {title}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Manage Access: {title}</DialogTitle>
+          <DialogDescription>
+            Configure who can access this content and their permissions.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-6">
           {/* Public Access */}
           {contentId && (
-            <div className="border-b border-gray-200 pb-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
+            <>
+              <div className="flex items-center space-x-2">
+                <Checkbox
                   id="isPublic"
                   checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  onCheckedChange={(checked) => setIsPublic(checked as boolean)}
                 />
-                <label htmlFor="isPublic" className="ml-2 block text-sm font-medium text-gray-900">
+                <Label htmlFor="isPublic" className="font-normal cursor-pointer">
                   Make this content public (accessible to all users)
-                </label>
+                </Label>
               </div>
-            </div>
+              <Separator />
+            </>
           )}
 
           {/* Role-based Access */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Grant Access by Role
-            </label>
+          <div className="space-y-3">
+            <Label>Grant Access by Role</Label>
             <div className="grid grid-cols-3 gap-3">
               {roles.map((role) => (
-                <label key={role} className="flex items-center">
-                  <input
-                    type="checkbox"
+                <div key={role} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`role-${role}`}
                     checked={selectedRoles.includes(role)}
-                    onChange={() => handleRoleToggle(role)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    onCheckedChange={() => handleRoleToggle(role)}
                   />
-                  <span className="ml-2 text-sm text-gray-900 capitalize">{role}</span>
-                </label>
+                  <Label htmlFor={`role-${role}`} className="font-normal cursor-pointer capitalize">
+                    {role}
+                  </Label>
+                </div>
               ))}
             </div>
           </div>
 
           {/* Individual User Access */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Grant Access to Specific Users
-            </label>
+          <div className="space-y-3">
+            <Label>Grant Access to Specific Users</Label>
             
             {/* Selected Users Display */}
             {selectedUsers.length > 0 && (
-              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="text-sm font-medium text-blue-900 mb-2">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                <div className="text-sm font-medium text-blue-900">
                   Selected Users ({selectedUsers.length}):
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -226,19 +228,18 @@ export function AccessManagementModal({
                     const user = nonAdminUsers.find(u => u.userId === userId);
                     if (!user) return null;
                     return (
-                      <span
-                        key={userId}
-                        className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800"
-                      >
+                      <Badge key={userId} variant="secondary" className="bg-blue-100 text-blue-800">
                         {user.firstName} {user.lastName}
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleUserToggle(userId)}
-                          className="ml-1 text-blue-600 hover:text-blue-800"
+                          className="ml-1 h-auto p-0 text-blue-600 hover:text-blue-800 hover:bg-transparent"
                         >
-                          ×
-                        </button>
-                      </span>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </Badge>
                     );
                   })}
                 </div>
@@ -246,46 +247,47 @@ export function AccessManagementModal({
             )}
             
             {/* Search and Add Users */}
-            <div className="mb-3">
-              <input
-                type="text"
-                placeholder="Search users by name or email to add..."
-                value={userSearchTerm}
-                onChange={(e) => setUserSearchTerm(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
+            <Input
+              type="text"
+              placeholder="Search users by name or email to add..."
+              value={userSearchTerm}
+              onChange={(e) => setUserSearchTerm(e.target.value)}
+            />
 
             {/* Search Results - Only show when searching */}
             {userSearchTerm && (
-              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-md p-3">
+              <div className="max-h-40 overflow-y-auto border rounded-lg p-3">
                 {filteredUsers.length === 0 ? (
-                  <p className="text-sm text-gray-500">No users found matching your search</p>
+                  <p className="text-sm text-muted-foreground">No users found matching your search</p>
                 ) : (
                   <div className="space-y-2">
                     {filteredUsers.map((user) => (
-                      <button
+                      <Button
                         key={user.userId}
                         type="button"
+                        variant={selectedUsers.includes(user.userId) ? "secondary" : "ghost"}
                         onClick={() => handleUserToggle(user.userId)}
-                        className={`w-full flex items-center p-2 rounded hover:bg-gray-50 text-left ${
-                          selectedUsers.includes(user.userId) ? 'bg-blue-50 border border-blue-200' : ''
-                        }`}
+                        className="w-full justify-start h-auto p-2"
                       >
-                        <span className="text-sm text-gray-900">
-                          {user.firstName} {user.lastName} ({user.email})
-                        </span>
-                        <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          user.role === "professional" ? "bg-blue-100 text-blue-800" :
-                          user.role === "parent" ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
-                        }`}>
-                          {user.role}
-                        </span>
-                        {selectedUsers.includes(user.userId) && (
-                          <Check className="ml-auto text-blue-600 w-5 h-5" />
-                        )}
-                      </button>
+                        <div className="flex items-center w-full">
+                          <span className="text-sm">
+                            {user.firstName} {user.lastName} ({user.email})
+                          </span>
+                          <Badge 
+                            variant="outline" 
+                            className={`ml-2 ${
+                              user.role === "professional" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                              user.role === "parent" ? "bg-green-100 text-green-800 border-green-200" :
+                              "bg-gray-100 text-gray-800 border-gray-200"
+                            }`}
+                          >
+                            {user.role}
+                          </Badge>
+                          {selectedUsers.includes(user.userId) && (
+                            <Check className="ml-auto text-blue-600 w-5 h-5" />
+                          )}
+                        </div>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -294,79 +296,68 @@ export function AccessManagementModal({
           </div>
 
           {/* User Group Access */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Grant Access to User Groups
-            </label>
-            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-3">
+          <div className="space-y-3">
+            <Label>Grant Access to User Groups</Label>
+            <div className="max-h-32 overflow-y-auto border rounded-lg p-3">
               {userGroups && userGroups.length > 0 ? (
                 <div className="space-y-2">
                   {userGroups.map((group) => (
-                    <label key={group._id} className="flex items-center">
-                      <input
-                        type="checkbox"
+                    <div key={group._id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`group-${group._id}`}
                         checked={selectedUserGroups.includes(group._id)}
-                        onChange={() => handleUserGroupToggle(group._id)}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        onCheckedChange={() => handleUserGroupToggle(group._id)}
                       />
-                      <span className="ml-2 text-sm text-gray-900">{group.name}</span>
-                      {group.description && (
-                        <span className="ml-2 text-xs text-gray-500">({group.description})</span>
-                      )}
-                    </label>
+                      <Label htmlFor={`group-${group._id}`} className="font-normal cursor-pointer">
+                        {group.name}
+                        {group.description && (
+                          <span className="ml-2 text-xs text-muted-foreground">({group.description})</span>
+                        )}
+                      </Label>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">No user groups available</p>
+                <p className="text-sm text-muted-foreground">No user groups available</p>
               )}
             </div>
           </div>
 
           {/* Additional Options */}
-          <div className="space-y-4 border-t border-gray-200 pt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Expiration Date (optional)
-              </label>
-              <input
+          <Separator />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="expiresAt">Expiration Date (optional)</Label>
+              <Input
+                id="expiresAt"
                 type="datetime-local"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
+            <div className="flex items-center space-x-2">
+              <Checkbox
                 id="canShare"
                 checked={canShare}
-                onChange={(e) => setCanShare(e.target.checked)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                onCheckedChange={(checked) => setCanShare(checked as boolean)}
               />
-              <label htmlFor="canShare" className="ml-2 block text-sm text-gray-900">
+              <Label htmlFor="canShare" className="font-normal cursor-pointer">
                 Allow users to share this content with others
-              </label>
+              </Label>
             </div>
           </div>
 
-          <div className="flex space-x-3 pt-4">
-            <button
-              type="submit"
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
+          <div className="flex gap-3 pt-4">
+            <Button type="submit" className="flex-1">
               Grant Access
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

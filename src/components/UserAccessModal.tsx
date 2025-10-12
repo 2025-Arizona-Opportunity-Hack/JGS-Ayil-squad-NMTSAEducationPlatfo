@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import { FileText, Users } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface UserAccessModalProps {
   isOpen: boolean;
@@ -10,58 +20,68 @@ interface UserAccessModalProps {
 }
 
 export function UserAccessModal({ isOpen, onClose, userId, userName }: UserAccessModalProps) {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            Access Management: {userName}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Access Management: {userName}</DialogTitle>
+          <DialogDescription>
+            Manage user permissions and access to content
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-6">
           <div>
-            <h4 className="text-md font-medium text-gray-900 mb-3">Current Access</h4>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">
-                This user's access is managed through their role and any specific permissions granted.
-                Use the Content Management section to grant specific content access.
-              </p>
-            </div>
+            <h4 className="text-sm font-medium mb-3">Current Access</h4>
+            <Card className="bg-muted">
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground">
+                  This user's access is managed through their role and any specific permissions granted.
+                  Use the Content Management section to grant specific content access.
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div>
-            <h4 className="text-md font-medium text-gray-900 mb-3">Quick Actions</h4>
+            <h4 className="text-sm font-medium mb-3">Quick Actions</h4>
             <div className="grid grid-cols-2 gap-3">
-              <button className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-left">
-                <div className="font-medium text-sm">Grant Content Access</div>
-                <div className="text-xs text-gray-500">Give access to specific content</div>
-              </button>
-              <button className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-left">
-                <div className="font-medium text-sm">Add to Group</div>
-                <div className="text-xs text-gray-500">Add to a user group</div>
-              </button>
+              <Card className="cursor-pointer hover:bg-accent transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <FileText className="w-5 h-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <div className="font-medium text-sm">Grant Content Access</div>
+                      <div className="text-xs text-muted-foreground">
+                        Give access to specific content
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-accent transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Users className="w-5 h-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <div className="font-medium text-sm">Add to Group</div>
+                      <div className="text-xs text-muted-foreground">
+                        Add to a user group
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
 
         <div className="flex justify-end pt-4">
-          <button
-            onClick={onClose}
-            className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-          >
+          <Button variant="outline" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,4 +1,7 @@
 import { Video, FileText, FileAudio, Newspaper, Folder } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface ContentViewerProps {
   content: Array<{
@@ -16,20 +19,22 @@ interface ContentViewerProps {
 export function ContentViewer({ content }: ContentViewerProps) {
   if (content.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="text-gray-400 mb-4 flex justify-center">
-          <Folder className="w-16 h-16" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No content available</h3>
-        <p className="text-gray-600">
-          You don't have access to any content yet. Contact your administrator for access.
-        </p>
-      </div>
+      <Card>
+        <CardContent className="text-center py-12">
+          <div className="text-muted-foreground mb-4 flex justify-center">
+            <Folder className="w-16 h-16" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">No content available</h3>
+          <p className="text-muted-foreground">
+            You don't have access to any content yet. Contact your administrator for access.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
   const getTypeIcon = (type: string) => {
-    const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
+    const iconProps = { className: "w-5 h-5", strokeWidth: 2 };
     switch (type) {
       case "video": return <Video {...iconProps} />;
       case "article": return <Newspaper {...iconProps} />;
@@ -42,48 +47,50 @@ export function ContentViewer({ content }: ContentViewerProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {content.map((item) => (
-        <div key={item._id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3">
-            <div>{getTypeIcon(item.type)}</div>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
-              {item.type}
-            </span>
-          </div>
-          
-          <h3 className="font-medium text-gray-900 mb-2">{item.title}</h3>
-          
-          {item.description && (
-            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
-          )}
-
-          {item.richTextContent && item.type === "article" && (
-            <div className="text-sm text-gray-700 mb-3 line-clamp-3">
-              {item.richTextContent.substring(0, 150)}...
+        <Card key={item._id} className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <div className="flex items-start justify-between mb-2">
+              <div>{getTypeIcon(item.type)}</div>
+              <Badge variant="secondary" className="capitalize">
+                {item.type}
+              </Badge>
             </div>
-          )}
+            <CardTitle className="text-lg">{item.title}</CardTitle>
+            {item.description && (
+              <CardDescription className="line-clamp-2">{item.description}</CardDescription>
+            )}
+          </CardHeader>
+          
+          <CardContent>
+            {item.richTextContent && item.type === "article" && (
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                {item.richTextContent.substring(0, 150)}...
+              </p>
+            )}
 
-          {item.tags && item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {item.tags.slice(0, 3).map((tag, index) => (
-                <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                  {tag}
-                </span>
-              ))}
-              {item.tags.length > 3 && (
-                <span className="text-xs text-gray-500">+{item.tags.length - 3} more</span>
-              )}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-4">
+                {item.tags.slice(0, 3).map((tag, index) => (
+                  <Badge key={index} variant="outline">
+                    {tag}
+                  </Badge>
+                ))}
+                {item.tags.length > 3 && (
+                  <span className="text-xs text-muted-foreground">+{item.tags.length - 3} more</span>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">
+                {new Date(item._creationTime).toLocaleDateString()}
+              </span>
+              <Button variant="ghost" size="sm">
+                View
+              </Button>
             </div>
-          )}
-
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-500">
-              {new Date(item._creationTime).toLocaleDateString()}
-            </span>
-            <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-              View
-            </button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

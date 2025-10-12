@@ -15,12 +15,22 @@ import {
   Clock,
   Calendar,
   CheckCheck,
-  Ban
+  Ban,
+  Plus
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -167,16 +177,6 @@ export function ContentManager() {
     return allContent?.filter(item => item.type === type).length || 0;
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "draft": return "bg-gray-100 text-gray-800";
-      case "review": return "bg-yellow-100 text-yellow-800";
-      case "published": return "bg-green-100 text-green-800";
-      case "rejected": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     const iconProps = { className: "w-4 h-4", strokeWidth: 2 };
     switch (status) {
@@ -191,396 +191,394 @@ export function ContentManager() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900">Content Management</h3>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-        >
+        <div>
+          <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
+          <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
+        </div>
+        <Button onClick={() => setShowCreateForm(true)}>
+          <Plus className="w-4 h-4 mr-2" />
           Add Content
-        </button>
+        </Button>
       </div>
 
-      {/* Status Filter */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { id: "all" as const, label: "All Status", icon: <Folder className="w-4 h-4" /> },
-            { id: "draft" as const, label: "Drafts", icon: <FileEdit className="w-4 h-4" /> },
-            { id: "review" as const, label: "In Review", icon: <Eye className="w-4 h-4" /> },
-            { id: "published" as const, label: "Published", icon: <CheckCircle className="w-4 h-4" /> },
-            { id: "rejected" as const, label: "Rejected", icon: <XCircle className="w-4 h-4" /> },
-          ].map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setStatusFilter(filter.id)}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                statusFilter === filter.id
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {filter.icon}
-              <span>{filter.label}</span>
-              <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
-                {allContent?.filter(c => filter.id === "all" || c.status === filter.id).length || 0}
-              </span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Content Type Filter */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { id: "all" as const, label: "All Content", icon: <Folder className="w-4 h-4" /> },
-            { id: "video" as const, label: "Videos", icon: <Video className="w-4 h-4" /> },
-            { id: "audio" as const, label: "Audio", icon: <FileAudio className="w-4 h-4" /> },
-            { id: "article" as const, label: "Articles", icon: <Newspaper className="w-4 h-4" /> },
-            { id: "document" as const, label: "Documents", icon: <FileText className="w-4 h-4" /> },
-          ].map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setContentTypeFilter(filter.id)}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                contentTypeFilter === filter.id
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {filter.icon}
-              <span>{filter.label}</span>
-              <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
-                {getContentTypeCount(filter.id)}
-              </span>
-            </button>
-          ))}
-        </nav>
-      </div>
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">Filters</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">Status</Label>
+            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
+              <TabsList className="grid grid-cols-5 w-full">
+                <TabsTrigger value="all" className="text-xs">
+                  All ({allContent?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="draft" className="text-xs">
+                  Drafts ({allContent?.filter(c => c.status === "draft").length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="review" className="text-xs">
+                  Review ({allContent?.filter(c => c.status === "review").length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="published" className="text-xs">
+                  Published ({allContent?.filter(c => c.status === "published").length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="rejected" className="text-xs">
+                  Rejected ({allContent?.filter(c => c.status === "rejected").length || 0})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">Content Type</Label>
+            <Tabs value={contentTypeFilter} onValueChange={(value) => setContentTypeFilter(value as any)}>
+              <TabsList className="grid grid-cols-5 w-full">
+                <TabsTrigger value="all" className="text-xs">
+                  All ({allContent?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="video" className="text-xs">
+                  Videos ({getContentTypeCount("video")})
+                </TabsTrigger>
+                <TabsTrigger value="audio" className="text-xs">
+                  Audio ({getContentTypeCount("audio")})
+                </TabsTrigger>
+                <TabsTrigger value="article" className="text-xs">
+                  Articles ({getContentTypeCount("article")})
+                </TabsTrigger>
+                <TabsTrigger value="document" className="text-xs">
+                  Documents ({getContentTypeCount("document")})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardContent>
+      </Card>
 
       {showCreateForm && (
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Create New Content</h4>
-          <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Title *</label>
-              <input
-                type="text"
-                {...register("title")}
-                className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                  errors.title ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errors.title && (
-                <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                {...register("description")}
-                className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                  errors.description ? "border-red-500" : "border-gray-300"
-                }`}
-                rows={3}
-              />
-              {errors.description && (
-                <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Type *</label>
-              <select
-                {...register("type")}
-                className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                  errors.type ? "border-red-500" : "border-gray-300"
-                }`}
-              >
-                <option value="video">Video</option>
-                <option value="audio">Audio</option>
-                <option value="article">Article</option>
-                <option value="document">Document</option>
-              </select>
-              {errors.type && (
-                <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>
-              )}
-            </div>
-
-            {formType === "video" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Video File</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New Content</CardTitle>
+            <CardDescription>Add a new piece of content to your library</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  {...register("title")}
+                  className={errors.title ? "border-destructive" : ""}
                 />
-                {selectedFile && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
                 )}
               </div>
-            )}
 
-            {formType === "audio" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Audio File</label>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  {...register("description")}
+                  className={errors.description ? "border-destructive" : ""}
+                  rows={3}
                 />
-                {selectedFile && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
               </div>
-            )}
 
-            {formType === "document" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Document File</label>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt,.rtf"
-                  onChange={handleFileChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                />
-                {selectedFile && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+              <div className="space-y-2">
+                <Label htmlFor="type">Type *</Label>
+                <select
+                  id="type"
+                  {...register("type")}
+                  className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    errors.type ? "border-destructive" : ""
+                  }`}
+                >
+                  <option value="video">Video</option>
+                  <option value="audio">Audio</option>
+                  <option value="article">Article</option>
+                  <option value="document">Document</option>
+                </select>
+                {errors.type && (
+                  <p className="text-sm text-destructive">{errors.type.message}</p>
                 )}
               </div>
-            )}
 
-            {formType === "article" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Content</label>
-                <textarea
-                  {...register("richTextContent")}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                  rows={6}
-                  placeholder="Enter article content..."
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Body (optional rich text)</label>
-              <textarea
-                {...register("body")}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                rows={8}
-                placeholder="Add additional rich text content, notes, or descriptions here..."
-              />
-              <p className="text-xs text-gray-500 mt-1">This field is available for all content types to add supplementary information</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">External URL (optional)</label>
-              <input
-                type="url"
-                {...register("externalUrl")}
-                className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                  errors.externalUrl ? "border-red-500" : "border-gray-300"
-                }`}
-                placeholder="https://..."
-              />
-              {errors.externalUrl && (
-                <p className="text-red-500 text-sm mt-1">{errors.externalUrl.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
-              <input
-                type="text"
-                {...register("tags")}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                placeholder="therapy, music, neurologic"
-              />
-            </div>
-
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="isPublic"
-                {...register("isPublic")}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-              />
-              <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                Make this content public
-              </label>
-            </div>
-
-            <div className="border-t border-gray-200 pt-4">
-              <h5 className="text-sm font-medium text-gray-900 mb-3">Availability Settings</h5>
-              
-              <div className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  id="active"
-                  {...register("active")}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="active" className="ml-2 block text-sm text-gray-900">
-                  Content is active (can be viewed when published)
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Start Date (optional)</label>
-                  <input
-                    type="datetime-local"
-                    {...register("startDate")}
-                    className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                      errors.startDate ? "border-red-500" : "border-gray-300"
-                    }`}
+              {formType === "video" && (
+                <div className="space-y-2">
+                  <Label htmlFor="videoFile">Video File</Label>
+                  <Input
+                    id="videoFile"
+                    type="file"
+                    accept="video/*"
+                    onChange={handleFileChange}
                   />
-                  {errors.startDate && (
-                    <p className="text-red-500 text-sm mt-1">{errors.startDate.message}</p>
+                  {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Content becomes available at this date/time</p>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">End Date (optional)</label>
-                  <input
-                    type="datetime-local"
-                    {...register("endDate")}
-                    className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                      errors.endDate ? "border-red-500" : "border-gray-300"
-                    }`}
+              {formType === "audio" && (
+                <div className="space-y-2">
+                  <Label htmlFor="audioFile">Audio File</Label>
+                  <Input
+                    id="audioFile"
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileChange}
                   />
-                  {errors.endDate && (
-                    <p className="text-red-500 text-sm mt-1">{errors.endDate.message}</p>
+                  {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Content expires at this date/time</p>
+                </div>
+              )}
+
+              {formType === "document" && (
+                <div className="space-y-2">
+                  <Label htmlFor="documentFile">Document File</Label>
+                  <Input
+                    id="documentFile"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt,.rtf"
+                    onChange={handleFileChange}
+                  />
+                  {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {formType === "article" && (
+                <div className="space-y-2">
+                  <Label htmlFor="richTextContent">Content</Label>
+                  <Textarea
+                    id="richTextContent"
+                    {...register("richTextContent")}
+                    rows={6}
+                    placeholder="Enter article content..."
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="body">Body (optional rich text)</Label>
+                <Textarea
+                  id="body"
+                  {...register("body")}
+                  rows={8}
+                  placeholder="Add additional rich text content, notes, or descriptions here..."
+                />
+                <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="externalUrl">External URL (optional)</Label>
+                <Input
+                  id="externalUrl"
+                  type="url"
+                  {...register("externalUrl")}
+                  className={errors.externalUrl ? "border-destructive" : ""}
+                  placeholder="https://..."
+                />
+                {errors.externalUrl && (
+                  <p className="text-sm text-destructive">{errors.externalUrl.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags (comma-separated)</Label>
+                <Input
+                  id="tags"
+                  type="text"
+                  {...register("tags")}
+                  placeholder="therapy, music, neurologic"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isPublic"
+                  {...register("isPublic")}
+                />
+                <Label htmlFor="isPublic" className="font-normal">
+                  Make this content public
+                </Label>
+              </div>
+
+              <Separator className="my-6" />
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold mb-3">Availability Settings</h4>
+                  
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Checkbox
+                      id="active"
+                      {...register("active")}
+                    />
+                    <Label htmlFor="active" className="font-normal">
+                      Content is active (can be viewed when published)
+                    </Label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Start Date (optional)</Label>
+                      <Input
+                        id="startDate"
+                        type="datetime-local"
+                        {...register("startDate")}
+                        className={errors.startDate ? "border-destructive" : ""}
+                      />
+                      {errors.startDate && (
+                        <p className="text-sm text-destructive">{errors.startDate.message}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">Content becomes available at this date/time</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">End Date (optional)</Label>
+                      <Input
+                        id="endDate"
+                        type="datetime-local"
+                        {...register("endDate")}
+                        className={errors.endDate ? "border-destructive" : ""}
+                      />
+                      {errors.endDate && (
+                        <p className="text-sm text-destructive">{errors.endDate.message}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">Content expires at this date/time</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                disabled={uploading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {uploading ? "Creating..." : "Create Content"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex gap-3 pt-6">
+                <Button type="submit" disabled={uploading}>
+                  {uploading ? "Creating..." : "Create Content"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCreateForm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Content List */}
       <div className="space-y-4">
         {allContent === undefined ? (
           // Loading state
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-gray-600">Loading content...</span>
-          </div>
+          <Card>
+            <CardContent className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="ml-2 text-muted-foreground">Loading content...</span>
+            </CardContent>
+          </Card>
         ) : filteredContent.length === 0 ? (
           // Empty state
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4 flex justify-center">
-              {contentTypeFilter === "all" ? <Folder className="w-16 h-16" /> : <div className="[&>svg]:w-16 [&>svg]:h-16">{getTypeIcon(contentTypeFilter)}</div>}
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {contentTypeFilter === "all" 
-                ? "No content available" 
-                : `No ${contentTypeFilter}${contentTypeFilter === "audio" ? "" : "s"} available`
-              }
-            </h3>
-            <p className="text-gray-600">
-              {contentTypeFilter === "all"
-                ? "Create your first piece of content to get started."
-                : `Create your first ${contentTypeFilter} to get started.`
-              }
-            </p>
-          </div>
+          <Card>
+            <CardContent className="text-center py-12">
+              <div className="text-muted-foreground mb-4 flex justify-center">
+                {contentTypeFilter === "all" ? <Folder className="w-16 h-16" /> : <div className="[&>svg]:w-16 [&>svg]:h-16">{getTypeIcon(contentTypeFilter)}</div>}
+              </div>
+              <h3 className="text-lg font-medium mb-2">
+                {contentTypeFilter === "all" 
+                  ? "No content available" 
+                  : `No ${contentTypeFilter}${contentTypeFilter === "audio" ? "" : "s"} available`
+                }
+              </h3>
+              <p className="text-muted-foreground">
+                {contentTypeFilter === "all"
+                  ? "Create your first piece of content to get started."
+                  : `Create your first ${contentTypeFilter} to get started.`
+                }
+              </p>
+            </CardContent>
+          </Card>
         ) : (
           // Content list
           filteredContent.map((item) => (
-            <div key={item._id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex items-start">
-                  <div className="mr-3 mt-1">{getTypeIcon(item.type)}</div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">{item.title}</h4>
-                    {item.description && (
-                      <p className="text-sm text-gray-600 mt-1">{item.description}</p>
-                    )}
-                    <div className="flex items-center flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
-                        {item.type}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(item.status)}`}>
-                        {getStatusIcon(item.status)} <span>{item.status}</span>
-                      </span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.isPublic ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}>
-                        {item.isPublic ? "Public" : "Private"}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.active ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-600"
-                      }`}>
-                        {item.active ? <><CheckCheck className="w-3 h-3" /> Active</> : <><Ban className="w-3 h-3" /> Inactive</>}
-                      </span>
-                      {item.startDate && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                          <Calendar className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
-                        </span>
+            <Card key={item._id}>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-start flex-1">
+                    <div className="mr-3 mt-1">{getTypeIcon(item.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-lg">{item.title}</h4>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
                       )}
-                      {item.endDate && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                          <Clock className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
-                        </span>
-                      )}
-                      {item.tags && item.tags.length > 0 && (
-                        <>
-                          {item.tags.map((tag, index) => (
-                            <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                              {tag}
-                            </span>
-                          ))}
-                        </>
-                      )}
+                      <div className="flex items-center flex-wrap gap-2 mt-3">
+                        <Badge variant="secondary" className="capitalize">
+                          {item.type}
+                        </Badge>
+                        <Badge variant={
+                          item.status === "published" ? "default" :
+                          item.status === "review" ? "outline" :
+                          item.status === "rejected" ? "destructive" :
+                          "secondary"
+                        } className="gap-1">
+                          {getStatusIcon(item.status)} <span>{item.status}</span>
+                        </Badge>
+                        <Badge variant={item.isPublic ? "default" : "secondary"}>
+                          {item.isPublic ? "Public" : "Private"}
+                        </Badge>
+                        <Badge variant={item.active ? "default" : "outline"} className="gap-1">
+                          {item.active ? <><CheckCheck className="w-3 h-3" /> Active</> : <><Ban className="w-3 h-3" /> Inactive</>}
+                        </Badge>
+                        {item.startDate && (
+                          <Badge variant="outline" className="gap-1">
+                            <Calendar className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
+                          </Badge>
+                        )}
+                        {item.endDate && (
+                          <Badge variant="outline" className="gap-1">
+                            <Clock className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
+                          </Badge>
+                        )}
+                        {item.tags && item.tags.length > 0 && item.tags.map((tag, index) => (
+                          <Badge key={index} variant="secondary">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEditContent(item)}
+                    >
+                      Edit
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleManageAccess(item)}
+                    >
+                      Manage Access
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => handleEditContent(item)}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={() => handleManageAccess(item)}
-                    className="text-green-600 hover:text-green-800 text-sm"
-                  >
-                    Manage Access
-                  </button>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))
         )}
       </div>

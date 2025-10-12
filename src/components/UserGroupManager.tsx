@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { Plus, X, UserPlus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 
 export function UserGroupManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -57,63 +66,69 @@ export function UserGroupManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900">User Groups</h3>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-        >
-          Create Group
-        </button>
-      </div>
-
-      {showCreateForm && (
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Create New User Group</h4>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Group Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                placeholder="e.g., Advanced Practitioners"
-              />
+              <CardTitle>User Groups</CardTitle>
+              <CardDescription>Create and manage user groups for easier content access control</CardDescription>
             </div>
+            <Button onClick={() => setShowCreateForm(true)}>
+              <Plus className="w-4 h-4 mr-1" />
+              Create Group
+            </Button>
+          </div>
+        </CardHeader>
+        {showCreateForm && (
+          <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Create New User Group</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="groupName">Group Name</Label>
+                    <Input
+                      id="groupName"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="e.g., Advanced Practitioners"
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                rows={3}
-                placeholder="Describe this user group..."
-              />
-            </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="groupDescription">Description</Label>
+                    <Textarea
+                      id="groupDescription"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                      placeholder="Describe this user group..."
+                    />
+                  </div>
 
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                Create Group
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+                  <div className="flex gap-3">
+                    <Button type="submit">
+                      Create Group
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </CardContent>
+        )}
+      </Card>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {userGroups?.map((group) => (
           <UserGroupCard
             key={group._id}
@@ -143,42 +158,43 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
     !groupMembers?.some(member => member.userId === user.userId)
   );
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeVariant = (role: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (role) {
-      case "professional": return "bg-blue-100 text-blue-800";
-      case "parent": return "bg-green-100 text-green-800";
-      case "client": return "bg-gray-100 text-gray-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "professional": return "secondary";
+      case "parent": return "default";
+      case "client": return "outline";
+      default: return "outline";
     }
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h4 className="font-medium text-gray-900">{group.name}</h4>
-          {group.description && (
-            <p className="text-sm text-gray-600 mt-1">{group.description}</p>
-          )}
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-base">{group.name}</CardTitle>
+            {group.description && (
+              <CardDescription>{group.description}</CardDescription>
+            )}
+          </div>
+          <Badge variant={group.isActive ? "default" : "destructive"}>
+            {group.isActive ? "Active" : "Inactive"}
+          </Badge>
         </div>
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          group.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-        }`}>
-          {group.isActive ? "Active" : "Inactive"}
-        </span>
-      </div>
-
-      <div className="space-y-4">
+      </CardHeader>
+      <CardContent className="space-y-4">
         <div className="flex justify-between items-center">
-          <h5 className="text-sm font-medium text-gray-700">
+          <h5 className="text-sm font-medium">
             Members ({groupMembers?.length || 0})
           </h5>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowAddUser(!showAddUser)}
-            className="text-blue-600 hover:text-blue-800 text-sm"
           >
+            <UserPlus className="w-4 h-4 mr-1" />
             Add User
-          </button>
+          </Button>
         </div>
 
         {/* Current Members */}
@@ -189,29 +205,33 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
               if (!user) return null;
               
               return (
-                <div key={member.userId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div className="flex items-center">
-                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center mr-3">
-                      <span className="text-xs font-medium text-gray-700">
-                        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                      </span>
+                <Card key={member.userId} className="bg-muted/50">
+                  <CardContent className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="text-xs">
+                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {user.firstName} {user.lastName}
+                        </p>
+                        <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                          {user.role}
+                        </Badge>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {user.firstName} {user.lastName}
-                      </p>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
-                        {user.role}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onRemoveUser(group._id, member.userId)}
-                    className="text-red-600 hover:text-red-800 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemoveUser(group._id, member.userId)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -219,44 +239,51 @@ function UserGroupCard({ group, users, onAddUser, onRemoveUser }: UserGroupCardP
 
         {/* Add User Form */}
         {showAddUser && availableUsers.length > 0 && (
-          <div className="border-t border-gray-200 pt-4">
-            <h6 className="text-sm font-medium text-gray-700 mb-2">Add Users to Group</h6>
-            <div className="max-h-40 overflow-y-auto space-y-2">
-              {availableUsers.map((user) => (
-                <div key={user.userId} className="flex items-center justify-between p-2 border border-gray-200 rounded">
-                  <div className="flex items-center">
-                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center mr-3">
-                      <span className="text-xs font-medium text-gray-700">
-                        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {user.firstName} {user.lastName}
-                      </p>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
-                        {user.role}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onAddUser(group._id, user.userId)}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
-                  >
-                    Add
-                  </button>
-                </div>
-              ))}
+          <>
+            <Separator />
+            <div>
+              <h6 className="text-sm font-medium mb-3">Add Users to Group</h6>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {availableUsers.map((user) => (
+                  <Card key={user.userId} className="hover:bg-accent/50 transition-colors">
+                    <CardContent className="flex items-center justify-between p-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="text-xs">
+                            {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {user.firstName} {user.lastName}
+                          </p>
+                          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                            {user.role}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onAddUser(group._id, user.userId)}
+                      >
+                        Add
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {showAddUser && availableUsers.length === 0 && (
-          <div className="border-t border-gray-200 pt-4">
-            <p className="text-sm text-gray-500">All users are already in this group.</p>
-          </div>
+          <>
+            <Separator />
+            <p className="text-sm text-muted-foreground">All users are already in this group.</p>
+          </>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

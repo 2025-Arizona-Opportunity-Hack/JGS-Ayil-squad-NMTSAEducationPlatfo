@@ -1,8 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { Plus, FolderOpen, Lock, Edit } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentGroupContentModal } from "./ContentGroupContentModal";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 export function ContentGroupManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -45,96 +52,110 @@ export function ContentGroupManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900">Content Groups</h3>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-        >
-          Create Group
-        </button>
-      </div>
-
-      {showCreateForm && (
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h4 className="text-md font-medium text-gray-900 mb-4">Create New Content Group</h4>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Group Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                placeholder="e.g., Beginner Resources"
-              />
+              <CardTitle>Content Groups</CardTitle>
+              <CardDescription>Organize content into groups for easier management</CardDescription>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                rows={3}
-                placeholder="Describe what this group contains..."
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                Create Group
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {contentGroups?.map((group) => (
-          <div key={group._id} className="bg-white border border-gray-200 rounded-lg p-6">
-            <div className="flex justify-between items-start mb-3">
-              <h4 className="font-medium text-gray-900">{group.name}</h4>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                group.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-              }`}>
-                {group.isActive ? "Active" : "Inactive"}
-              </span>
-            </div>
-            
-            {group.description && (
-              <p className="text-sm text-gray-600 mb-4">{group.description}</p>
-            )}
-
-            <div className="flex space-x-2">
-              <button 
-                onClick={() => handleManageContent(group)}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                Manage Content
-              </button>
-              <button 
-                onClick={() => handleManageAccess(group)}
-                className="text-green-600 hover:text-green-800 text-sm"
-              >
-                Manage Access
-              </button>
-              <button className="text-gray-600 hover:text-gray-800 text-sm">
-                Edit
-              </button>
-            </div>
+            <Button onClick={() => setShowCreateForm(true)}>
+              <Plus className="w-4 h-4 mr-1" />
+              Create Group
+            </Button>
           </div>
+        </CardHeader>
+        {showCreateForm && (
+          <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Create New Content Group</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="groupName">Group Name</Label>
+                    <Input
+                      id="groupName"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="e.g., Beginner Resources"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="groupDescription">Description</Label>
+                    <Textarea
+                      id="groupDescription"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                      placeholder="Describe what this group contains..."
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button type="submit">
+                      Create Group
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </CardContent>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {contentGroups?.map((group) => (
+          <Card key={group._id}>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-base">{group.name}</CardTitle>
+                <Badge variant={group.isActive ? "default" : "destructive"}>
+                  {group.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              {group.description && (
+                <CardDescription>{group.description}</CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleManageContent(group)}
+                >
+                  <FolderOpen className="w-4 h-4 mr-1" />
+                  Content
+                </Button>
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleManageAccess(group)}
+                >
+                  <Lock className="w-4 h-4 mr-1" />
+                  Access
+                </Button>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 

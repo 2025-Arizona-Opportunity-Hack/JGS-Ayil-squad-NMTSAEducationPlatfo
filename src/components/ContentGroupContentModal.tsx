@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { Video, FileText, FileAudio, Newspaper, Folder, Plus, X, Search } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ContentGroupContentModalProps {
   isOpen: boolean;
@@ -28,8 +41,6 @@ export function ContentGroupContentModal({
   const addContentToGroup = useMutation(api.contentGroups.addContentToGroup);
   const removeContentFromGroup = useMutation(api.contentGroups.removeContentFromGroup);
 
-  if (!isOpen) return null;
-
   const handleAddContent = async (contentId: string) => {
     try {
       await addContentToGroup({
@@ -54,12 +65,13 @@ export function ContentGroupContentModal({
   };
 
   const getTypeIcon = (type: string) => {
+    const iconProps = { className: "w-5 h-5" };
     switch (type) {
-      case "video": return "🎥";
-      case "article": return "📰";
-      case "document": return "📄";
-      case "audio": return "🎵";
-      default: return "📁";
+      case "video": return <Video {...iconProps} />;
+      case "article": return <Newspaper {...iconProps} />;
+      case "document": return <FileText {...iconProps} />;
+      case "audio": return <FileAudio {...iconProps} />;
+      default: return <Folder {...iconProps} />;
     }
   };
 
@@ -73,159 +85,181 @@ export function ContentGroupContentModal({
   }) || [];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            Manage Content: {groupName}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Manage Content: {groupName}</DialogTitle>
+          <DialogDescription>
+            Add or remove content from this group
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-6">
           {/* Current Content in Group */}
           <div>
             <div className="flex justify-between items-center mb-3">
-              <h4 className="text-md font-medium text-gray-900">
+              <h4 className="text-sm font-medium">
                 Content in Group ({groupWithItems?.items?.length || 0})
               </h4>
-              <button
+              <Button
                 onClick={() => setShowAddContent(!showAddContent)}
-                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                size="sm"
+                variant={showAddContent ? "outline" : "default"}
               >
-                {showAddContent ? "Cancel" : "Add Content"}
-              </button>
+                {showAddContent ? (
+                  <>
+                    <X className="w-4 h-4 mr-1" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Content
+                  </>
+                )}
+              </Button>
             </div>
 
             {groupWithItems?.items && groupWithItems.items.length > 0 ? (
               <div className="space-y-2">
                 {groupWithItems.items.map((item) => (
-                  <div key={item._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-xl mr-3">{getTypeIcon(item.type)}</span>
-                      <div>
-                        <h5 className="font-medium text-gray-900">{item.title}</h5>
-                        {item.description && (
-                          <p className="text-sm text-gray-600">{item.description}</p>
-                        )}
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
-                            {item.type}
-                          </span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            item.isPublic ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}>
-                            {item.isPublic ? "Public" : "Private"}
-                          </span>
-                          {item.tags && item.tags.length > 0 && (
-                            <div className="flex space-x-1">
-                              {item.tags.slice(0, 2).map((tag, index) => (
-                                <span key={index} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                  {tag}
-                                </span>
-                              ))}
-                              {item.tags.length > 2 && (
-                                <span className="text-xs text-gray-500">+{item.tags.length - 2}</span>
-                              )}
-                            </div>
+                  <Card key={item._id}>
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="text-muted-foreground">
+                          {getTypeIcon(item.type)}
+                        </div>
+                        <div className="flex-1">
+                          <h5 className="font-medium">{item.title}</h5>
+                          {item.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
                           )}
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <Badge variant="outline" className="capitalize">
+                              {item.type}
+                            </Badge>
+                            <Badge variant={item.isPublic ? "default" : "secondary"}>
+                              {item.isPublic ? "Public" : "Private"}
+                            </Badge>
+                            {item.tags && item.tags.length > 0 && (
+                              <>
+                                {item.tags.slice(0, 2).map((tag, index) => (
+                                  <Badge key={index} variant="outline">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {item.tags.length > 2 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    +{item.tags.length - 2}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <button
-                      onClick={() => { void handleRemoveContent(item.groupItemId); }}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { void handleRemoveContent(item.groupItemId); }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-2">📭</div>
-                <p>No content in this group yet</p>
-              </div>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Folder className="w-12 h-12 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No content in this group yet</p>
+                </CardContent>
+              </Card>
             )}
           </div>
 
           {/* Add Content Section */}
           {showAddContent && (
-            <div className="border-t border-gray-200 pt-6">
-              <h4 className="text-md font-medium text-gray-900 mb-3">Add Content to Group</h4>
-              
-              <div className="mb-4">
-                <input
-                  type="text"
-                  placeholder="Search available content..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                />
-              </div>
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-medium mb-3">Add Content to Group</h4>
+                
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search available content..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
 
-              <div className="max-h-60 overflow-y-auto">
-                {filteredAvailableContent.length > 0 ? (
-                  <div className="space-y-2">
-                    {filteredAvailableContent.map((content) => (
-                      <div key={content._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center">
-                          <span className="text-xl mr-3">{getTypeIcon(content.type)}</span>
-                          <div>
-                            <h5 className="font-medium text-gray-900">{content.title}</h5>
-                            {content.description && (
-                              <p className="text-sm text-gray-600">{content.description}</p>
-                            )}
-                            <div className="flex items-center space-x-2 mt-1">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
-                                {content.type}
-                              </span>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                content.isPublic ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                              }`}>
-                                {content.isPublic ? "Public" : "Private"}
-                              </span>
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {filteredAvailableContent.length > 0 ? (
+                    filteredAvailableContent.map((content) => (
+                      <Card key={content._id} className="hover:bg-accent/50 transition-colors">
+                        <CardContent className="flex items-center justify-between p-4">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="text-muted-foreground">
+                              {getTypeIcon(content.type)}
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-medium">{content.title}</h5>
+                              {content.description && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {content.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="capitalize">
+                                  {content.type}
+                                </Badge>
+                                <Badge variant={content.isPublic ? "default" : "secondary"}>
+                                  {content.isPublic ? "Public" : "Private"}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <button
-                          onClick={() => { void handleAddContent(content._id); }}
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>
-                      {searchTerm 
-                        ? "No content found matching your search" 
-                        : "No available content to add"
-                      }
-                    </p>
-                  </div>
-                )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { void handleAddContent(content._id); }}
+                          >
+                            Add
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                        <Search className="w-12 h-12 text-muted-foreground mb-2" />
+                        <p className="text-muted-foreground">
+                          {searchTerm 
+                            ? "No content found matching your search" 
+                            : "No available content to add"
+                          }
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
-        <div className="flex justify-end pt-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-          >
+        <Separator />
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

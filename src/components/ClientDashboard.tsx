@@ -1,81 +1,98 @@
-import { useState } from "react";
 import { useQuery } from "convex/react";
 import { Video, FileText, FileAudio, Newspaper, Folder } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { ContentViewer } from "./ContentViewer";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function ClientDashboard() {
-  const [selectedType, setSelectedType] = useState<string>("all");
-  const content = useQuery(api.content.listContent, 
-    selectedType === "all" ? {} : { type: selectedType as any }
-  );
+  const content = useQuery(api.content.listContent, {});
   const contentGroups = useQuery(api.contentGroups.listContentGroups);
 
-  const contentTypes = [
-    { id: "all", name: "All Content", icon: <Folder className="w-5 h-5" /> },
-    { id: "video", name: "Videos", icon: <Video className="w-5 h-5" /> },
-    { id: "document", name: "Documents", icon: <FileText className="w-5 h-5" /> },
-    { id: "article", name: "Articles", icon: <Newspaper className="w-5 h-5" /> },
-    { id: "audio", name: "Audio", icon: <FileAudio className="w-5 h-5" /> },
-  ];
-
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
       {/* Welcome Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Welcome to Your Content Library
-        </h2>
-        <p className="text-gray-600">
-          Access your personalized neurologic music therapy resources and materials.
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Welcome to Your Content Library</CardTitle>
+          <CardDescription>
+            Access your personalized neurologic music therapy resources and materials.
+          </CardDescription>
+        </CardHeader>
+      </Card>
 
       {/* Content Groups */}
       {contentGroups && contentGroups.length > 0 && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Content Collections</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {contentGroups.map((group) => (
-              <div
-                key={group._id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <h4 className="font-medium text-gray-900">{group.name}</h4>
-                {group.description && (
-                  <p className="text-sm text-gray-600 mt-1">{group.description}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Content Collections</CardTitle>
+            <CardDescription>Curated content organized into themed collections</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {contentGroups.map((group) => (
+                <Card key={group._id} className="cursor-pointer hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="text-base">{group.name}</CardTitle>
+                    {group.description && (
+                      <CardDescription>{group.description}</CardDescription>
+                    )}
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Content Filter */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6">
-            {contentTypes.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => setSelectedType(type.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  selectedType === type.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <span className="mr-2">{type.icon}</span>
-                {type.name}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="p-6">
-          <ContentViewer content={content || []} />
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Browse Content</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <Folder className="w-4 h-4" />
+                All
+              </TabsTrigger>
+              <TabsTrigger value="video" className="flex items-center gap-2">
+                <Video className="w-4 h-4" />
+                Videos
+              </TabsTrigger>
+              <TabsTrigger value="document" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Documents
+              </TabsTrigger>
+              <TabsTrigger value="article" className="flex items-center gap-2">
+                <Newspaper className="w-4 h-4" />
+                Articles
+              </TabsTrigger>
+              <TabsTrigger value="audio" className="flex items-center gap-2">
+                <FileAudio className="w-4 h-4" />
+                Audio
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="all" className="mt-6">
+              <ContentViewer content={content || []} />
+            </TabsContent>
+            <TabsContent value="video" className="mt-6">
+              <ContentViewer content={content?.filter(c => c.type === "video") || []} />
+            </TabsContent>
+            <TabsContent value="document" className="mt-6">
+              <ContentViewer content={content?.filter(c => c.type === "document") || []} />
+            </TabsContent>
+            <TabsContent value="article" className="mt-6">
+              <ContentViewer content={content?.filter(c => c.type === "article") || []} />
+            </TabsContent>
+            <TabsContent value="audio" className="mt-6">
+              <ContentViewer content={content?.filter(c => c.type === "audio") || []} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,25 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "../../convex/_generated/api";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ContentEditModalProps {
   isOpen: boolean;
@@ -41,6 +60,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     handleSubmit: handleFormSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
@@ -60,6 +80,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   });
 
   const formType = watch("type");
+  const formIsPublic = watch("isPublic");
+  const formActive = watch("active");
 
   // Reset form when content changes
   useEffect(() => {
@@ -82,8 +104,6 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   const contentWithFile = useQuery(api.content.getContent, { contentId: content._id as any });
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const updateContent = useMutation(api.content.updateContent);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
@@ -155,92 +175,93 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Edit Content</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Content</DialogTitle>
+          <DialogDescription>
+            Update the content details below. Fields marked with * are required.
+          </DialogDescription>
+        </DialogHeader>
 
         <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Title *</label>
-            <input
-              type="text"
+          <div className="space-y-2">
+            <Label htmlFor="title">Title *</Label>
+            <Input
+              id="title"
               {...register("title")}
-              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                errors.title ? "border-red-500" : "border-gray-300"
-              }`}
+              className={errors.title ? "border-red-500" : ""}
             />
             {errors.title && (
-              <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>
+              <p className="text-sm text-red-500">{errors.title.message}</p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
-            <textarea
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
               {...register("description")}
-              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                errors.description ? "border-red-500" : "border-gray-300"
-              }`}
+              className={errors.description ? "border-red-500" : ""}
               rows={3}
             />
             {errors.description && (
-              <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
+              <p className="text-sm text-red-500">{errors.description.message}</p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Type *</label>
-            <select
-              {...register("type")}
-              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                errors.type ? "border-red-500" : "border-gray-300"
-              }`}
-            >
-              <option value="video">Video</option>
-              <option value="audio">Audio</option>
-              <option value="article">Article</option>
-              <option value="document">Document</option>
-            </select>
+          <div className="space-y-2">
+            <Label htmlFor="type">Type *</Label>
+            <Select value={formType} onValueChange={(value) => setValue("type", value as "video" | "article" | "document" | "audio")}>
+              <SelectTrigger id="type" className={errors.type ? "border-red-500" : ""}>
+                <SelectValue placeholder="Select content type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="video">Video</SelectItem>
+                <SelectItem value="audio">Audio</SelectItem>
+                <SelectItem value="article">Article</SelectItem>
+                <SelectItem value="document">Document</SelectItem>
+              </SelectContent>
+            </Select>
             {errors.type && (
-              <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>
+              <p className="text-sm text-red-500">{errors.type.message}</p>
             )}
           </div>
 
           {(formType === "video" || formType === "document" || formType === "audio") && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
+            <div className="space-y-2">
+              <Label htmlFor="file">
                 {formType === "video" ? "Video File" : 
                  formType === "audio" ? "Audio File" : "Document File"}
-              </label>
+              </Label>
               
               {contentWithFile?.fileUrl && !selectedFile && (
-                <div className="mt-1 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <div className="p-3 bg-muted border rounded-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-900">Current {formType} file</p>
-                      <p className="text-xs text-gray-500">Choose a new file to replace</p>
+                      <p className="text-sm font-medium">Current {formType} file</p>
+                      <p className="text-xs text-muted-foreground">Choose a new file to replace</p>
                     </div>
-                    <a
-                      href={contentWithFile.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      asChild
                     >
-                      View
-                    </a>
+                      <a
+                        href={contentWithFile.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View
+                      </a>
+                    </Button>
                   </div>
                 </div>
               )}
               
-              <input
+              <Input
+                id="file"
                 type="file"
                 accept={
                   formType === "video" ? "video/*" : 
@@ -248,11 +269,10 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
                   ".pdf,.doc,.docx,.txt,.rtf"
                 }
                 onChange={handleFileChange}
-                className="mt-2 block w-full border border-gray-300 rounded-md px-3 py-2"
               />
               
               {selectedFile && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded-md">
                   <p className="text-sm text-blue-900">
                     New: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                   </p>
@@ -262,131 +282,126 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           )}
 
           {formType === "article" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Content</label>
-              <textarea
+            <div className="space-y-2">
+              <Label htmlFor="richTextContent">Content</Label>
+              <Textarea
+                id="richTextContent"
                 {...register("richTextContent")}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 rows={6}
                 placeholder="Enter article content..."
               />
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Body (optional rich text)</label>
-            <textarea
+          <div className="space-y-2">
+            <Label htmlFor="body">Body (optional rich text)</Label>
+            <Textarea
+              id="body"
               {...register("body")}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
               rows={8}
               placeholder="Add additional rich text content, notes, or descriptions here..."
             />
-            <p className="text-xs text-gray-500 mt-1">This field is available for all content types to add supplementary information</p>
+            <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">External URL (optional)</label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="externalUrl">External URL (optional)</Label>
+            <Input
+              id="externalUrl"
               type="url"
               {...register("externalUrl")}
-              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                errors.externalUrl ? "border-red-500" : "border-gray-300"
-              }`}
+              className={errors.externalUrl ? "border-red-500" : ""}
               placeholder="https://..."
             />
             {errors.externalUrl && (
-              <p className="text-red-500 text-sm mt-1">{errors.externalUrl.message}</p>
+              <p className="text-sm text-red-500">{errors.externalUrl.message}</p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
-            <input
-              type="text"
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags (comma-separated)</Label>
+            <Input
+              id="tags"
               {...register("tags")}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
               placeholder="therapy, music, neurologic"
             />
           </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
+          <div className="flex items-center space-x-2">
+            <Checkbox
               id="isPublic-edit"
-              {...register("isPublic")}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              checked={formIsPublic}
+              onCheckedChange={(checked) => setValue("isPublic", checked as boolean)}
             />
-            <label htmlFor="isPublic-edit" className="ml-2 block text-sm text-gray-900">
+            <Label htmlFor="isPublic-edit" className="font-normal cursor-pointer">
               Make this content public
-            </label>
+            </Label>
           </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <h5 className="text-sm font-medium text-gray-900 mb-3">Availability Settings</h5>
+          <div className="border-t pt-4 space-y-4">
+            <h5 className="text-sm font-medium">Availability Settings</h5>
             
-            <div className="flex items-center mb-4">
-              <input
-                type="checkbox"
+            <div className="flex items-center space-x-2">
+              <Checkbox
                 id="active-edit"
-                {...register("active")}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                checked={formActive}
+                onCheckedChange={(checked) => setValue("active", checked as boolean)}
               />
-              <label htmlFor="active-edit" className="ml-2 block text-sm text-gray-900">
+              <Label htmlFor="active-edit" className="font-normal cursor-pointer">
                 Content is active (can be viewed when published)
-              </label>
+              </Label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Start Date (optional)</label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date (optional)</Label>
+                <Input
+                  id="startDate"
                   type="datetime-local"
                   {...register("startDate")}
-                  className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                    errors.startDate ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className={errors.startDate ? "border-red-500" : ""}
                 />
                 {errors.startDate && (
-                  <p className="text-red-500 text-sm mt-1">{errors.startDate.message}</p>
+                  <p className="text-sm text-red-500">{errors.startDate.message}</p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">Content becomes available at this date/time</p>
+                <p className="text-xs text-muted-foreground">Content becomes available at this date/time</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">End Date (optional)</label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date (optional)</Label>
+                <Input
+                  id="endDate"
                   type="datetime-local"
                   {...register("endDate")}
-                  className={`mt-1 block w-full border rounded-md px-3 py-2 ${
-                    errors.endDate ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className={errors.endDate ? "border-red-500" : ""}
                 />
                 {errors.endDate && (
-                  <p className="text-red-500 text-sm mt-1">{errors.endDate.message}</p>
+                  <p className="text-sm text-red-500">{errors.endDate.message}</p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">Content expires at this date/time</p>
+                <p className="text-xs text-muted-foreground">Content expires at this date/time</p>
               </div>
             </div>
           </div>
 
-          <div className="flex space-x-3 pt-4">
-            <button
+          <div className="flex gap-3 pt-4">
+            <Button
               type="submit"
               disabled={uploading}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1"
             >
               {uploading ? "Updating..." : "Update Content"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+              className="flex-1"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

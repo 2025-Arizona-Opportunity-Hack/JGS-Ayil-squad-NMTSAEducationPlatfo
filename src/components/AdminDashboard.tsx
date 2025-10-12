@@ -1,46 +1,55 @@
-import { useState } from "react";
 import { Folder, FolderTree, Users, UsersRound } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
 import { ContentGroupManager } from "./ContentGroupManager";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("content");
-
-  const tabs = [
-    { id: "content", label: "Content", icon: <Folder className="w-4 h-4" />, component: ContentManager },
-    { id: "contentGroups", label: "Content Groups", icon: <FolderTree className="w-4 h-4" />, component: ContentGroupManager },
-    { id: "users", label: "Users", icon: <Users className="w-4 h-4" />, component: UserManager },
-    { id: "userGroups", label: "User Groups", icon: <UsersRound className="w-4 h-4" />, component: UserGroupManager },
-  ];
-
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ContentManager;
-
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                activeTab === tab.id
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+        <p className="text-muted-foreground">Manage your content, users, and groups</p>
       </div>
 
-      <div className="mt-6">
-        <ActiveComponent />
-      </div>
+      <Tabs defaultValue="content" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="content" className="flex items-center gap-2">
+            <Folder className="w-4 h-4" />
+            Content
+          </TabsTrigger>
+          <TabsTrigger value="contentGroups" className="flex items-center gap-2">
+            <FolderTree className="w-4 h-4" />
+            Content Groups
+          </TabsTrigger>
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="userGroups" className="flex items-center gap-2">
+            <UsersRound className="w-4 h-4" />
+            User Groups
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="content" className="space-y-4">
+          <ContentManager />
+        </TabsContent>
+
+        <TabsContent value="contentGroups" className="space-y-4">
+          <ContentGroupManager />
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <UserManager />
+        </TabsContent>
+
+        <TabsContent value="userGroups" className="space-y-4">
+          <UserGroupManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
