@@ -138,7 +138,7 @@ export function ContentGroupContentModal({
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRemoveContent(item.groupItemId)}
+                      onClick={() => { void handleRemoveContent(item.groupItemId); }}
                       className="text-red-600 hover:text-red-800 text-sm"
                     >
                       Remove
@@ -194,7 +194,7 @@ export function ContentGroupContentModal({
                           </div>
                         </div>
                         <button
-                          onClick={() => handleAddContent(content._id)}
+                          onClick={() => { void handleAddContent(content._id); }}
                           className="text-blue-600 hover:text-blue-800 text-sm"
                         >
                           Add

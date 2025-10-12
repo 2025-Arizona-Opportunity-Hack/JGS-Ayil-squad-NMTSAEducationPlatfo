@@ -1,3 +1,5 @@
+import { Video, FileText, FileAudio, Newspaper, Folder } from "lucide-react";
+
 interface ContentViewerProps {
   content: Array<{
     _id: string;
@@ -15,7 +17,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
   if (content.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="text-gray-400 text-6xl mb-4">📭</div>
+        <div className="text-gray-400 mb-4 flex justify-center">
+          <Folder className="w-16 h-16" />
+        </div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">No content available</h3>
         <p className="text-gray-600">
           You don't have access to any content yet. Contact your administrator for access.
@@ -25,12 +29,13 @@ export function ContentViewer({ content }: ContentViewerProps) {
   }
 
   const getTypeIcon = (type: string) => {
+    const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
     switch (type) {
-      case "video": return "🎥";
-      case "article": return "📰";
-      case "document": return "📄";
-      case "audio": return "🎵";
-      default: return "📁";
+      case "video": return <Video {...iconProps} />;
+      case "article": return <Newspaper {...iconProps} />;
+      case "document": return <FileText {...iconProps} />;
+      case "audio": return <FileAudio {...iconProps} />;
+      default: return <Folder {...iconProps} />;
     }
   };
 
@@ -39,7 +44,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
       {content.map((item) => (
         <div key={item._id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between mb-3">
-            <span className="text-2xl">{getTypeIcon(item.type)}</span>
+            <div>{getTypeIcon(item.type)}</div>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
               {item.type}
             </span>

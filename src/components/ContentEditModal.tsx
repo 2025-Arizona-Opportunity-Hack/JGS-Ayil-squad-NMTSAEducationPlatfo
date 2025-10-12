@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "../../convex/_generated/api";
+import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 
 interface ContentEditModalProps {
   isOpen: boolean;
@@ -13,23 +16,68 @@ interface ContentEditModalProps {
     fileId?: string;
     externalUrl?: string;
     richTextContent?: string;
+    body?: string;
     isPublic: boolean;
     tags?: string[];
+    active: boolean;
+    startDate?: number;
+    endDate?: number;
   };
 }
 
 export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalProps) {
-  const [formData, setFormData] = useState({
-    title: content.title,
-    description: content.description || "",
-    type: content.type,
-    externalUrl: content.externalUrl || "",
-    richTextContent: content.richTextContent || "",
-    isPublic: content.isPublic,
-    tags: content.tags?.join(", ") || "",
-  });
+  const formatDateForInput = (timestamp?: number) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    // Format to YYYY-MM-DDTHH:MM for datetime-local input
+    return date.toISOString().slice(0, 16);
+  };
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<ContentFormData>({
+    resolver: zodResolver(contentFormSchema),
+    defaultValues: {
+      title: content.title,
+      description: content.description || "",
+      type: content.type,
+      externalUrl: content.externalUrl || "",
+      richTextContent: content.richTextContent || "",
+      body: content.body || "",
+      isPublic: content.isPublic,
+      tags: content.tags?.join(", ") || "",
+      active: content.active,
+      startDate: formatDateForInput(content.startDate),
+      endDate: formatDateForInput(content.endDate),
+    },
+  });
+
+  const formType = watch("type");
+
+  // Reset form when content changes
+  useEffect(() => {
+    reset({
+      title: content.title,
+      description: content.description || "",
+      type: content.type,
+      externalUrl: content.externalUrl || "",
+      richTextContent: content.richTextContent || "",
+      body: content.body || "",
+      isPublic: content.isPublic,
+      tags: content.tags?.join(", ") || "",
+      active: content.active,
+      startDate: formatDateForInput(content.startDate),
+      endDate: formatDateForInput(content.endDate),
+    });
+    setSelectedFile(null);
+  }, [content, reset]);
 
   const contentWithFile = useQuery(api.content.getContent, { contentId: content._id as any });
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
@@ -37,15 +85,14 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
     
     try {
       let fileId = content.fileId;
       
       // Handle file upload for videos, documents, and audio if a new file is selected
-      if (selectedFile && (formData.type === "video" || formData.type === "document" || formData.type === "audio")) {
+      if (selectedFile && (data.type === "video" || data.type === "document" || data.type === "audio")) {
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
@@ -61,19 +108,24 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
       await updateContent({
         contentId: content._id as any,
-        title: formData.title,
-        description: formData.description || undefined,
-        type: formData.type,
+        title: data.title,
+        description: data.description || undefined,
+        type: data.type,
         fileId: fileId as any,
-        externalUrl: formData.externalUrl || undefined,
-        richTextContent: formData.richTextContent || undefined,
-        isPublic: formData.isPublic,
-        tags: formData.tags ? formData.tags.split(",").map(tag => tag.trim()) : undefined,
+        externalUrl: data.externalUrl || undefined,
+        richTextContent: data.richTextContent || undefined,
+        body: data.body || undefined,
+        isPublic: data.isPublic,
+        tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
+        active: data.active,
+        startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
+        endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
       });
       
       onClose();
     } catch (error) {
       console.error("Error updating content:", error);
+      alert(error instanceof Error ? error.message : "Failed to update content");
     } finally {
       setUploading(false);
     }
@@ -83,17 +135,17 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     const file = e.target.files?.[0];
     if (file) {
       // Check file type based on content type
-      if (formData.type === "video" && !file.type.startsWith('video/')) {
+      if (formType === "video" && !file.type.startsWith('video/')) {
         alert('Please select a video file');
         e.target.value = '';
         return;
       }
-      if (formData.type === "audio" && !file.type.startsWith('audio/')) {
+      if (formType === "audio" && !file.type.startsWith('audio/')) {
         alert('Please select an audio file');
         e.target.value = '';
         return;
       }
-      if (formData.type === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
+      if (formType === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
         alert('Please select a document file (PDF, DOC, etc.)');
         e.target.value = '';
         return;
@@ -115,54 +167,65 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Title</label>
+            <label className="block text-sm font-medium text-gray-700">Title *</label>
             <input
               type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              {...register("title")}
+              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                errors.title ? "border-red-500" : "border-gray-300"
+              }`}
             />
+            {errors.title && (
+              <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Description</label>
             <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              {...register("description")}
+              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                errors.description ? "border-red-500" : "border-gray-300"
+              }`}
               rows={3}
             />
+            {errors.description && (
+              <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Type</label>
+            <label className="block text-sm font-medium text-gray-700">Type *</label>
             <select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              {...register("type")}
+              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                errors.type ? "border-red-500" : "border-gray-300"
+              }`}
             >
               <option value="video">Video</option>
               <option value="audio">Audio</option>
               <option value="article">Article</option>
               <option value="document">Document</option>
             </select>
+            {errors.type && (
+              <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>
+            )}
           </div>
 
-          {(formData.type === "video" || formData.type === "document" || formData.type === "audio") && (
+          {(formType === "video" || formType === "document" || formType === "audio") && (
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                {formData.type === "video" ? "Video File" : 
-                 formData.type === "audio" ? "Audio File" : "Document File"}
+                {formType === "video" ? "Video File" : 
+                 formType === "audio" ? "Audio File" : "Document File"}
               </label>
               
               {contentWithFile?.fileUrl && !selectedFile && (
                 <div className="mt-1 p-3 bg-gray-50 border border-gray-200 rounded-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-900">Current {formData.type} file</p>
+                      <p className="text-sm text-gray-900">Current {formType} file</p>
                       <p className="text-xs text-gray-500">Choose a new file to replace</p>
                     </div>
                     <a
@@ -180,8 +243,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
               <input
                 type="file"
                 accept={
-                  formData.type === "video" ? "video/*" : 
-                  formData.type === "audio" ? "audio/*" : 
+                  formType === "video" ? "video/*" : 
+                  formType === "audio" ? "audio/*" : 
                   ".pdf,.doc,.docx,.txt,.rtf"
                 }
                 onChange={handleFileChange}
@@ -198,12 +261,11 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             </div>
           )}
 
-          {formData.type === "article" && (
+          {formType === "article" && (
             <div>
               <label className="block text-sm font-medium text-gray-700">Content</label>
               <textarea
-                value={formData.richTextContent}
-                onChange={(e) => setFormData({ ...formData, richTextContent: e.target.value })}
+                {...register("richTextContent")}
                 className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 rows={6}
                 placeholder="Enter article content..."
@@ -212,22 +274,36 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           )}
 
           <div>
+            <label className="block text-sm font-medium text-gray-700">Body (optional rich text)</label>
+            <textarea
+              {...register("body")}
+              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              rows={8}
+              placeholder="Add additional rich text content, notes, or descriptions here..."
+            />
+            <p className="text-xs text-gray-500 mt-1">This field is available for all content types to add supplementary information</p>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700">External URL (optional)</label>
             <input
               type="url"
-              value={formData.externalUrl}
-              onChange={(e) => setFormData({ ...formData, externalUrl: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              {...register("externalUrl")}
+              className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                errors.externalUrl ? "border-red-500" : "border-gray-300"
+              }`}
               placeholder="https://..."
             />
+            {errors.externalUrl && (
+              <p className="text-red-500 text-sm mt-1">{errors.externalUrl.message}</p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
             <input
               type="text"
-              value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              {...register("tags")}
               className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
               placeholder="therapy, music, neurologic"
             />
@@ -236,14 +312,61 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           <div className="flex items-center">
             <input
               type="checkbox"
-              id="isPublic"
-              checked={formData.isPublic}
-              onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
+              id="isPublic-edit"
+              {...register("isPublic")}
               className="h-4 w-4 text-blue-600 border-gray-300 rounded"
             />
-            <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
+            <label htmlFor="isPublic-edit" className="ml-2 block text-sm text-gray-900">
               Make this content public
             </label>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4">
+            <h5 className="text-sm font-medium text-gray-900 mb-3">Availability Settings</h5>
+            
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="active-edit"
+                {...register("active")}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+              <label htmlFor="active-edit" className="ml-2 block text-sm text-gray-900">
+                Content is active (can be viewed when published)
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Start Date (optional)</label>
+                <input
+                  type="datetime-local"
+                  {...register("startDate")}
+                  className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                    errors.startDate ? "border-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errors.startDate && (
+                  <p className="text-red-500 text-sm mt-1">{errors.startDate.message}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Content becomes available at this date/time</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">End Date (optional)</label>
+                <input
+                  type="datetime-local"
+                  {...register("endDate")}
+                  className={`mt-1 block w-full border rounded-md px-3 py-2 ${
+                    errors.endDate ? "border-red-500" : "border-gray-300"
+                  }`}
+                />
+                {errors.endDate && (
+                  <p className="text-red-500 text-sm mt-1">{errors.endDate.message}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Content expires at this date/time</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex space-x-3 pt-4">

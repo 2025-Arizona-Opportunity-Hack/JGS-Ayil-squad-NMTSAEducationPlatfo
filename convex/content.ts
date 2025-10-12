@@ -2,7 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Create content
+// Create content (as draft)
 export const createContent = mutation({
   args: {
     title: v.string(),
@@ -16,31 +16,42 @@ export const createContent = mutation({
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     richTextContent: v.optional(v.string()),
+    body: v.optional(v.string()),
     isPublic: v.boolean(),
     tags: v.optional(v.array(v.string())),
+    active: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if user is admin
+    // Check if user has permission to create content (contributor, editor, or admin)
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can create content");
+    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, editors, and contributors can create content");
     }
 
+    // Validate dates
+    if (args.startDate && args.endDate && args.startDate > args.endDate) {
+      throw new Error("Start date must be before end date");
+    }
+
+    // All new content starts as draft
     return await ctx.db.insert("content", {
       ...args,
       createdBy: userId,
+      status: "draft",
     });
   },
 });
 
-// List content (with access control)
+// List content (with access control and workflow filtering)
 export const listContent = query({
   args: {
     type: v.optional(v.union(
@@ -48,6 +59,12 @@ export const listContent = query({
       v.literal("article"),
       v.literal("document"),
       v.literal("audio")
+    )),
+    status: v.optional(v.union(
+      v.literal("draft"),
+      v.literal("review"),
+      v.literal("published"),
+      v.literal("rejected")
     )),
   },
   handler: async (ctx, args) => {
@@ -63,7 +80,18 @@ export const listContent = query({
 
     let allContent;
     
-    if (args.type) {
+    // Filter by status if provided
+    if (args.status) {
+      allContent = await ctx.db
+        .query("content")
+        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .collect();
+      
+      // Further filter by type if provided
+      if (args.type) {
+        allContent = allContent.filter(c => c.type === args.type);
+      }
+    } else if (args.type) {
       allContent = await ctx.db
         .query("content")
         .withIndex("by_type", (q) => q.eq("type", args.type!))
@@ -72,18 +100,51 @@ export const listContent = query({
       allContent = await ctx.db.query("content").collect();
     }
 
-    // Filter content based on access
+    // Filter content based on access and workflow status
     const accessibleContent = [];
 
     for (const content of allContent) {
-      // Public content is always accessible
-      if (content.isPublic) {
+      // Admins and editors can see all content regardless of status and availability
+      if (profile.role === "admin" || profile.role === "editor") {
         accessibleContent.push(content);
         continue;
       }
 
-      // Admins can see all content
-      if (profile.role === "admin") {
+      // Contributors can see their own drafts and all published content
+      if (profile.role === "contributor") {
+        if (content.createdBy === userId) {
+          // Can see own content in any status
+          accessibleContent.push(content);
+          continue;
+        }
+        // For other content, must be published and available
+        if (content.status !== "published" || !isContentAvailable(content)) {
+          continue;
+        }
+        // Check if has access to this published content
+        if (content.isPublic) {
+          accessibleContent.push(content);
+          continue;
+        }
+        const hasAccess = await checkContentAccess(ctx, content._id, userId, profile.role);
+        if (hasAccess) {
+          accessibleContent.push(content);
+        }
+        continue;
+      }
+
+      // Non-content-creator users can only see published content
+      if (content.status !== "published") {
+        continue;
+      }
+
+      // Check if content is available based on active status and date range
+      if (!isContentAvailable(content)) {
+        continue;
+      }
+
+      // Public content is accessible
+      if (content.isPublic) {
         accessibleContent.push(content);
         continue;
       }
@@ -98,6 +159,22 @@ export const listContent = query({
     return accessibleContent;
   },
 });
+
+// Helper function to check if content is currently available based on active status and dates
+function isContentAvailable(content: any): boolean {
+  // Must be active
+  if (!content.active) return false;
+  
+  const now = Date.now();
+  
+  // Check start date
+  if (content.startDate && content.startDate > now) return false;
+  
+  // Check end date
+  if (content.endDate && content.endDate < now) return false;
+  
+  return true;
+}
 
 // Helper function to check content access
 async function checkContentAccess(ctx: any, contentId: any, userId: any, userRole: string) {
@@ -190,8 +267,8 @@ export const generateUploadUrl = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can upload content");
+    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, editors, and contributors can upload content");
     }
 
     return await ctx.storage.generateUploadUrl();
@@ -240,8 +317,22 @@ export const getContent = query({
 
     if (!profile) return null;
 
-    // Check access
-    if (content.isPublic || profile.role === "admin") {
+    // Admins and editors can see all content
+    if (profile.role === "admin" || profile.role === "editor") {
+      return {
+        ...content,
+        fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
+        thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
+      };
+    }
+
+    // Non-admin/editor users need published content that is available
+    if (content.status !== "published" || !isContentAvailable(content)) {
+      return null;
+    }
+
+    // Check access for public or specifically granted content
+    if (content.isPublic) {
       return {
         ...content,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
@@ -275,24 +366,196 @@ export const updateContent = mutation({
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     richTextContent: v.optional(v.string()),
+    body: v.optional(v.string()),
     isPublic: v.boolean(),
     tags: v.optional(v.array(v.string())),
+    active: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if user is admin
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can update content");
+    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, editors, and contributors can update content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    // Permission checks based on role
+    if (profile.role === "contributor") {
+      // Contributors can only edit their own drafts or rejected content
+      if (content.createdBy !== userId) {
+        throw new Error("Contributors can only edit their own content");
+      }
+      if (content.status !== "draft" && content.status !== "rejected") {
+        throw new Error("Contributors can only edit content in draft or rejected status");
+      }
+    } else if (profile.role === "editor") {
+      // Editors can edit any draft or rejected content
+      if (content.status !== "draft" && content.status !== "rejected") {
+        throw new Error("Editors can only edit content in draft or rejected status");
+      }
+    }
+    // Admins can edit any content at any time
+
+    // Validate dates
+    if (args.startDate && args.endDate && args.startDate > args.endDate) {
+      throw new Error("Start date must be before end date");
     }
 
     const { contentId, ...updateData } = args;
     await ctx.db.patch(contentId, updateData);
+  },
+});
+
+// Submit content for review
+export const submitForReview = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, editors, and contributors can submit content for review");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    // Contributors can only submit their own content
+    if (profile.role === "contributor" && content.createdBy !== userId) {
+      throw new Error("Contributors can only submit their own content");
+    }
+
+    // Can only submit drafts or rejected content
+    if (content.status !== "draft" && content.status !== "rejected") {
+      throw new Error("Can only submit drafts or rejected content for review");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      status: "review",
+      submittedForReviewAt: Date.now(),
+      submittedForReviewBy: userId,
+    });
+  },
+});
+
+// Approve content (move to published)
+export const approveContent = mutation({
+  args: {
+    contentId: v.id("content"),
+    reviewNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    // Only editors and admins can approve content
+    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
+      throw new Error("Only editors and admins can approve content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (content.status !== "review") {
+      throw new Error("Can only approve content in review status");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      status: "published",
+      reviewedAt: Date.now(),
+      reviewedBy: userId,
+      reviewNotes: args.reviewNotes,
+      publishedAt: Date.now(),
+    });
+  },
+});
+
+// Reject content (move back to draft)
+export const rejectContent = mutation({
+  args: {
+    contentId: v.id("content"),
+    reviewNotes: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    // Only editors and admins can reject content
+    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
+      throw new Error("Only editors and admins can reject content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (content.status !== "review") {
+      throw new Error("Can only reject content in review status");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      status: "rejected",
+      reviewedAt: Date.now(),
+      reviewedBy: userId,
+      reviewNotes: args.reviewNotes,
+    });
+  },
+});
+
+// Unpublish content (move back to draft)
+export const unpublishContent = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    // Only admins can unpublish content
+    if (!profile || profile.role !== "admin") {
+      throw new Error("Only admins can unpublish content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (content.status !== "published") {
+      throw new Error("Can only unpublish published content");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      status: "draft",
+    });
   },
 });

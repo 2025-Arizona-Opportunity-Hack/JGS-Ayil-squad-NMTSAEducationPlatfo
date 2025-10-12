@@ -8,6 +8,8 @@ const applicationTables = {
     userId: v.id("users"),
     role: v.union(
       v.literal("admin"),
+      v.literal("editor"),
+      v.literal("contributor"),
       v.literal("client"),
       v.literal("parent"),
       v.literal("professional")
@@ -36,6 +38,7 @@ const applicationTables = {
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     richTextContent: v.optional(v.string()),
+    body: v.optional(v.string()), // General rich text body field for all content types
     thumbnailId: v.optional(v.id("_storage")),
     duration: v.optional(v.number()),
     fileSize: v.optional(v.number()),
@@ -44,15 +47,34 @@ const applicationTables = {
     createdBy: v.id("users"),
     tags: v.optional(v.array(v.string())),
     accessExpiresAt: v.optional(v.number()),
+    // Availability control fields
+    active: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    // Workflow fields
+    status: v.union(
+      v.literal("draft"),
+      v.literal("review"),
+      v.literal("published"),
+      v.literal("rejected")
+    ),
+    submittedForReviewAt: v.optional(v.number()),
+    submittedForReviewBy: v.optional(v.id("users")),
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.id("users")),
+    reviewNotes: v.optional(v.string()),
+    publishedAt: v.optional(v.number()),
     // Temporary field for migration
     organizationId: v.optional(v.string()),
   })
     .index("by_creator", ["createdBy"])
     .index("by_type", ["type"])
     .index("by_public", ["isPublic"])
+    .index("by_status", ["status"])
+    .index("by_active", ["active"])
     .searchIndex("search_content", {
       searchField: "title",
-      filterFields: ["type", "isPublic"],
+      filterFields: ["type", "isPublic", "status", "active"],
     }),
 
   // Content groups
@@ -151,6 +173,8 @@ const applicationTables = {
   invitations: defineTable({
     email: v.string(),
     role: v.union(
+      v.literal("editor"),
+      v.literal("contributor"),
       v.literal("client"),
       v.literal("parent"),
       v.literal("professional")

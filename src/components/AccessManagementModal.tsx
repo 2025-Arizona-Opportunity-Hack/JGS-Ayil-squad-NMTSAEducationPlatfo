@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { Check } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 
 interface AccessManagementModalProps {
@@ -282,7 +283,7 @@ export function AccessManagementModal({
                           {user.role}
                         </span>
                         {selectedUsers.includes(user.userId) && (
-                          <span className="ml-auto text-blue-600">✓</span>
+                          <Check className="ml-auto text-blue-600 w-5 h-5" />
                         )}
                       </button>
                     ))}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import { Video, FileText, FileAudio, Newspaper, Folder } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { ContentViewer } from "./ContentViewer";
 
@@ -11,11 +12,11 @@ export function ClientDashboard() {
   const contentGroups = useQuery(api.contentGroups.listContentGroups);
 
   const contentTypes = [
-    { id: "all", name: "All Content", icon: "📋" },
-    { id: "video", name: "Videos", icon: "🎥" },
-    { id: "document", name: "Documents", icon: "📄" },
-    { id: "article", name: "Articles", icon: "📰" },
-    { id: "audio", name: "Audio", icon: "🎵" },
+    { id: "all", name: "All Content", icon: <Folder className="w-5 h-5" /> },
+    { id: "video", name: "Videos", icon: <Video className="w-5 h-5" /> },
+    { id: "document", name: "Documents", icon: <FileText className="w-5 h-5" /> },
+    { id: "article", name: "Articles", icon: <Newspaper className="w-5 h-5" /> },
+    { id: "audio", name: "Audio", icon: <FileAudio className="w-5 h-5" /> },
   ];
 
   return (

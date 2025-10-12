@@ -1,3 +1,5 @@
+import { Video, FileText, FileAudio, Newspaper, Folder } from "lucide-react";
+
 interface ContentSearchProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -12,11 +14,11 @@ export function ContentSearch({
   onTypeChange 
 }: ContentSearchProps) {
   const contentTypes = [
-    { value: undefined, label: "All Types", icon: "📋" },
-    { value: "video" as const, label: "Videos", icon: "🎥" },
-    { value: "audio" as const, label: "Audio", icon: "🎵" },
-    { value: "document" as const, label: "Documents", icon: "📄" },
-    { value: "article" as const, label: "Articles", icon: "📰" },
+    { value: undefined, label: "All Types", icon: <Folder className="w-4 h-4" /> },
+    { value: "video" as const, label: "Videos", icon: <Video className="w-4 h-4" /> },
+    { value: "audio" as const, label: "Audio", icon: <FileAudio className="w-4 h-4" /> },
+    { value: "document" as const, label: "Documents", icon: <FileText className="w-4 h-4" /> },
+    { value: "article" as const, label: "Articles", icon: <Newspaper className="w-4 h-4" /> },
   ];
 
   return (

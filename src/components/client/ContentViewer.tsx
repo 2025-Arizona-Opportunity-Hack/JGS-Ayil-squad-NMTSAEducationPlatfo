@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Video, FileText, FileAudio, Newspaper, Folder, FileDown } from "lucide-react";
 
 interface Content {
   _id: string;
@@ -21,12 +22,13 @@ export function ContentViewer({ content }: ContentViewerProps) {
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
 
   const getTypeIcon = (type: string) => {
+    const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
     switch (type) {
-      case "video": return "🎥";
-      case "audio": return "🎵";
-      case "document": return "📄";
-      case "article": return "📰";
-      default: return "📋";
+      case "video": return <Video {...iconProps} />;
+      case "audio": return <FileAudio {...iconProps} />;
+      case "document": return <FileText {...iconProps} />;
+      case "article": return <Newspaper {...iconProps} />;
+      default: return <Folder {...iconProps} />;
     }
   };
 
@@ -96,9 +98,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
                 href={selectedContent.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                📄 Open Document
+                <FileDown className="w-5 h-5" /> Open Document
               </a>
             </div>
           )}
