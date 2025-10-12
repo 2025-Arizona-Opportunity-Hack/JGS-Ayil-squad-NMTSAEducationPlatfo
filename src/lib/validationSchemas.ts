@@ -11,6 +11,7 @@ export const contentFormSchema = z.object({
   richTextContent: z.string().optional().or(z.literal("")),
   body: z.string().optional().or(z.literal("")),
   isPublic: z.boolean(),
+  authorName: z.string().max(200, "Author name must be less than 200 characters").optional().or(z.literal("")),
   tags: z.string().optional().or(z.literal("")),
   active: z.boolean(),
   startDate: z.string().optional().or(z.literal("")),

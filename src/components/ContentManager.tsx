@@ -119,6 +119,7 @@ export function ContentManager() {
     richTextContent: "",
       body: "",
     isPublic: false,
+    authorName: "",
     tags: "",
       active: true,
       startDate: "",
@@ -294,6 +295,7 @@ export function ContentManager() {
         richTextContent: data.richTextContent || undefined,
         body: data.body || undefined,
         isPublic: data.isPublic,
+        authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
         active: data.active,
         startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
@@ -691,6 +693,22 @@ export function ContentManager() {
                 {errors.description && (
                   <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
+            </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="authorName">Author Name</Label>
+                <Input
+                  id="authorName"
+                  {...register("authorName")}
+                  placeholder="Neurological Music Therapy Services of Arizona"
+                  className={errors.authorName ? "border-destructive" : ""}
+                />
+                {errors.authorName && (
+                  <p className="text-sm text-destructive">{errors.authorName.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to use default: "Neurological Music Therapy Services of Arizona"
+                </p>
             </div>
 
               <div className="space-y-2">

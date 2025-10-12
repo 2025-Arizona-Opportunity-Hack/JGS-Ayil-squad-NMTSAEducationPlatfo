@@ -14,10 +14,13 @@ interface ContentViewerProps {
     type: "video" | "article" | "document" | "audio";
     externalUrl?: string;
     richTextContent?: string;
+    authorName?: string;
     tags?: string[];
     _creationTime: number;
   }>;
 }
+
+const DEFAULT_AUTHOR = "Neurological Music Therapy Services of Arizona";
 
 export function ContentViewer({ content }: ContentViewerProps) {
   const navigate = useNavigate();
@@ -72,6 +75,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
               </Badge>
             </div>
             <CardTitle className="text-lg">{item.title}</CardTitle>
+            <p className="text-xs text-muted-foreground italic">
+              By {item.authorName || DEFAULT_AUTHOR}
+            </p>
             {item.description && (
               <CardDescription className="line-clamp-2">{item.description}</CardDescription>
             )}

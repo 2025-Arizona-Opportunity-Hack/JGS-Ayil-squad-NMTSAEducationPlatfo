@@ -78,6 +78,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     richTextContent: content.richTextContent || "",
       body: content.body || "",
     isPublic: content.isPublic,
+    authorName: content.authorName || "",
     tags: content.tags?.join(", ") || "",
       active: content.active,
       startDate: content.startDate ? format(new Date(content.startDate), "yyyy-MM-dd'T'HH:mm") : "",
@@ -97,6 +98,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
       description: content.description || "",
       type: content.type,
       externalUrl: content.externalUrl || "",
+      authorName: content.authorName || "",
       richTextContent: content.richTextContent || "",
       body: content.body || "",
       isPublic: content.isPublic,
@@ -145,6 +147,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
         richTextContent: data.richTextContent || undefined,
         body: data.body || undefined,
         isPublic: data.isPublic,
+        authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
         active: data.active,
         startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
@@ -263,6 +266,19 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             />
             {errors.description && (
               <p className="text-sm text-red-500">{errors.description.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="authorName">Author Name</Label>
+            <Input
+              id="authorName"
+              {...register("authorName")}
+              placeholder="Neurological Music Therapy Services of Arizona"
+              className={errors.authorName ? "border-red-500" : ""}
+            />
+            {errors.authorName && (
+              <p className="text-sm text-red-500">{errors.authorName.message}</p>
             )}
           </div>
 

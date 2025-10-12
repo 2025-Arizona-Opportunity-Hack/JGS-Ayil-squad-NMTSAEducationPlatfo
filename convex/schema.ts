@@ -46,6 +46,7 @@ const applicationTables = {
     mimeType: v.optional(v.string()),
     isPublic: v.boolean(),
     createdBy: v.id("users"),
+    authorName: v.optional(v.string()), // Optional author name, defaults to "Neurological Music Therapy Services of Arizona"
     tags: v.optional(v.array(v.string())),
     accessExpiresAt: v.optional(v.number()),
     // Availability control fields
@@ -103,6 +104,7 @@ const applicationTables = {
     body: v.optional(v.string()),
     thumbnailId: v.optional(v.id("_storage")),
     isPublic: v.boolean(),
+    authorName: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     active: v.boolean(),
     startDate: v.optional(v.number()),
