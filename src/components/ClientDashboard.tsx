@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { 
   Video, 
@@ -9,7 +9,9 @@ import {
   Search,
   X,
   Folder,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { ContentViewer } from "./ContentViewer";
@@ -32,6 +34,8 @@ export function ClientDashboard() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(12);
 
   const getContentTypeCount = (type: "all" | "video" | "article" | "document" | "audio") => {
     if (type === "all") return allContent?.length || 0;
@@ -60,6 +64,18 @@ export function ClientDashboard() {
 
     return matchesSearch && matchesTags && matchesType && matchesGroup;
   }) || [];
+
+  // Pagination calculations
+  const totalItems = filteredContent.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedContent = filteredContent.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contentTypeFilter, searchQuery, selectedTags, selectedGroupId]);
 
   return (
     <div className="w-full h-full flex">
@@ -274,7 +290,71 @@ export function ClientDashboard() {
                 </div>
 
                 {/* Content Display */}
-                <ContentViewer content={filteredContent} />
+                <ContentViewer content={paginatedContent} />
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t pt-4 mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} items
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                          // Show first page, last page, current page, and pages around current
+                          const showPage = 
+                            page === 1 || 
+                            page === totalPages || 
+                            (page >= currentPage - 1 && page <= currentPage + 1);
+                          
+                          const showEllipsis = 
+                            (page === currentPage - 2 && currentPage > 3) ||
+                            (page === currentPage + 2 && currentPage < totalPages - 2);
+
+                          if (showEllipsis) {
+                            return <span key={page} className="px-2 text-muted-foreground">...</span>;
+                          }
+
+                          if (!showPage) {
+                            return null;
+                          }
+
+                          return (
+                            <Button
+                              key={page}
+                              variant={currentPage === page ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(page)}
+                              className="min-w-[2.5rem]"
+                            >
+                              {page}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>

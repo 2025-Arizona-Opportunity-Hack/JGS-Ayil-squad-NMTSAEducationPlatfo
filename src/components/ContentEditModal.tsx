@@ -405,12 +405,12 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="active-edit"
-                checked={formActive}
-                onCheckedChange={(checked) => setValue("active", checked as boolean)}
+                id="inactive-edit"
+                checked={!formActive}
+                onCheckedChange={(checked) => setValue("active", !checked as boolean)}
               />
-              <Label htmlFor="active-edit" className="font-normal cursor-pointer">
-                Content is active (can be viewed when published)
+              <Label htmlFor="inactive-edit" className="font-normal cursor-pointer">
+                Set content as in-active
               </Label>
             </div>
 

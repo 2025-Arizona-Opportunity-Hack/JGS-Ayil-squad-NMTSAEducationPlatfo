@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,7 +33,9 @@ import {
   ExternalLink,
   Play,
   Lock,
-  UserPlus
+  UserPlus,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -93,6 +95,8 @@ export function ContentManager() {
   const [uploading, setUploading] = useState(false);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(12);
 
   // React Hook Form
   const {
@@ -164,6 +168,18 @@ export function ContentManager() {
       allContent?.flatMap(item => item.tags || []) || []
     )
   ).sort();
+
+  // Pagination calculations
+  const totalItems = filteredContent.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedContent = filteredContent.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contentTypeFilter, statusFilter, searchQuery, selectedTags, selectedGroupId]);
 
   // Generate thumbnail from video
   const generateVideoThumbnail = (videoFile: File): Promise<Blob> => {
@@ -814,13 +830,22 @@ export function ContentManager() {
                   <h4 className="text-sm font-semibold mb-3">Availability Settings</h4>
                   
                   <div className="flex items-center space-x-2 mb-4">
-                    <Checkbox
-                      id="active"
-                      {...register("active")}
+                    <Controller
+                      name="active"
+                      control={control}
+                      render={({ field }) => (
+                        <>
+                          <Checkbox
+                            id="inactive"
+                            checked={!field.value}
+                            onCheckedChange={(checked) => field.onChange(!checked)}
+                          />
+                          <Label htmlFor="inactive" className="font-normal">
+                            Set content as in-active
+                          </Label>
+                        </>
+                      )}
                     />
-                    <Label htmlFor="active" className="font-normal">
-                      Content is active (can be viewed when published)
-                    </Label>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -976,7 +1001,7 @@ export function ContentManager() {
           </Card>
         ) : (
           // Content list
-          filteredContent.map((item, index) => (
+          paginatedContent.map((item, index) => (
             <motion.div
               key={item._id}
               initial={{ opacity: 0, y: 20 }}
@@ -1067,9 +1092,11 @@ export function ContentManager() {
                           <Badge variant={item.isPublic ? "default" : "secondary"} className="text-[10px] h-5">
                         {item.isPublic ? "Public" : "Private"}
                           </Badge>
-                          <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
-                            {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
-                          </Badge>
+                          {item.status === "published" && (
+                            <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
+                              {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
+                            </Badge>
+                          )}
                           {item.password && (
                             <Badge variant="outline" className="gap-1 text-[10px] h-5 border-amber-500 text-amber-600 dark:text-amber-400">
                               <Lock className="w-2.5 h-2.5" /> Password
@@ -1284,6 +1311,70 @@ export function ContentManager() {
             </motion.div>
           ))
         )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t pt-4 mt-6">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} items
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Show first page, last page, current page, and pages around current
+                  const showPage = 
+                    page === 1 || 
+                    page === totalPages || 
+                    (page >= currentPage - 1 && page <= currentPage + 1);
+                  
+                  const showEllipsis = 
+                    (page === currentPage - 2 && currentPage > 3) ||
+                    (page === currentPage + 2 && currentPage < totalPages - 2);
+
+                  if (showEllipsis) {
+                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
+                  }
+
+                  if (!showPage) {
+                    return null;
+                  }
+
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="min-w-[2.5rem]"
+                    >
+                      {page}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Access Management Modal */}
@@ -1380,7 +1471,7 @@ export function ContentManager() {
                 <Badge variant={selectedContent.isPublic ? "default" : "secondary"}>
                   {selectedContent.isPublic ? "Public" : "Private"}
                 </Badge>
-                {!selectedContent.active && <Badge variant="destructive">Inactive</Badge>}
+                {selectedContent.status === "published" && !selectedContent.active && <Badge variant="destructive">Inactive</Badge>}
               </div>
 
               {/* Description */}
