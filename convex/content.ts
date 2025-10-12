@@ -36,8 +36,8 @@ export const createContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, editors, and contributors can create content");
+    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
+      throw new Error("Only admins, editors, contributors, or the owner can create content");
     }
 
     // Validate dates
@@ -201,8 +201,8 @@ export const listContent = query({
         reviewerName,
       };
 
-      // Admins and editors can see all content regardless of status and availability
-      if (profile.role === "admin" || profile.role === "editor") {
+      // Admins, owners, and editors can see all content regardless of status and availability
+      if (profile.role === "admin" || profile.role === "owner" || profile.role === "editor") {
         accessibleContent.push(contentWithNames);
         continue;
       }
@@ -364,8 +364,8 @@ export const generateUploadUrl = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, editors, and contributors can upload content");
+    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
+      throw new Error("Only admins, editors, contributors, or the owner can upload content");
     }
 
     return await ctx.storage.generateUploadUrl();
@@ -430,8 +430,8 @@ export const getContent = query({
       reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
     }
 
-    // Admins and editors can see all content
-    if (profile.role === "admin" || profile.role === "editor") {
+    // Admins, owners, and editors can see all content
+    if (profile.role === "admin" || profile.role === "owner" || profile.role === "editor") {
       return {
         ...content,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
@@ -907,29 +907,6 @@ export const createDemoContent = mutation({
     }
 
     const demoContents = [
-      {
-        title: "Therapy Session Demo Video",
-        description: "Example video from the project assets for demo purposes",
-        type: "video" as const,
-        externalUrl: "/src/assets/examples/videos/example_video.mp4",
-        isPublic: true,
-        active: true,
-        tags: ["Demo", "Video", "Example"],
-      },
-      {
-        title: "Music Therapy Visuals",
-        description: "Demo article showcasing embedded example images",
-        type: "article" as const,
-        body: `<h2>Image Examples</h2>
-<p>Below are sample images bundled with the application for demonstration.</p>
-<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start">
-  <img src="/src/assets/examples/images/example_image.jpeg" alt="Example Image 1" style="max-width:300px; border-radius:8px; border:1px solid #ddd"/>
-  <img src="/src/assets/examples/images/example_image_2.jpg" alt="Example Image 2" style="max-width:300px; border-radius:8px; border:1px solid #ddd"/>
-</div>`,
-        isPublic: true,
-        active: true,
-        tags: ["Demo", "Images", "Article"],
-      },
       // Autism Spectrum Disorder Resources
       {
         title: "Music Therapy for Autism Spectrum Disorder",
@@ -1249,6 +1226,78 @@ export const createDemoContent = mutation({
       success: true, 
       count: createdIds.length,
       contentIds: createdIds 
+    };
+  },
+});
+
+export const createDemoContentWithAssets = mutation({
+  args: {
+    videoFileId: v.id("_storage"),
+    thumbnailId: v.optional(v.id("_storage")),
+    imageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
+      throw new Error("Only admins, editors, contributors, or the owner can create content");
+    }
+
+    const imageUrls: string[] = [];
+    for (const id of args.imageIds) {
+      const url = await ctx.storage.getUrl(id);
+      if (url) imageUrls.push(url);
+    }
+
+    const demoContents = [
+      {
+        title: "Therapy Session Demo Video",
+        description: "Example video uploaded to Convex storage",
+        type: "video" as const,
+        fileId: args.videoFileId,
+        thumbnailId: args.thumbnailId,
+        isPublic: true,
+        active: true,
+        tags: ["Demo", "Video", "Example"],
+      },
+      {
+        title: "Music Therapy Visuals",
+        description: "Demo article showcasing images from Convex storage",
+        type: "article" as const,
+        body: `<h2>Image Examples</h2>
+<p>Below are sample images uploaded to Convex storage.</p>
+<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start">${imageUrls
+  .slice(0, 4)
+  .map((u, i) => `<img src="${u}" alt="Example Image ${i + 1}" style="max-width:300px; border-radius:8px; border:1px solid #ddd"/>`) 
+  .join("")}
+</div>`,
+        isPublic: true,
+        active: true,
+        tags: ["Demo", "Images", "Article"],
+      },
+    ];
+
+    const createdIds = [];
+    for (const content of demoContents) {
+      const contentId = await ctx.db.insert("content", {
+        ...content,
+        createdBy: userId,
+        status: "published",
+        reviewedBy: userId,
+      });
+      createdIds.push(contentId);
+    }
+
+    return {
+      success: true,
+      count: createdIds.length,
+      contentIds: createdIds,
     };
   },
 });

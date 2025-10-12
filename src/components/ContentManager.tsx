@@ -88,6 +88,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import exampleVideo from "../assets/examples/videos/example_video.mp4";
+import exampleImage1 from "../assets/examples/images/example_image.jpeg";
+import exampleImage2 from "../assets/examples/images/example_image_2.jpg";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -113,6 +116,7 @@ export function ContentManager() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(12);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // React Hook Form
   const {
@@ -162,6 +166,7 @@ export function ContentManager() {
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const submitForReview = useMutation(api.content.submitForReview);
   const createDemoContent = useMutation(api.content.createDemoContent);
+  const createDemoContentWithAssets = useMutation(api.content.createDemoContentWithAssets);
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
@@ -226,6 +231,7 @@ export function ContentManager() {
   // Reset to page 1 when filters or sort changes
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds([]);
   }, [contentTypeFilter, statusFilter, searchQuery, selectedTags, selectedGroupId, sortBy]);
 
   // Generate thumbnail from video
@@ -234,26 +240,26 @@ export function ContentManager() {
       const video = document.createElement('video');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       video.preload = 'metadata';
       video.muted = true;
       video.playsInline = true;
-      
+
       video.onloadeddata = () => {
         // Seek to 1 second or 10% of video duration, whichever is smaller
         video.currentTime = Math.min(1, video.duration * 0.1);
       };
-      
+
       video.onseeked = () => {
         // Set canvas size to video dimensions (max 640px width to keep file size reasonable)
         const maxWidth = 640;
         const scale = Math.min(1, maxWidth / video.videoWidth);
         canvas.width = video.videoWidth * scale;
         canvas.height = video.videoHeight * scale;
-        
+
         // Draw video frame to canvas
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
+
         // Convert canvas to blob
         canvas.toBlob(
           (blob) => {
@@ -269,14 +275,49 @@ export function ContentManager() {
           0.8
         );
       };
-      
+
       video.onerror = () => {
         reject(new Error('Failed to load video'));
         URL.revokeObjectURL(video.src);
       };
-      
+
       video.src = URL.createObjectURL(videoFile);
     });
+  };
+
+  // Selection and bulk actions (component scope)
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = paginatedContent.map(c => c._id);
+    const allSelected = pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds((prev) => allSelected
+      ? prev.filter(id => !pageIds.includes(id))
+      : Array.from(new Set([...prev, ...pageIds]))
+    );
+  };
+
+  const handleBulkDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    const confirm = window.confirm(`Delete ${selectedIds.length} selected item(s)? This cannot be undone.`);
+    if (!confirm) return;
+    const toastId = toast.loading("Deleting selected content...");
+    try {
+      const results = await Promise.allSettled(
+        selectedIds.map((id) => deleteContentMutation({ contentId: id as any }))
+      );
+      const failed = results.filter(r => r.status === "rejected").length;
+      if (failed === 0) {
+        toast.success(`Deleted ${selectedIds.length} item(s)`, { id: toastId });
+      } else {
+        toast.error(`Deleted ${selectedIds.length - failed} item(s), ${failed} failed`, { id: toastId });
+      }
+      setSelectedIds([]);
+    } catch (err) {
+      toast.error("Bulk delete failed", { id: toastId });
+    }
   };
 
   const handleSubmit = async (data: ContentFormData) => {
@@ -378,6 +419,62 @@ export function ContentManager() {
         id: toastId,
         description: error instanceof Error ? error.message : "An error occurred"
       });
+    }
+  };
+
+  const handleCreateDemoContentWithAssets = async () => {
+    const toastId = toast.loading("Uploading demo assets and creating content...");
+    try {
+      const uploadBlob = async (blob: Blob, contentType: string) => {
+        const url = await generateUploadUrl();
+        const resp = await fetch(url, { method: "POST", headers: { "Content-Type": contentType }, body: blob });
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(`Upload failed: ${JSON.stringify(json)}`);
+        return json.storageId as string;
+      };
+
+      const videoRes = await fetch(exampleVideo);
+      if (!videoRes.ok) throw new Error("Failed to load demo video asset");
+      const videoBlob = await videoRes.blob();
+      // Force a broadly supported MIME type; some bundlers return octet-stream
+      const videoFile = new File([videoBlob], "example_video.mp4", { type: "video/mp4" });
+      const videoId = await uploadBlob(videoFile, videoFile.type);
+
+      let thumbnailId: string | undefined = undefined;
+      try {
+        toast.loading("Generating thumbnail...", { id: "thumbnail" });
+        // Some browsers may not be able to decode the demo video codecs; guard with timeout
+        const thumbBlob = await Promise.race([
+          generateVideoThumbnail(videoFile),
+          new Promise<Blob>((_, reject) => setTimeout(() => reject(new Error("thumbnail-timeout")), 6000)),
+        ]);
+        thumbnailId = await uploadBlob(thumbBlob, "image/jpeg");
+        toast.success("Thumbnail generated!", { id: "thumbnail" });
+      } catch (e) {
+        // Proceed without thumbnail if generation fails
+        toast.dismiss("thumbnail");
+      }
+
+      const img1Res = await fetch(exampleImage1);
+      if (!img1Res.ok) throw new Error("Failed to load demo image 1");
+      const image1 = await img1Res.blob();
+      const img2Res = await fetch(exampleImage2);
+      if (!img2Res.ok) throw new Error("Failed to load demo image 2");
+      const image2 = await img2Res.blob();
+
+      const image1Id = await uploadBlob(image1, image1.type || "image/jpeg");
+      const image2Id = await uploadBlob(image2, image2.type || "image/jpeg");
+
+      const result = await createDemoContentWithAssets({
+        videoFileId: videoId as any,
+        thumbnailId: thumbnailId as any,
+        imageIds: [image1Id as any, image2Id as any],
+      });
+
+      toast.success(`Created ${result.count} demo items with assets!`, { id: toastId });
+    } catch (error) {
+      console.error("Error creating demo content with assets:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create demo content with assets", { id: toastId });
     }
   };
 
@@ -730,19 +827,42 @@ export function ContentManager() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 space-y-6">
-        <div className="flex justify-between items-center">
-            <div>
+        <div className="flex flex-col gap-3">
+          <div>
             <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
             <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex items-center gap-2 mr-2">
+              <Checkbox
+                checked={paginatedContent.length > 0 && paginatedContent.every(c => selectedIds.includes(c._id))}
+                onCheckedChange={toggleSelectAllOnPage}
+                id="selectAllPage"
+              />
+              <Label htmlFor="selectAllPage" className="text-sm">Select page</Label>
+              {selectedIds.length > 0 && (
+                <Badge variant="secondary" className="ml-1">{selectedIds.length} selected</Badge>
+              )}
+            </div>
             <Button onClick={() => setShowCreateForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Content
             </Button>
+            <Button
+              variant="destructive"
+              disabled={selectedIds.length === 0}
+              onClick={() => { void handleBulkDeleteSelected(); }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Selected
+            </Button>
             <Button onClick={() => { void handleCreateDemoContent(); }} variant="outline">
               <Play className="w-4 h-4 mr-2" />
               Create Demo Content
+            </Button>
+            <Button onClick={() => { void handleCreateDemoContentWithAssets(); }} variant="outline">
+              <Play className="w-4 h-4 mr-2" />
+              Create Demo Content (with assets)
             </Button>
           </div>
         </div>
@@ -1132,6 +1252,14 @@ export function ContentManager() {
                       ? `Rejected${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
                       : item.status}
                   </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedIds.includes(item._id)}
+                      onCheckedChange={() => toggleSelect(item._id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Select content"
+                    />
+                  </div>
                 </div>
 
               <CardContent className="p-4 pt-14">
@@ -1327,7 +1455,7 @@ export function ContentManager() {
                   </div>
 
                   {/* Actions Menu - 3 Dots */}
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button 
