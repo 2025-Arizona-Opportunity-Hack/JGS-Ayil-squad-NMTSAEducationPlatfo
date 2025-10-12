@@ -19,6 +19,6 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
-    <Toaster />
+    <Toaster position="top-center" />
   </ConvexAuthProvider>
 );

@@ -551,8 +551,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             </div>
           </div>
 
-          {/* Password Protection (Admin Only) */}
-          {userProfile?.role === "admin" && (
+          {/* Password Protection (Admin and Owner Only) */}
+          {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
             <div className="space-y-2 pt-4 border-t">
               <Label htmlFor="password-edit">Password Protection (optional)</Label>
               <Input

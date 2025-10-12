@@ -317,6 +317,23 @@ const applicationTables = {
     .index("by_content", ["contentId"])
     .index("by_user_content", ["userId", "contentId"])
     .index("by_heartbeat", ["lastHeartbeat"]),
+
+  // Content recommendations (professionals recommend content to users)
+  contentRecommendations: defineTable({
+    contentId: v.id("content"),
+    recommendedBy: v.id("users"), // Professional who made the recommendation
+    recipientEmail: v.string(), // Email of the user receiving the recommendation
+    recipientUserId: v.optional(v.id("users")), // Set when recipient has an account
+    message: v.optional(v.string()), // Optional message from the professional
+    createdAt: v.number(),
+    viewedAt: v.optional(v.number()), // When the recipient viewed the recommendation
+    isActive: v.boolean(), // Can be deactivated
+  })
+    .index("by_content", ["contentId"])
+    .index("by_recommender", ["recommendedBy"])
+    .index("by_recipient_email", ["recipientEmail"])
+    .index("by_recipient_user", ["recipientUserId"])
+    .index("by_active", ["isActive"]),
 };
 
 export default defineSchema({

@@ -503,8 +503,8 @@ export const updateContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, editors, and contributors can update content");
+    if (!profile || !["admin", "owner", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, the owner, editors, and contributors can update content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -525,7 +525,7 @@ export const updateContent = mutation({
         throw new Error("Editors can only edit content in draft or rejected status");
       }
     }
-    // Admins can edit any content at any time
+    // Admins and owner can edit any content at any time
 
     // Validate dates
     if (args.startDate && args.endDate && args.startDate > args.endDate) {
@@ -586,14 +586,14 @@ export const submitForReview = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins and contributors can submit content for review");
+    if (!profile || !["admin", "owner", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, the owner, and contributors can submit content for review");
     }
 
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new Error("Content not found");
 
-    // Contributors can only submit their own content
+    // Contributors can only submit their own content (admins and owner can submit any)
     if (profile.role === "contributor" && content.createdBy !== userId) {
       throw new Error("Contributors can only submit their own content");
     }

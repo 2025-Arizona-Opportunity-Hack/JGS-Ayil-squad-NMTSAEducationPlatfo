@@ -13,13 +13,15 @@ import {
   ChevronLeft,
   ChevronRight,
   ShoppingBag,
-  Package
+  Package,
+  Star
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { ContentViewer } from "./ContentViewer";
 import { ShareLinksManager } from "./ShareLinksManager";
 import { Shop } from "./Shop";
 import { OrderHistory } from "./OrderHistory";
+import { RecommendedContent } from "./RecommendedContent";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,6 +155,13 @@ export function ClientDashboard() {
               >
                 <Package className="w-4 h-4" />
                 Order History
+              </TabsTrigger>
+              <TabsTrigger 
+                value="recommendations" 
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+              >
+                <Star className="w-4 h-4" />
+                Recommendations
               </TabsTrigger>
             </TabsList>
           </div>
@@ -435,6 +444,10 @@ export function ClientDashboard() {
 
           <TabsContent value="orders" className="m-0 p-6 h-full">
             <OrderHistory />
+          </TabsContent>
+
+          <TabsContent value="recommendations" className="m-0 p-6 h-full">
+            <RecommendedContent />
           </TabsContent>
         </div>
       </Tabs>

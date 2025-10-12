@@ -48,6 +48,7 @@ import { ContentReviewModal } from "./ContentReviewModal";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { ContentPricingModal } from "./ContentPricingModal";
 import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
+import { RecommendContentModal } from "./RecommendContentModal";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
@@ -102,6 +103,7 @@ export function ContentManager() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [previewContentId, setPreviewContentId] = useState<string | null>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
@@ -1151,8 +1153,8 @@ export function ContentManager() {
                 </div>
               </div>
 
-              {/* Password Protection (Admin Only) */}
-              {userProfile?.role === "admin" && (
+              {/* Password Protection (Admin and Owner Only) */}
+              {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
                 <div className="space-y-2 pt-4 border-t">
                   <Label htmlFor="password">Password Protection (optional)</Label>
                   <Input
@@ -1531,6 +1533,17 @@ export function ContentManager() {
                           <DropdownMenuItem onClick={() => handleThirdPartyShare(item)}>
                             <UserPlus className="w-4 h-4 mr-2" />
                             Share with 3rd Party
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Recommend to User - Professionals only */}
+                        {userProfile?.role === "professional" && (
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedContent(item);
+                            setShowRecommendModal(true);
+                          }}>
+                            <Send className="w-4 h-4 mr-2" />
+                            Recommend to User
                           </DropdownMenuItem>
                         )}
 
@@ -1984,6 +1997,18 @@ export function ContentManager() {
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}
+        />
+      )}
+
+      {/* Recommend Content Modal */}
+      {selectedContent && showRecommendModal && (
+        <RecommendContentModal
+          content={selectedContent}
+          isOpen={showRecommendModal}
+          onClose={() => {
+            setShowRecommendModal(false);
+            setSelectedContent(null);
+          }}
         />
       )}
 

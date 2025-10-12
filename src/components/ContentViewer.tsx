@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Video, FileText, FileAudio, Newspaper, Folder, UserPlus } from "lucide-react";
+import { useQuery } from "convex/react";
+import { Video, FileText, FileAudio, Newspaper, Folder, UserPlus, Send } from "lucide-react";
+import { api } from "../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
+import { RecommendContentModal } from "./RecommendContentModal";
 
 interface ContentViewerProps {
   content: Array<{
@@ -24,7 +27,9 @@ const DEFAULT_AUTHOR = "Neurological Music Therapy Services of Arizona";
 
 export function ContentViewer({ content }: ContentViewerProps) {
   const navigate = useNavigate();
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
   const [showThirdPartyShareModal, setShowThirdPartyShareModal] = useState(false);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
 
   const handleViewContent = (contentId: string) => {
@@ -34,6 +39,11 @@ export function ContentViewer({ content }: ContentViewerProps) {
   const handleThirdPartyShare = (item: any) => {
     setSelectedContent(item);
     setShowThirdPartyShareModal(true);
+  };
+
+  const handleRecommend = (item: any) => {
+    setSelectedContent(item);
+    setShowRecommendModal(true);
   };
 
   if (content.length === 0) {
@@ -126,6 +136,17 @@ export function ContentViewer({ content }: ContentViewerProps) {
                 >
                   View
                 </Button>
+                {userProfile?.role === "professional" && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleRecommend(item)}
+                    title="Recommend to User"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon"
@@ -151,6 +172,18 @@ export function ContentViewer({ content }: ContentViewerProps) {
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}
+        />
+      )}
+
+      {/* Recommend Content Modal */}
+      {selectedContent && showRecommendModal && (
+        <RecommendContentModal
+          content={selectedContent}
+          isOpen={showRecommendModal}
+          onClose={() => {
+            setShowRecommendModal(false);
+            setSelectedContent(null);
+          }}
         />
       )}
     </div>
