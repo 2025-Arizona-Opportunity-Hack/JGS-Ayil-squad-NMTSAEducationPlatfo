@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, User, Calendar, Tag, Eye } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { Navbar } from "./Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -282,6 +283,7 @@ export function PublicContentViewer() {
 
   return (
     <>
+      <Navbar />
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="border-b bg-card">

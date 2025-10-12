@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./index.css";
 import App from "./App";
 import { PublicContentViewer } from "./components/PublicContentViewer";
+import { SharedContentViewer } from "./components/SharedContentViewer";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
 
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/view/:contentId" element={<PublicContentViewer />} />
+        <Route path="/share/:accessToken" element={<SharedContentViewer />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>

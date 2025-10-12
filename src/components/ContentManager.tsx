@@ -32,13 +32,16 @@ import {
   AlertCircle,
   ExternalLink,
   Play,
-  Lock
+  Lock,
+  UserPlus
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
 import { ContentVersionHistory } from "./ContentVersionHistory";
 import { ContentReviewModal } from "./ContentReviewModal";
+import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
+import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
@@ -76,6 +79,7 @@ export function ContentManager() {
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showThirdPartyShareModal, setShowThirdPartyShareModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
@@ -358,6 +362,11 @@ export function ContentManager() {
       console.error("Error copying link:", error);
       toast.error("Failed to copy link");
     }
+  };
+
+  const handleThirdPartyShare = (content: any) => {
+    setSelectedContent(content);
+    setShowThirdPartyShareModal(true);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1216,7 +1225,7 @@ export function ContentManager() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button 
+                          <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => void handleShareContent(item._id)}
@@ -1232,6 +1241,24 @@ export function ContentManager() {
                         <TooltipContent>{copiedId === item._id ? "Copied!" : "Share"}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                    {/* Share with 3rd Party (admins, editors, contributors) */}
+                    {(userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleThirdPartyShare(item)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Share with 3rd Party</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     {/* Admins and Contributors can delete */}
                     {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
                       <TooltipProvider>
@@ -1521,6 +1548,19 @@ export function ContentManager() {
             )}
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Third Party Share Modal */}
+      {selectedContent && showThirdPartyShareModal && (
+        <ThirdPartyShareModal
+          isOpen={showThirdPartyShareModal}
+          onClose={() => {
+            setShowThirdPartyShareModal(false);
+            setSelectedContent(null);
+          }}
+          contentId={selectedContent._id}
+          contentTitle={selectedContent.title}
+        />
       )}
 
       {/* Delete Confirmation Dialog */}

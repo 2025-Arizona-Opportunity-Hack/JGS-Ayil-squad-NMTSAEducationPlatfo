@@ -1,12 +1,12 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
 import { ContentGroupManager } from "./ContentGroupManager";
+import { ShareLinksManager } from "./ShareLinksManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
 
 export function AdminDashboard() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
@@ -49,6 +49,13 @@ export function AdminDashboard() {
                 <Folder className="w-4 h-4" />
                 Content
               </TabsTrigger>
+              <TabsTrigger 
+                value="shareLinks" 
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Share Links
+              </TabsTrigger>
               {isAdmin && (
                 <>
                   <TabsTrigger 
@@ -82,6 +89,10 @@ export function AdminDashboard() {
         <div className="flex-1 overflow-auto">
           <TabsContent value="content" className="m-0 p-6 h-full">
             <ContentManager />
+          </TabsContent>
+
+          <TabsContent value="shareLinks" className="m-0 p-6 h-full">
+            <ShareLinksManager />
           </TabsContent>
 
           {isAdmin && (

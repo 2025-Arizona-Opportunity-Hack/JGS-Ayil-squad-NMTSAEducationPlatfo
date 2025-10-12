@@ -16,6 +16,7 @@ import type {
 import type * as auth from "../auth.js";
 import type * as content from "../content.js";
 import type * as contentGroups from "../contentGroups.js";
+import type * as contentShares from "../contentShares.js";
 import type * as contentVersions from "../contentVersions.js";
 import type * as generateThumbnail from "../generateThumbnail.js";
 import type * as http from "../http.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   content: typeof content;
   contentGroups: typeof contentGroups;
+  contentShares: typeof contentShares;
   contentVersions: typeof contentVersions;
   generateThumbnail: typeof generateThumbnail;
   http: typeof http;
