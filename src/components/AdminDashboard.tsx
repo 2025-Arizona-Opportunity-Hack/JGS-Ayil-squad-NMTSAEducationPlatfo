@@ -10,6 +10,7 @@ import { ShareLinksManager } from "./ShareLinksManager";
 import { InviteCodeModal } from "./InviteCodeModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Logo } from "./Logo";
 
 export function AdminDashboard() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
@@ -41,15 +42,18 @@ export function AdminDashboard() {
         <Tabs defaultValue="content" className="w-full flex">
           {/* Left Sidebar Navigation */}
           <div className="w-64 border-r bg-muted/30 flex-shrink-0">
-            <div className="p-6 border-b">
-              <h1 className="text-lg font-bold tracking-tight">
-                {isAdmin ? "Admin Dashboard" : "Dashboard"}
-              </h1>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isAdmin 
-                  ? "Manage your platform" 
-                  : "Manage content"}
-              </p>
+            <div className="p-6 border-b space-y-3">
+              <Logo size="lg" showText={false} className="mb-2" />
+              <div>
+                <h1 className="text-lg font-bold tracking-tight">
+                  {isAdmin ? "Admin Dashboard" : "Dashboard"}
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isAdmin 
+                    ? "Manage your platform" 
+                    : "Manage content"}
+                </p>
+              </div>
             </div>
             
             <div className="p-4 space-y-4">

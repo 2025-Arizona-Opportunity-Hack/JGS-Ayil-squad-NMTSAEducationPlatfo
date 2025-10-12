@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, User, Calendar, Tag, Eye, AlertCircle } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
+import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,9 @@ export function SharedContentViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="md" showText={false} />
+            </div>
             <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
             <CardTitle>{result.expired ? "Link Expired" : "Content Unavailable"}</CardTitle>
             <CardDescription>{result.error}</CardDescription>
@@ -86,6 +90,9 @@ export function SharedContentViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="md" showText={false} />
+            </div>
             <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>Content Not Found</CardTitle>
             <CardDescription>

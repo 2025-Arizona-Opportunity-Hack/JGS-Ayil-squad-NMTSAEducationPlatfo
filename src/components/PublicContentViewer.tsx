@@ -4,6 +4,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, User, Calendar, Tag, Eye } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
+import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,9 @@ export function PublicContentViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="md" showText={false} />
+            </div>
             <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>Authentication Required</CardTitle>
             <CardDescription>
@@ -228,6 +232,9 @@ export function PublicContentViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="md" showText={false} />
+            </div>
             <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>Content Unavailable</CardTitle>
             <CardDescription>{result.error}</CardDescription>
@@ -265,6 +272,9 @@ export function PublicContentViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="md" showText={false} />
+            </div>
             <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <CardTitle>Content Not Found</CardTitle>
             <CardDescription>

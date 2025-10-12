@@ -17,6 +17,7 @@ import {
 import { api } from "../convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2 } from "lucide-react";
+import { Logo } from "./components/Logo";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
@@ -35,8 +36,11 @@ export function SignInForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>{flow === "signIn" ? "Sign In" : "Sign Up"}</CardTitle>
-        <CardDescription>
+        <div className="flex justify-center mb-4">
+          <Logo size="lg" showText={false} />
+        </div>
+        <CardTitle className="text-center">{flow === "signIn" ? "Sign In" : "Sign Up"}</CardTitle>
+        <CardDescription className="text-center">
           {flow === "signIn"
             ? "Welcome back! Please sign in to continue."
             : "Create a new account to get started."}

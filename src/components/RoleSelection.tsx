@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Logo } from "./Logo";
 
 export function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<
@@ -117,7 +118,12 @@ export function RoleSelection() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md mx-auto">
-          <CardContent className="pt-6">
+          <CardHeader>
+            <div className="flex justify-center mb-4">
+              <Logo size="lg" showText={false} />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent mx-auto" />
               <p className="text-muted-foreground">
@@ -135,7 +141,12 @@ export function RoleSelection() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md mx-auto">
-          <CardContent className="pt-6">
+          <CardHeader>
+            <div className="flex justify-center mb-4">
+              <Logo size="lg" showText={false} />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent mx-auto" />
               <p className="text-muted-foreground">
@@ -152,8 +163,11 @@ export function RoleSelection() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
-          <CardTitle>Welcome to NMTSA!</CardTitle>
-          <CardDescription>
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" showText={false} />
+          </div>
+          <CardTitle className="text-center">Welcome to NMTSA!</CardTitle>
+          <CardDescription className="text-center">
             {hasNameFromAuth
               ? "Please select your role to personalize your experience."
               : "Please provide your information to set up your profile."}
