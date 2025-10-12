@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as content from "../content.js";
 import type * as contentGroups from "../contentGroups.js";
@@ -22,6 +23,7 @@ import type * as generateThumbnail from "../generateThumbnail.js";
 import type * as http from "../http.js";
 import type * as inviteCodes from "../inviteCodes.js";
 import type * as orders from "../orders.js";
+import type * as presence from "../presence.js";
 import type * as pricing from "../pricing.js";
 import type * as publicContent from "../publicContent.js";
 import type * as router from "../router.js";
@@ -37,6 +39,7 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  analytics: typeof analytics;
   auth: typeof auth;
   content: typeof content;
   contentGroups: typeof contentGroups;
@@ -46,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inviteCodes: typeof inviteCodes;
   orders: typeof orders;
+  presence: typeof presence;
   pricing: typeof pricing;
   publicContent: typeof publicContent;
   router: typeof router;

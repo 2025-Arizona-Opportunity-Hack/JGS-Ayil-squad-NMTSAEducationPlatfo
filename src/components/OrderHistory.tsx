@@ -3,6 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Video,
   FileText,
@@ -12,10 +13,28 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Download,
 } from "lucide-react";
+import { generateReceipt } from "@/lib/receiptGenerator";
 
 export function OrderHistory() {
   const orders = useQuery(api.orders.getUserOrders);
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
+
+  const handleDownloadReceipt = (order: any) => {
+    generateReceipt({
+      orderId: order._id,
+      contentTitle: order.contentTitle,
+      contentType: order.contentType,
+      amount: order.amount,
+      currency: order.currency,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      createdAt: order.createdAt,
+      completedAt: order.completedAt,
+      userName: userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : "Customer",
+    });
+  };
 
   const getContentIcon = (type: string) => {
     switch (type) {
@@ -138,13 +157,26 @@ export function OrderHistory() {
                         {getStatusBadge(order.status)}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">
-                        ${formatPrice(order.amount)}
+                    <div className="text-right space-y-2">
+                      <div>
+                        <div className="text-2xl font-bold">
+                          ${formatPrice(order.amount)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {order.currency}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {order.currency}
-                      </div>
+                      {order.status === "completed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadReceipt(order)}
+                          className="w-full"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Receipt
+                        </Button>
+                      )}
                     </div>
                   </div>
 

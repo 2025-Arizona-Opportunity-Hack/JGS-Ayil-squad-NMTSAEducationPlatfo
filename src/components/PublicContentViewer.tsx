@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { usePresence } from "@/hooks/usePresence";
 import { Navbar } from "./Navbar";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,11 @@ export function PublicContentViewer() {
     contentId ? { contentId: contentId as any, password: attemptedPassword } : ("skip" as any)
   );
   const grantAccess = useMutation(api.content.grantAccessAfterPassword);
+  const trackView = useMutation(api.analytics.trackView);
+  const updateTimeSpent = useMutation(api.analytics.updateTimeSpent);
+  
+  const startTimeRef = useRef<number>(Date.now());
+  const sessionIdRef = useRef<string>(`session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   // Debug logging
   useEffect(() => {
@@ -86,6 +92,49 @@ export function PublicContentViewer() {
       });
     }
   }, [result?.content, attemptedPassword, contentId, grantAccess]);
+
+  // Track view when content is loaded
+  useEffect(() => {
+    if (result?.content && contentId) {
+      void trackView({
+        contentId: contentId as any,
+        sessionId: sessionIdRef.current,
+      });
+      startTimeRef.current = Date.now();
+    }
+  }, [result?.content, contentId, trackView]);
+
+  // Update time spent periodically and on unmount
+  useEffect(() => {
+    if (!result?.content || !contentId) return;
+
+    const sessionId = sessionIdRef.current;
+    const updateInterval = setInterval(() => {
+      const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      void updateTimeSpent({
+        contentId: contentId as any,
+        sessionId,
+        timeSpent,
+      });
+    }, 30000); // Update every 30 seconds
+
+    return () => {
+      clearInterval(updateInterval);
+      // Final update on unmount
+      const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      void updateTimeSpent({
+        contentId: contentId as any,
+        sessionId,
+        timeSpent,
+      });
+    };
+  }, [result?.content, contentId, updateTimeSpent]);
+
+  // Track presence for authenticated users
+  usePresence({
+    contentId: contentId as any,
+    contentTitle: result?.content?.title || "",
+  });
 
   const getTypeIcon = (type: string) => {
     switch (type) {

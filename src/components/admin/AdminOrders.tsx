@@ -3,6 +3,7 @@ import { api } from "../../../convex/_generated/api";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import {
@@ -15,11 +16,28 @@ import {
   Clock,
   XCircle,
   Search,
+  Download,
 } from "lucide-react";
+import { generateReceipt } from "@/lib/receiptGenerator";
 
 export function AdminOrders() {
   const orders = useQuery(api.orders.getAllOrders);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleDownloadReceipt = (order: any) => {
+    generateReceipt({
+      orderId: order._id,
+      contentTitle: order.contentTitle,
+      contentType: order.contentType,
+      amount: order.amount,
+      currency: order.currency,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      createdAt: order.createdAt,
+      completedAt: order.completedAt,
+      userName: order.userName,
+    });
+  };
 
   const getContentIcon = (type: string) => {
     switch (type) {
@@ -177,13 +195,26 @@ export function AdminOrders() {
                           {getStatusBadge(order.status)}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold">
-                          ${formatPrice(order.amount)}
+                      <div className="text-right space-y-2">
+                        <div>
+                          <div className="text-2xl font-bold">
+                            ${formatPrice(order.amount)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {order.currency}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {order.currency}
-                        </div>
+                        {order.status === "completed" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadReceipt(order)}
+                            className="w-full"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Receipt
+                          </Button>
+                        )}
                       </div>
                     </div>
 
