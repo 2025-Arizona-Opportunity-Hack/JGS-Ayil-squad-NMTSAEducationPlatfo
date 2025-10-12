@@ -1,6 +1,7 @@
 "use client";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
+import { useQuery } from "convex/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +14,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { api } from "../convex/_generated/api";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2 } from "lucide-react";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState("");
+  const [showInviteCode, setShowInviteCode] = useState(false);
+
+  // Validate invite code
+  const inviteCodeValidation = useQuery(
+    api.inviteCodes.validateInviteCode,
+    showInviteCode && inviteCode.length >= 6 ? { code: inviteCode } : "skip"
+  );
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -39,6 +51,15 @@ export function SignInForm() {
             setError(null); // Clear any previous errors
             const formData = new FormData(e.target as HTMLFormElement);
             formData.set("flow", flow);
+
+            // Store invite code in localStorage for use in RoleSelection
+            if (flow === "signUp" && inviteCode) {
+              localStorage.setItem(
+                "signupInviteCode",
+                inviteCode.toUpperCase()
+              );
+            }
+
             void signIn("password", formData)
               .then(() => {
                 // Success - reset submitting state will be handled by navigation
@@ -173,6 +194,57 @@ export function SignInForm() {
             )}
           </div>
 
+          {/* Invite Code Section for Sign Up */}
+          {flow === "signUp" && (
+            <div className="space-y-2">
+              {!showInviteCode ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowInviteCode(true)}
+                  className="w-full"
+                >
+                  Have an invite code?
+                </Button>
+              ) : (
+                <>
+                  <Label htmlFor="inviteCode">Invite Code (Optional)</Label>
+                  <Input
+                    id="inviteCode"
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) =>
+                      setInviteCode(e.target.value.toUpperCase())
+                    }
+                    placeholder="Enter invite code"
+                    maxLength={8}
+                    className="font-mono"
+                  />
+                  {inviteCode.length >= 6 && inviteCodeValidation && (
+                    <div className="flex items-center gap-2">
+                      {inviteCodeValidation.valid ? (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-sm">
+                            Valid code for{" "}
+                            <Badge variant="outline" className="ml-1">
+                              {inviteCodeValidation.role}
+                            </Badge>
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-red-600">
+                          {inviteCodeValidation.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting
               ? "Please wait..."
@@ -247,6 +319,8 @@ export function SignInForm() {
               onClick={() => {
                 setFlow(flow === "signIn" ? "signUp" : "signIn");
                 setError(null); // Clear errors when switching flows
+                setInviteCode(""); // Clear invite code when switching
+                setShowInviteCode(false); // Hide invite code field
               }}
             >
               {flow === "signIn" ? "Sign up instead" : "Sign in instead"}

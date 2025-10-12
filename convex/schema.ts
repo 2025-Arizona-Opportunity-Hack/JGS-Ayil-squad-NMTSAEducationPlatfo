@@ -236,6 +236,22 @@ const applicationTables = {
   })
     .index("by_email", ["email"])
     .index("by_token", ["token"]),
+
+  // Invite codes (for role-based invites without specific emails)
+  inviteCodes: defineTable({
+    code: v.string(),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("editor"),
+      v.literal("contributor")
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    isActive: v.boolean(),
+  })
+    .index("by_code", ["code"])
+    .index("by_creator", ["createdBy"]),
 };
 
 export default defineSchema({
