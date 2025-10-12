@@ -11,11 +11,15 @@ import {
   Folder,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ShoppingBag,
+  Package
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { ContentViewer } from "./ContentViewer";
 import { ShareLinksManager } from "./ShareLinksManager";
+import { Shop } from "./Shop";
+import { OrderHistory } from "./OrderHistory";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +108,20 @@ export function ClientDashboard() {
               >
                 <ExternalLink className="w-4 h-4" />
                 My Share Links
+              </TabsTrigger>
+              <TabsTrigger 
+                value="shop" 
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Shop
+              </TabsTrigger>
+              <TabsTrigger 
+                value="orders" 
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+              >
+                <Package className="w-4 h-4" />
+                Order History
               </TabsTrigger>
             </TabsList>
           </div>
@@ -361,6 +379,14 @@ export function ClientDashboard() {
 
           <TabsContent value="shareLinks" className="m-0 p-6 h-full">
             <ShareLinksManager />
+          </TabsContent>
+
+          <TabsContent value="shop" className="m-0 p-6 h-full">
+            <Shop />
+          </TabsContent>
+
+          <TabsContent value="orders" className="m-0 p-6 h-full">
+            <OrderHistory />
           </TabsContent>
         </div>
       </Tabs>

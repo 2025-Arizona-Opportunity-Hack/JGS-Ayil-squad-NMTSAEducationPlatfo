@@ -252,6 +252,42 @@ const applicationTables = {
   })
     .index("by_code", ["code"])
     .index("by_creator", ["createdBy"]),
+
+  // Content pricing (for content items available for purchase)
+  contentPricing: defineTable({
+    contentId: v.id("content"),
+    price: v.number(), // Price in cents (e.g., 1999 = $19.99)
+    currency: v.string(), // e.g., "USD"
+    accessDuration: v.optional(v.number()), // Duration in milliseconds, undefined = indefinite
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_content", ["contentId"])
+    .index("by_active", ["isActive"]),
+
+  // Orders (purchases made by users)
+  orders: defineTable({
+    userId: v.id("users"),
+    contentId: v.id("content"),
+    pricingId: v.id("contentPricing"),
+    amount: v.number(), // Amount paid in cents
+    currency: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("failed"),
+      v.literal("refunded")
+    ),
+    paymentMethod: v.string(), // e.g., "mock_payment", "stripe", etc.
+    accessExpiresAt: v.optional(v.number()), // When access expires
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_content", ["contentId"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 };
 
 export default defineSchema({

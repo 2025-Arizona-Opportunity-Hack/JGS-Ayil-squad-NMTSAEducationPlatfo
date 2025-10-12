@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
 import { ContentGroupManager } from "./ContentGroupManager";
 import { ShareLinksManager } from "./ShareLinksManager";
 import { InviteCodeModal } from "./InviteCodeModal";
+import { SalesAnalytics } from "./admin/SalesAnalytics";
+import { AdminOrders } from "./admin/AdminOrders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
@@ -95,6 +97,20 @@ export function AdminDashboard() {
                       <UsersRound className="w-4 h-4" />
                       User Groups
                     </TabsTrigger>
+                    <TabsTrigger 
+                      value="analytics" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      Analytics
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="orders" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Orders
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -134,6 +150,14 @@ export function AdminDashboard() {
 
                 <TabsContent value="userGroups" className="m-0 p-6 h-full">
                   <UserGroupManager />
+                </TabsContent>
+
+                <TabsContent value="analytics" className="m-0 p-6 h-full">
+                  <SalesAnalytics />
+                </TabsContent>
+
+                <TabsContent value="orders" className="m-0 p-6 h-full">
+                  <AdminOrders />
                 </TabsContent>
               </>
             )}

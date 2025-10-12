@@ -35,7 +35,8 @@ import {
   Lock,
   UserPlus,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  DollarSign
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -43,6 +44,7 @@ import { ContentEditModal } from "./ContentEditModal";
 import { ContentVersionHistory } from "./ContentVersionHistory";
 import { ContentReviewModal } from "./ContentReviewModal";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
+import { ContentPricingModal } from "./ContentPricingModal";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
@@ -84,6 +86,7 @@ export function ContentManager() {
   const [showThirdPartyShareModal, setShowThirdPartyShareModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [previewContentId, setPreviewContentId] = useState<string | null>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
@@ -1286,6 +1289,27 @@ export function ContentManager() {
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    {/* Set Pricing (admins only) */}
+                    {userProfile?.role === "admin" && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedContent(item);
+                                setShowPricingModal(true);
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Set Pricing</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     {/* Admins and Contributors can delete */}
                     {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
                       <TooltipProvider>
@@ -1647,6 +1671,19 @@ export function ContentManager() {
           isOpen={showThirdPartyShareModal}
           onClose={() => {
             setShowThirdPartyShareModal(false);
+            setSelectedContent(null);
+          }}
+          contentId={selectedContent._id}
+          contentTitle={selectedContent.title}
+        />
+      )}
+
+      {/* Pricing Modal */}
+      {selectedContent && showPricingModal && (
+        <ContentPricingModal
+          isOpen={showPricingModal}
+          onClose={() => {
+            setShowPricingModal(false);
             setSelectedContent(null);
           }}
           contentId={selectedContent._id}
