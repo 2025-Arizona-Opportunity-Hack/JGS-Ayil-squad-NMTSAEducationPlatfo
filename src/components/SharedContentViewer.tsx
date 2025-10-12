@@ -171,29 +171,56 @@ export function SharedContentViewer() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Media Content */}
-        {content.type === "video" && content.fileUrl && (
+        {content.type === "video" && (content.fileUrl || content.externalUrl) && (
           <Card className="mb-8">
             <CardContent className="p-0">
               <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                <video
-                  src={content.fileUrl}
-                  controls
-                  className="w-full h-full"
-                  preload="metadata"
-                >
-                  Your browser does not support video playback.
-                </video>
+                {content.fileUrl ? (
+                  <video
+                    src={content.fileUrl}
+                    controls
+                    className="w-full h-full"
+                    preload="metadata"
+                  >
+                    Your browser does not support video playback.
+                  </video>
+                ) : content.externalUrl && (
+                  <iframe
+                    src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be') 
+                      ? content.externalUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
+                      : content.externalUrl
+                    }
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={content.title}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {content.type === "audio" && content.fileUrl && (
+        {content.type === "audio" && (content.fileUrl || content.externalUrl) && (
           <Card className="mb-8">
             <CardContent className="p-6">
-              <audio src={content.fileUrl} controls className="w-full">
-                Your browser does not support audio playback.
-              </audio>
+              {content.fileUrl ? (
+                <audio src={content.fileUrl} controls className="w-full">
+                  Your browser does not support audio playback.
+                </audio>
+              ) : content.externalUrl && (
+                <div className="space-y-4">
+                  <audio src={content.externalUrl} controls className="w-full">
+                    Your browser does not support audio playback.
+                  </audio>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <ExternalLink className="w-4 h-4" />
+                    <a href={content.externalUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      Open in new tab
+                    </a>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -218,7 +245,7 @@ export function SharedContentViewer() {
           </Card>
         )}
 
-        {content.type === "article" && content.externalUrl && (
+        {content.type === "article" && content.externalUrl && !content.richTextContent && (
           <Card className="mb-8">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 p-4 bg-primary/10 rounded-lg">
@@ -227,7 +254,7 @@ export function SharedContentViewer() {
                   href={content.externalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline font-medium flex-1"
+                  className="text-primary hover:underline font-medium flex-1 truncate"
                 >
                   {content.externalUrl}
                 </a>

@@ -45,9 +45,12 @@ export const createContent = mutation({
       throw new Error("Start date must be before end date");
     }
 
+    // Normalize: Articles should not store richTextContent
+    const data = args.type === "article" ? { ...args, richTextContent: undefined } : args;
+
     // All new content starts as draft
     const contentId = await ctx.db.insert("content", {
-      ...args,
+      ...data,
       createdBy: userId,
       status: "draft",
       currentVersion: 1,
@@ -57,18 +60,18 @@ export const createContent = mutation({
     await ctx.db.insert("contentVersions", {
       contentId,
       versionNumber: 1,
-      title: args.title,
-      description: args.description,
-      type: args.type,
-      fileId: args.fileId,
-      externalUrl: args.externalUrl,
-      richTextContent: args.richTextContent,
-      body: args.body,
-      isPublic: args.isPublic,
-      tags: args.tags,
-      active: args.active,
-      startDate: args.startDate,
-      endDate: args.endDate,
+      title: data.title,
+      description: data.description,
+      type: data.type,
+      fileId: data.fileId,
+      externalUrl: data.externalUrl,
+      richTextContent: data.richTextContent,
+      body: data.body,
+      isPublic: data.isPublic,
+      tags: data.tags,
+      active: data.active,
+      startDate: data.startDate,
+      endDate: data.endDate,
       status: "draft",
       createdBy: userId,
       createdAt: Date.now(),
@@ -76,6 +79,44 @@ export const createContent = mutation({
     });
 
     return contentId;
+  },
+});
+
+// One-time migration: remove richTextContent from article documents
+export const normalizeArticlesRemoveRichText = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || profile.role !== "admin") {
+      throw new Error("Only admins can run normalization");
+    }
+
+    const all = await ctx.db
+      .query("content")
+      .withIndex("by_type", (q) => q.eq("type", "article"))
+      .collect();
+
+    let updated = 0;
+    for (const doc of all) {
+      const needsMove = typeof (doc as any).richTextContent === "string" && (doc as any).richTextContent.length > 0;
+      if (!needsMove) continue;
+
+      const next: any = { richTextContent: undefined };
+      if (!doc.body || doc.body.length === 0) {
+        next.body = (doc as any).richTextContent;
+      }
+      await ctx.db.patch(doc._id, next);
+      updated++;
+    }
+
+    return { success: true, updated };
   },
 });
 
@@ -491,26 +532,31 @@ export const updateContent = mutation({
       throw new Error("Start date must be before end date");
     }
 
+    // Normalize: Articles should not store richTextContent
+    const normalized = args.type === "article"
+      ? { ...args, richTextContent: undefined }
+      : args;
+
     // Get current version number
     const currentVersion = content.currentVersion || 1;
     const newVersion = currentVersion + 1;
 
     // Create version snapshot before updating
     await ctx.db.insert("contentVersions", {
-      contentId: args.contentId,
+      contentId: normalized.contentId,
       versionNumber: newVersion,
-      title: args.title,
-      description: args.description,
-      type: args.type,
-      fileId: args.fileId,
-      externalUrl: args.externalUrl,
-      richTextContent: args.richTextContent,
-      body: args.body,
-      isPublic: args.isPublic,
-      tags: args.tags,
-      active: args.active,
-      startDate: args.startDate,
-      endDate: args.endDate,
+      title: normalized.title,
+      description: normalized.description,
+      type: normalized.type,
+      fileId: normalized.fileId,
+      externalUrl: normalized.externalUrl,
+      richTextContent: normalized.richTextContent,
+      body: normalized.body,
+      isPublic: normalized.isPublic,
+      tags: normalized.tags,
+      active: normalized.active,
+      startDate: normalized.startDate,
+      endDate: normalized.endDate,
       status: content.status,
       createdBy: userId,
       createdAt: Date.now(),
@@ -518,7 +564,7 @@ export const updateContent = mutation({
     });
 
     // Update content with new data and version number
-    const { contentId, ...updateData } = args;
+    const { contentId, ...updateData } = normalized;
     await ctx.db.patch(contentId, {
       ...updateData,
       currentVersion: newVersion,
@@ -840,5 +886,109 @@ export const grantAccessAfterPassword = mutation({
         grantedBy: userId, // Self-granted via password
       });
     }
+  },
+});
+
+// Create demo content for testing/demonstration
+export const createDemoContent = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user has permission to create content
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins, editors, and contributors can create content");
+    }
+
+    const demoContents = [
+      {
+        title: "Introduction to Neurologic Music Therapy",
+        description: "Learn about the fundamentals of NMT and how it helps patients with neurological conditions",
+        type: "article" as const,
+        body: `<h2>What is Neurologic Music Therapy?</h2>
+<p>Neurologic Music Therapy (NMT) is an evidence-based treatment system that uses music to address cognitive, sensory, and motor dysfunctions due to neurological disease.</p>
+<h3>Key Benefits:</h3>
+<ul>
+<li>Improves motor function and coordination</li>
+<li>Enhances speech and language abilities</li>
+<li>Supports cognitive rehabilitation</li>
+<li>Reduces anxiety and improves mood</li>
+</ul>
+<p>This approach is particularly effective for patients with stroke, Parkinson's disease, traumatic brain injury, and other neurological conditions.</p>`,
+        tags: ["NMT", "Introduction", "Therapy", "Education"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Rhythmic Auditory Stimulation Demo",
+        description: "A sample session demonstrating RAS techniques for gait training",
+        type: "video" as const,
+        externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        tags: ["RAS", "Gait Training", "Demo", "Techniques"],
+        isPublic: false,
+        active: true,
+      },
+      {
+        title: "Melodic Intonation Therapy Guide",
+        description: "Comprehensive guide for using MIT in speech rehabilitation",
+        type: "document" as const,
+        body: "This document provides step-by-step instructions for implementing Melodic Intonation Therapy techniques with patients recovering from aphasia.",
+        tags: ["MIT", "Speech", "Aphasia", "Guide"],
+        isPublic: false,
+        active: true,
+      },
+      {
+        title: "Therapeutic Music Exercise Session",
+        description: "Audio recording of a guided music-based exercise routine",
+        type: "audio" as const,
+        externalUrl: "https://example.com/audio-demo.mp3",
+        tags: ["Exercise", "Audio", "Therapy", "Guided"],
+        isPublic: true,
+        active: true,
+      },
+      {
+        title: "Music Therapy for Parkinson's Disease",
+        description: "Advanced techniques for using rhythm and movement in Parkinson's treatment",
+        type: "article" as const,
+        body: `<h2>Music Therapy and Parkinson's Disease</h2>
+<p>Music therapy has shown remarkable results in helping Parkinson's patients manage their symptoms and improve quality of life.</p>
+<h3>Rhythmic Interventions:</h3>
+<p>Using steady beats and rhythmic cues can help patients:</p>
+<ul>
+<li>Maintain steady gait patterns</li>
+<li>Reduce freezing episodes</li>
+<li>Improve balance and coordination</li>
+<li>Enhance overall motor function</li>
+</ul>
+<p>Research continues to demonstrate the powerful impact of music on the brain's motor systems.</p>`,
+        tags: ["Parkinson's", "Movement", "Advanced", "Research"],
+        isPublic: false,
+        active: true,
+      }
+    ];
+
+    const createdIds = [];
+    
+    for (const content of demoContents) {
+      const contentId = await ctx.db.insert("content", {
+        ...content,
+        createdBy: userId,
+        status: "published",
+        reviewedBy: userId,
+      });
+      createdIds.push(contentId);
+    }
+
+    return { 
+      success: true, 
+      count: createdIds.length,
+      contentIds: createdIds 
+    };
   },
 });

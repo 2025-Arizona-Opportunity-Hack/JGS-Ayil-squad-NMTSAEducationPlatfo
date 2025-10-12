@@ -345,67 +345,98 @@ export function PublicContentViewer() {
       <Navbar />
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="border-b bg-card">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex items-center gap-3">
+        <div className="border-b bg-gradient-to-r from-background to-muted/40">
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex items-start gap-3">
               {getTypeIcon(content.type)}
               <div className="flex-1">
-                <h1 className="text-3xl font-bold">{content.title}</h1>
-                <p className="text-sm text-muted-foreground italic mt-1">
+                <h1 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight">
+                  {content.title}
+                </h1>
+                <p className="text-sm text-muted-foreground italic mt-2">
                   By {content.authorName || "Neurological Music Therapy Services of Arizona"}
                 </p>
                 {content.description && (
-                  <p className="text-muted-foreground mt-2">{content.description}</p>
+                  <p className="text-muted-foreground mt-3 max-w-3xl">
+                    {content.description}
+                  </p>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 mt-4 text-sm">
+            <div className="flex flex-wrap items-center gap-3 mt-5 text-sm">
               {content.publishedAt && (
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Calendar className="w-4 h-4" />
                   <span>Published {formatDate(content.publishedAt)}</span>
                 </div>
               )}
-              <Badge variant="secondary">{content.type}</Badge>
+              <Badge variant="secondary" className="capitalize">{content.type}</Badge>
               {content.isPublic && <Badge variant="outline">Public</Badge>}
             </div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="container mx-auto px-4 py-10 max-w-5xl">
           {/* Media Content */}
-          {content.type === "video" && content.fileUrl && (
-            <Card className="mb-8">
+          {content.type === "video" && (content.fileUrl || content.externalUrl) && (
+            <Card className="mb-10 shadow-lg rounded-xl overflow-hidden border">
               <CardContent className="p-0">
                 <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                  <video
-                    src={content.fileUrl}
-                    controls
-                    className="w-full h-full"
-                    preload="metadata"
-                  >
-                    Your browser does not support video playback.
-                  </video>
+                  {content.fileUrl ? (
+                    <video
+                      src={content.fileUrl}
+                      controls
+                      className="w-full h-full"
+                      preload="metadata"
+                    >
+                      Your browser does not support video playback.
+                    </video>
+                  ) : content.externalUrl && (
+                    <iframe
+                      src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be') 
+                        ? content.externalUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
+                        : content.externalUrl
+                      }
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={content.title}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {content.type === "audio" && content.fileUrl && (
-            <Card className="mb-8">
-              <CardContent className="p-6">
-                <audio src={content.fileUrl} controls className="w-full">
-                  Your browser does not support audio playback.
-                </audio>
+          {content.type === "audio" && (content.fileUrl || content.externalUrl) && (
+            <Card className="mb-10 shadow-sm rounded-xl border">
+              <CardContent className="p-6 md:p-8">
+                {content.fileUrl ? (
+                  <audio src={content.fileUrl} controls className="w-full">
+                    Your browser does not support audio playback.
+                  </audio>
+                ) : content.externalUrl && (
+                  <div className="space-y-4">
+                    <audio src={content.externalUrl} controls className="w-full">
+                      Your browser does not support audio playback.
+                    </audio>
+                    <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                      <ExternalLink className="w-4 h-4" />
+                      <a href={content.externalUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        Open in new tab
+                      </a>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
           {content.type === "document" && content.fileUrl && (
-            <Card className="mb-8">
-              <CardContent className="p-6">
+            <Card className="mb-10 shadow-sm rounded-xl border">
+              <CardContent className="p-6 md:p-8">
                 <div className="flex items-center gap-4">
                   <FileText className="w-16 h-16 text-primary" />
                   <div className="flex-1">
@@ -423,16 +454,16 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {content.type === "article" && content.externalUrl && (
-            <Card className="mb-8">
-              <CardContent className="p-6">
+          {content.type === "article" && content.externalUrl && !content.richTextContent && (
+            <Card className="mb-10 shadow-sm rounded-xl border">
+              <CardContent className="p-6 md:p-8">
                 <div className="flex items-center gap-2 p-4 bg-primary/10 rounded-lg">
                   <ExternalLink className="w-5 h-5 text-primary" />
                   <a
                     href={content.externalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline font-medium flex-1"
+                    className="text-primary hover:underline font-medium flex-1 truncate"
                   >
                     {content.externalUrl}
                   </a>
@@ -446,15 +477,15 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {/* Rich Text Content */}
-          {content.richTextContent && (
-            <Card className="mb-8">
+          {/* Rich Text Content (not for articles) */}
+          {content.type !== "article" && content.richTextContent && (
+            <Card className="mb-10 shadow-sm rounded-xl border">
               <CardHeader>
-                <CardTitle>Content</CardTitle>
+                <CardTitle className="text-xl font-semibold">Content</CardTitle>
               </CardHeader>
               <CardContent>
                 <div
-                  className="prose prose-sm max-w-none"
+                  className="prose prose-sm md:prose-base max-w-none"
                   dangerouslySetInnerHTML={{ __html: content.richTextContent }}
                 />
               </CardContent>
@@ -463,13 +494,13 @@ export function PublicContentViewer() {
 
           {/* Body Content */}
           {content.body && (
-            <Card className="mb-8">
+            <Card className="mb-10 shadow-sm rounded-xl border">
               <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
+                <CardTitle className="text-xl font-semibold">Additional Information</CardTitle>
               </CardHeader>
               <CardContent>
                 <div
-                  className="prose prose-sm max-w-none"
+                  className="prose prose-sm md:prose-base max-w-none"
                   dangerouslySetInnerHTML={{ __html: content.body }}
                 />
               </CardContent>
@@ -478,7 +509,7 @@ export function PublicContentViewer() {
 
           {/* Tags */}
           {content.tags && content.tags.length > 0 && (
-            <Card>
+            <Card className="shadow-sm rounded-xl border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="w-5 h-5" />
@@ -488,7 +519,7 @@ export function PublicContentViewer() {
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {content.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary">
+                    <Badge key={tag} variant="secondary" className="capitalize">
                       {tag}
                     </Badge>
                   ))}

@@ -148,6 +148,7 @@ export function ContentManager() {
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const submitForReview = useMutation(api.content.submitForReview);
+  const createDemoContent = useMutation(api.content.createDemoContent);
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
@@ -348,6 +349,23 @@ export function ContentManager() {
   const handleManageAccess = (content: any) => {
     setSelectedContent(content);
     setShowAccessModal(true);
+  };
+
+  const handleCreateDemoContent = async () => {
+    const toastId = toast.loading("Creating demo content...");
+    try {
+      const result = await createDemoContent();
+      toast.success(`Successfully created ${result.count} demo content items!`, {
+        id: toastId,
+        description: "Demo content has been published and is ready to view"
+      });
+    } catch (error) {
+      console.error("Error creating demo content:", error);
+      toast.error("Failed to create demo content", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "An error occurred"
+      });
+    }
   };
 
   const handleEditContent = (content: any) => {
@@ -704,10 +722,16 @@ export function ContentManager() {
             <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
             <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
           </div>
-          <Button onClick={() => setShowCreateForm(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Content
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowCreateForm(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Content
+            </Button>
+            <Button onClick={() => { void handleCreateDemoContent(); }} variant="outline">
+              <Play className="w-4 h-4 mr-2" />
+              Create Demo Content
+            </Button>
+          </div>
         </div>
 
       <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
@@ -1076,19 +1100,19 @@ export function ContentManager() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
+              <Card className="hover:shadow-lg transition-all duration-200 hover:border-primary/20 relative overflow-hidden group">
                 {/* Status Banner - Positioned at top */}
-                <div className={`absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-2 border-b ${
-                  item.status === "published" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800" :
-                  item.status === "review" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
-                  item.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800" :
-                  item.status === "changes_requested" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
-                  "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700"
+                <div className={`absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-2.5 border-b ${
+                  item.status === "published" ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200/50 dark:border-green-800/50" :
+                  item.status === "review" ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 border-yellow-200/50 dark:border-yellow-800/50" :
+                  item.status === "rejected" ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200/50 dark:border-red-800/50" :
+                  item.status === "changes_requested" ? "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border-orange-200/50 dark:border-orange-800/50" :
+                  "bg-gray-50 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400 border-gray-200/50 dark:border-gray-700/50"
                 }`}>
                   <div className="w-4 h-4 flex-shrink-0">
                     {getStatusIcon(item.status)}
                   </div>
-                  <span className="text-xs font-semibold capitalize">
+                  <span className="text-xs font-medium capitalize">
                     {item.status === "changes_requested" 
                       ? `Changes Requested${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
                       : item.status === "rejected"
@@ -1097,11 +1121,11 @@ export function ContentManager() {
                   </span>
                 </div>
 
-              <CardContent className="p-3 pt-12">
-                <div className="flex items-center gap-3">
-                  {/* Thumbnail - Clickable */}
+              <CardContent className="p-4 pt-14">
+                <div className="flex items-start gap-4">
+                  {/* Thumbnail - Clickable with uniform size */}
                   <div 
-                    className="flex-shrink-0 cursor-pointer" 
+                    className="flex-shrink-0 cursor-pointer group-hover:ring-2 ring-primary/20 rounded-lg transition-all" 
                     onClick={() => handlePreviewContent(item)}
                   >
                     {item.type === "video" && (
@@ -1114,7 +1138,7 @@ export function ContentManager() {
                     )}
                     {item.type === "audio" && (
                       (item as any).thumbnailUrl ? (
-                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-muted to-muted/50 border border-border/50 shadow-sm">
                           <img 
                             src={(item as any).thumbnailUrl} 
                             alt={item.title}
@@ -1122,14 +1146,16 @@ export function ContentManager() {
                           />
                         </div>
                       ) : (
-                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
-                          {getTypeIcon(item.type)}
+                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 border border-purple-200/50 dark:border-purple-800/50 flex items-center justify-center shadow-sm">
+                          <div className="text-purple-500 dark:text-purple-400">
+                            {getTypeIcon(item.type)}
+                          </div>
                         </div>
                       )
                     )}
                     {(item.type === "article" || item.type === "document") && (
                       (item as any).thumbnailUrl ? (
-                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-muted to-muted/50 border border-border/50 shadow-sm">
                           <img 
                             src={(item as any).thumbnailUrl} 
                             alt={item.title}
@@ -1137,43 +1163,51 @@ export function ContentManager() {
                           />
                         </div>
                       ) : (
-                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
-                          {getTypeIcon(item.type)}
+                        <div className={`w-36 h-24 rounded-lg overflow-hidden ${
+                          item.type === "article" 
+                            ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 border-blue-200/50 dark:border-blue-800/50" 
+                            : "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/30 border-amber-200/50 dark:border-amber-800/50"
+                        } border flex items-center justify-center shadow-sm`}>
+                          <div className={item.type === "article" ? "text-blue-500 dark:text-blue-400" : "text-amber-500 dark:text-amber-400"}>
+                            {getTypeIcon(item.type)}
+                          </div>
                         </div>
                       )
                     )}
                   </div>
 
                   {/* Content Info - Horizontal Layout */}
-                  <div className="flex-1 min-w-0 flex items-start gap-4">
-                    {/* Title and Metadata */}
-                    <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    {/* Title and Description */}
+                    <div className="flex-1 min-w-0 mb-3">
                       {/* Title - Clickable */}
-                      <div 
-                        className="flex items-center gap-2 mb-1.5 cursor-pointer hover:text-primary transition-colors"
+                      <h4 
+                        className="font-semibold text-base leading-snug mb-1.5 cursor-pointer hover:text-primary transition-colors line-clamp-2"
                         onClick={() => handlePreviewContent(item)}
+                        title={item.title}
                       >
-                        {item.type !== "video" && item.type !== "audio" && (
-                          <div className="flex-shrink-0">{getTypeIcon(item.type)}</div>
-                        )}
-                        <h4 className="font-semibold text-base leading-tight truncate">{item.title}</h4>
-                      </div>
+                        {item.title}
+                      </h4>
                       
                       {/* Description */}
-                    {item.description && (
-                        <p className="text-xs text-muted-foreground mb-1.5 line-clamp-1">{item.description}</p>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                          {item.description}
+                        </p>
                       )}
 
-                      {/* Metadata - Multi-line */}
-                      <div className="space-y-1">
-                        {/* Line 1: Type, Visibility, Active Status */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge variant="secondary" className="text-[10px] capitalize h-5">
-                        {item.type}
-                          </Badge>
-                          <Badge variant={item.isPublic ? "default" : "secondary"} className="text-[10px] h-5">
-                        {item.isPublic ? "Public" : "Private"}
-                          </Badge>
+                    </div>
+
+                    {/* Metadata Section - Uniform badges */}
+                    <div className="space-y-2 mt-auto">
+                      {/* Line 1: Type, Visibility, Active Status */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px] capitalize h-5 font-medium px-2">
+                          {item.type}
+                        </Badge>
+                        <Badge variant={item.isPublic ? "default" : "secondary"} className="text-[10px] h-5 font-medium px-2">
+                          {item.isPublic ? "Public" : "Private"}
+                        </Badge>
                           {item.status === "published" && (
                             <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
                               {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
@@ -1250,24 +1284,24 @@ export function ContentManager() {
                         {/* Line 3: Tags */}
                       {item.tags && item.tags.length > 0 && (
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-medium text-muted-foreground mr-1">Tags:</span>
                             {item.tags.slice(0, 3).map((tag, index) => (
-                              <Badge key={index} variant="secondary" className="text-[10px] h-5">
-                              {tag}
+                              <Badge key={index} variant="outline" className="text-[10px] h-5">
+                                {tag}
                               </Badge>
-                          ))}
+                            ))}
                             {item.tags.length > 3 && (
-                              <Badge variant="secondary" className="text-[10px] h-5">
+                              <Badge variant="outline" className="text-[10px] h-5">
                                 +{item.tags.length - 3}
                               </Badge>
                             )}
-                        </div>
-                      )}
+                          </div>
+                        )}
                     </div>
                   </div>
-                </div>
 
-                  {/* Action Buttons - Horizontal */}
-                  <div className="flex items-center gap-1 flex-shrink-0 border-l pl-3">
+                  {/* Action Buttons - Horizontal aligned to right */}
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-auto border-l pl-4">
                     {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "editor") && (
                       <TooltipProvider>
                         <Tooltip>
@@ -1276,12 +1310,12 @@ export function ContentManager() {
                               size="sm"
                               variant="default"
                               onClick={() => handleReviewContent(item)}
-                              className="bg-yellow-600 hover:bg-yellow-700 h-7 w-7 p-0"
+                              className="bg-yellow-600 hover:bg-yellow-700 h-8 w-8 p-0 shadow-sm"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Review</TooltipContent>
+                          <TooltipContent>Review Content</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
@@ -1294,9 +1328,9 @@ export function ContentManager() {
                               size="sm"
                               variant="default"
                               onClick={() => void handleSubmitForReview(item._id)}
-                              className="bg-blue-600 hover:bg-blue-700 h-7 w-7 p-0"
+                              className="bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0 shadow-sm"
                             >
-                              <Send className="w-3.5 h-3.5" />
+                              <Send className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Submit for Review</TooltipContent>
@@ -1311,12 +1345,12 @@ export function ContentManager() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handlePreviewContent(item)}
-                            className="h-7 w-7 p-0"
+                            className="h-8 w-8 p-0 hover:bg-primary/10"
                           >
-                            <Play className="w-3.5 h-3.5" />
+                            <Play className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Preview</TooltipContent>
+                        <TooltipContent>Preview Content</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     {/* Admins and Contributors can edit */}
@@ -1327,13 +1361,13 @@ export function ContentManager() {
                             <Button 
                               size="sm"
                               variant="ghost"
-                    onClick={() => handleEditContent(item)}
-                              className="h-7 w-7 p-0"
+                              onClick={() => handleEditContent(item)}
+                              className="h-8 w-8 p-0 hover:bg-primary/10"
                             >
-                              <FileEdit className="w-3.5 h-3.5" />
+                              <FileEdit className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Edit</TooltipContent>
+                          <TooltipContent>Edit Content</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
@@ -1346,12 +1380,12 @@ export function ContentManager() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleViewVersionHistory(item)}
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0 hover:bg-primary/10"
                             >
-                              <History className="w-3.5 h-3.5" />
+                              <History className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>History</TooltipContent>
+                          <TooltipContent>Version History</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
@@ -1363,13 +1397,13 @@ export function ContentManager() {
                             <Button 
                               size="sm"
                               variant="ghost"
-                    onClick={() => handleManageAccess(item)}
-                              className="h-7 w-7 p-0"
+                              onClick={() => handleManageAccess(item)}
+                              className="h-8 w-8 p-0 hover:bg-primary/10"
                             >
-                              <Eye className="w-3.5 h-3.5" />
+                              <Eye className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Access</TooltipContent>
+                          <TooltipContent>Manage Access</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
@@ -1381,16 +1415,16 @@ export function ContentManager() {
                             size="sm"
                             variant="ghost"
                             onClick={() => void handleShareContent(item._id)}
-                            className={`h-7 w-7 p-0 ${copiedId === item._id ? "text-green-600" : ""}`}
+                            className={`h-8 w-8 p-0 ${copiedId === item._id ? "text-green-600 bg-green-50 hover:bg-green-100" : "hover:bg-primary/10"}`}
                           >
                             {copiedId === item._id ? (
-                              <Check className="w-3.5 h-3.5" />
+                              <Check className="w-4 h-4" />
                             ) : (
-                              <Share2 className="w-3.5 h-3.5" />
+                              <Share2 className="w-4 h-4" />
                             )}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{copiedId === item._id ? "Copied!" : "Share"}</TooltipContent>
+                        <TooltipContent>{copiedId === item._id ? "Link Copied!" : "Share Content"}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     {/* Share with 3rd Party (admins, editors, contributors) */}
@@ -1402,9 +1436,9 @@ export function ContentManager() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleThirdPartyShare(item)}
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0 hover:bg-primary/10"
                             >
-                              <UserPlus className="w-3.5 h-3.5" />
+                              <UserPlus className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Share with 3rd Party</TooltipContent>
@@ -1423,9 +1457,9 @@ export function ContentManager() {
                                 setSelectedContent(item);
                                 setShowPricingModal(true);
                               }}
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0 hover:bg-primary/10"
                             >
-                              <DollarSign className="w-3.5 h-3.5" />
+                              <DollarSign className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Set Pricing</TooltipContent>
@@ -1441,19 +1475,19 @@ export function ContentManager() {
                               size="sm"
                               variant="ghost"
                               onClick={() => setContentToDelete(item)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Delete</TooltipContent>
+                          <TooltipContent>Delete Content</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                  </div>
                 </div>
-              </div>
               </CardContent>
-              </Card>
+            </Card>
             </motion.div>
           ))
         )}
@@ -1637,6 +1671,17 @@ export function ContentManager() {
                       <video src={previewContent.fileUrl} controls className="w-full h-full">
                         Your browser does not support video playback.
                       </video>
+                    ) : previewContent.externalUrl ? (
+                      <iframe
+                        src={previewContent.externalUrl.includes('youtube.com') || previewContent.externalUrl.includes('youtu.be') 
+                          ? previewContent.externalUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
+                          : previewContent.externalUrl
+                        }
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title={previewContent.title}
+                      />
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center text-muted-foreground">
@@ -1663,6 +1708,18 @@ export function ContentManager() {
                       <audio src={previewContent.fileUrl} controls className="w-full">
                         Your browser does not support audio playback.
                       </audio>
+                    ) : previewContent.externalUrl ? (
+                      <div className="space-y-3">
+                        <audio src={previewContent.externalUrl} controls className="w-full">
+                          Your browser does not support audio playback.
+                        </audio>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <ExternalLink className="w-4 h-4" />
+                          <a href={previewContent.externalUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            Open in new tab
+                          </a>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
                         <div className="text-center text-muted-foreground">
