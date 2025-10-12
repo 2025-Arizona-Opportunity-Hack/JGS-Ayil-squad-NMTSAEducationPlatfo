@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
@@ -25,7 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ContentEditModalProps {
   isOpen: boolean;
@@ -48,17 +52,11 @@ interface ContentEditModalProps {
     reviewNotes?: string;
     reviewedAt?: number;
     reviewerName?: string;
+    password?: string;
   };
 }
 
 export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalProps) {
-  const formatDateForInput = (timestamp?: number) => {
-    if (!timestamp) return "";
-    const date = new Date(timestamp);
-    // Format to YYYY-MM-DDTHH:MM for datetime-local input
-    return date.toISOString().slice(0, 16);
-  };
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -73,17 +71,18 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
     defaultValues: {
-      title: content.title,
-      description: content.description || "",
-      type: content.type,
-      externalUrl: content.externalUrl || "",
-      richTextContent: content.richTextContent || "",
+    title: content.title,
+    description: content.description || "",
+    type: content.type,
+    externalUrl: content.externalUrl || "",
+    richTextContent: content.richTextContent || "",
       body: content.body || "",
-      isPublic: content.isPublic,
-      tags: content.tags?.join(", ") || "",
+    isPublic: content.isPublic,
+    tags: content.tags?.join(", ") || "",
       active: content.active,
-      startDate: formatDateForInput(content.startDate),
-      endDate: formatDateForInput(content.endDate),
+      startDate: content.startDate ? format(new Date(content.startDate), "yyyy-MM-dd'T'HH:mm") : "",
+      endDate: content.endDate ? format(new Date(content.endDate), "yyyy-MM-dd'T'HH:mm") : "",
+      password: content.password || "",
     },
   });
 
@@ -103,13 +102,15 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
       isPublic: content.isPublic,
       tags: content.tags?.join(", ") || "",
       active: content.active,
-      startDate: formatDateForInput(content.startDate),
-      endDate: formatDateForInput(content.endDate),
+      startDate: content.startDate ? format(new Date(content.startDate), "yyyy-MM-dd'T'HH:mm") : "",
+      endDate: content.endDate ? format(new Date(content.endDate), "yyyy-MM-dd'T'HH:mm") : "",
+      password: content.password || "",
     });
     setSelectedFile(null);
   }, [content, reset]);
 
   const contentWithFile = useQuery(api.content.getContent, { contentId: content._id as any });
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const updateContent = useMutation(api.content.updateContent);
 
@@ -148,6 +149,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
         active: data.active,
         startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
         endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+        password: data.password || undefined,
       });
       
       toast.success("Content updated successfully!");
@@ -235,7 +237,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
                 </p>
               )}
             </div>
-          </div>
+        </div>
         )}
 
         <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
@@ -302,13 +304,13 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
                       size="sm"
                       asChild
                     >
-                      <a
-                        href={contentWithFile.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View
-                      </a>
+                    <a
+                      href={contentWithFile.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View
+                    </a>
                     </Button>
                   </div>
                 </div>
@@ -414,12 +416,57 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date (optional)</Label>
-                <Input
-                  id="startDate"
-                  type="datetime-local"
-                  {...register("startDate")}
-                  className={errors.startDate ? "border-red-500" : ""}
+                <Label>Start Date (optional)</Label>
+                <Controller
+                  name="startDate"
+                  control={control}
+                  render={({ field }) => (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {field.value ? format(new Date(field.value), "PPP HH:mm") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Preserve time if it exists, otherwise set to current time
+                              const currentValue = field.value ? new Date(field.value) : new Date();
+                              date.setHours(currentValue.getHours());
+                              date.setMinutes(currentValue.getMinutes());
+                              field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
+                            } else {
+                              field.onChange("");
+                            }
+                          }}
+                          initialFocus
+                        />
+                        <div className="p-3 border-t">
+                          <Input
+                            type="time"
+                            value={field.value ? format(new Date(field.value), "HH:mm") : ""}
+                            onChange={(e) => {
+                              const date = field.value ? new Date(field.value) : new Date();
+                              const [hours, minutes] = e.target.value.split(":");
+                              date.setHours(parseInt(hours));
+                              date.setMinutes(parseInt(minutes));
+                              field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
+                            }}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 />
                 {errors.startDate && (
                   <p className="text-sm text-red-500">{errors.startDate.message}</p>
@@ -428,12 +475,57 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date (optional)</Label>
-                <Input
-                  id="endDate"
-                  type="datetime-local"
-                  {...register("endDate")}
-                  className={errors.endDate ? "border-red-500" : ""}
+                <Label>End Date (optional)</Label>
+                <Controller
+                  name="endDate"
+                  control={control}
+                  render={({ field }) => (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {field.value ? format(new Date(field.value), "PPP HH:mm") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Preserve time if it exists, otherwise set to current time
+                              const currentValue = field.value ? new Date(field.value) : new Date();
+                              date.setHours(currentValue.getHours());
+                              date.setMinutes(currentValue.getMinutes());
+                              field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
+                            } else {
+                              field.onChange("");
+                            }
+                          }}
+                          initialFocus
+                        />
+                        <div className="p-3 border-t">
+                          <Input
+                            type="time"
+                            value={field.value ? format(new Date(field.value), "HH:mm") : ""}
+                            onChange={(e) => {
+                              const date = field.value ? new Date(field.value) : new Date();
+                              const [hours, minutes] = e.target.value.split(":");
+                              date.setHours(parseInt(hours));
+                              date.setMinutes(parseInt(minutes));
+                              field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"));
+                            }}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 />
                 {errors.endDate && (
                   <p className="text-sm text-red-500">{errors.endDate.message}</p>
@@ -442,6 +534,26 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
               </div>
             </div>
           </div>
+
+          {/* Password Protection (Admin Only) */}
+          {userProfile?.role === "admin" && (
+            <div className="space-y-2 pt-4 border-t">
+              <Label htmlFor="password-edit">Password Protection (optional)</Label>
+              <Input
+                id="password-edit"
+                type="password"
+                placeholder="Set a password for this content"
+                {...register("password")}
+                className={errors.password ? "border-destructive" : ""}
+              />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                If set, users will need this password to view the content (in addition to other access controls)
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <Button

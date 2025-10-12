@@ -23,6 +23,7 @@ export const createContent = mutation({
     active: v.boolean(),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -130,9 +131,31 @@ export const listContent = query({
     const accessibleContent = [];
 
     for (const content of allContent) {
+      // Get creator name
+      const creator = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", content.createdBy))
+        .unique();
+
+      // Get reviewer name if content was reviewed
+      let reviewerName: string | null = null;
+      if (content.reviewedBy) {
+        const reviewer = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user_id", (q) => q.eq("userId", content.reviewedBy as any))
+          .unique();
+        reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
+      }
+
+      const contentWithNames = {
+        ...content,
+        creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
+        reviewerName,
+      };
+
       // Admins and editors can see all content regardless of status and availability
       if (profile.role === "admin" || profile.role === "editor") {
-        accessibleContent.push(content);
+        accessibleContent.push(contentWithNames);
         continue;
       }
 
@@ -140,7 +163,7 @@ export const listContent = query({
       if (profile.role === "contributor") {
         if (content.createdBy === userId) {
           // Can see own content in any status
-          accessibleContent.push(content);
+          accessibleContent.push(contentWithNames);
           continue;
         }
         // For other content, must be published and available
@@ -149,12 +172,12 @@ export const listContent = query({
         }
         // Check if has access to this published content
         if (content.isPublic) {
-          accessibleContent.push(content);
+          accessibleContent.push(contentWithNames);
           continue;
         }
         const hasAccess = await checkContentAccess(ctx, content._id, userId, profile.role);
         if (hasAccess) {
-          accessibleContent.push(content);
+          accessibleContent.push(contentWithNames);
         }
         continue;
       }
@@ -171,14 +194,14 @@ export const listContent = query({
 
       // Public content is accessible
       if (content.isPublic) {
-        accessibleContent.push(content);
+        accessibleContent.push(contentWithNames);
         continue;
       }
 
       // Check specific access permissions
       const hasAccess = await checkContentAccess(ctx, content._id, userId, profile.role);
       if (hasAccess) {
-        accessibleContent.push(content);
+        accessibleContent.push(contentWithNames);
       }
     }
 
@@ -420,6 +443,7 @@ export const updateContent = mutation({
     active: v.boolean(),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -777,5 +801,36 @@ export const updateContentThumbnailId = mutation({
     await ctx.db.patch(args.contentId, {
       thumbnailId: args.thumbnailId,
     });
+  },
+});
+
+// Grant access to a user after successful password verification
+export const grantAccessAfterPassword = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    // Check if user already has access
+    const existingAccess = await ctx.db
+      .query("contentAccess")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .first();
+
+    if (!existingAccess) {
+      // Grant permanent access to this user
+      await ctx.db.insert("contentAccess", {
+        contentId: args.contentId,
+        userId: userId,
+        canShare: false,
+        grantedBy: userId, // Self-granted via password
+      });
+    }
   },
 });

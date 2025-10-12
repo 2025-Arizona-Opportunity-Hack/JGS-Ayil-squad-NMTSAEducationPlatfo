@@ -28,14 +28,17 @@ import {
   Trash2,
   Share2,
   Check,
-  Send
+  Send,
+  AlertCircle,
+  ExternalLink,
+  Play,
+  Lock
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
 import { ContentVersionHistory } from "./ContentVersionHistory";
 import { ContentReviewModal } from "./ContentReviewModal";
-import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
@@ -74,7 +77,9 @@ export function ContentManager() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
+  const [previewContentId, setPreviewContentId] = useState<string | null>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected" | "changes_requested">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,6 +122,10 @@ export function ContentManager() {
   const contentGroups = useQuery(api.contentGroups.listContentGroups, {});
   const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
   const userProfile = useQuery(api.users.getCurrentUserProfile);
+  const previewContent = useQuery(
+    api.content.getContent,
+    previewContentId ? { contentId: previewContentId as any } : "skip" as any
+  );
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
@@ -266,6 +275,7 @@ export function ContentManager() {
         active: data.active,
         startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
         endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+        password: data.password || undefined,
       });
 
       // Reset form
@@ -299,6 +309,12 @@ export function ContentManager() {
   const handleReviewContent = (content: any) => {
     setSelectedContent(content);
     setShowReviewModal(true);
+  };
+
+  const handlePreviewContent = (content: any) => {
+    setSelectedContent(content);
+    setPreviewContentId(content._id);
+    setShowPreviewModal(true);
   };
 
   const handleSubmitForReview = async (contentId: string) => {
@@ -383,13 +399,14 @@ export function ContentManager() {
     return allContent?.filter(item => item.type === type).length || 0;
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string | undefined) => {
     const iconProps = { className: "w-4 h-4", strokeWidth: 2 };
     switch (status) {
       case "draft": return <FileEdit {...iconProps} />;
       case "review": return <Eye {...iconProps} />;
       case "published": return <CheckCircle {...iconProps} />;
       case "rejected": return <XCircle {...iconProps} />;
+      case "changes_requested": return <AlertCircle {...iconProps} />;
       default: return <FileText {...iconProps} />;
     }
   };
@@ -875,6 +892,26 @@ export function ContentManager() {
                 </div>
               </div>
 
+              {/* Password Protection (Admin Only) */}
+              {userProfile?.role === "admin" && (
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="password">Password Protection (optional)</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Set a password for this content"
+                    {...register("password")}
+                    className={errors.password ? "border-destructive" : ""}
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    If set, users will need this password to view the content (in addition to other access controls)
+                  </p>
+                </div>
+              )}
+
             <div className="flex gap-3 pt-6">
               <Button type="submit" disabled={uploading}>
                 {uploading ? "Creating..." : "Create Content"}
@@ -893,14 +930,14 @@ export function ContentManager() {
 
       {/* Content List */}
       <div className="space-y-4">
-                  {allContent === undefined ? (
-                    // Loading state
+        {allContent === undefined ? (
+          // Loading state
                     <Card>
                       <CardContent className="flex flex-col justify-center items-center py-16 gap-4">
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full border-4 border-muted"></div>
                           <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-                        </div>
+          </div>
                         <div className="text-center">
                           <p className="text-sm font-medium text-foreground">Loading content...</p>
                           <p className="text-xs text-muted-foreground mt-1">Please wait</p>
@@ -950,15 +987,22 @@ export function ContentManager() {
                     {getStatusIcon(item.status)}
                   </div>
                   <span className="text-xs font-semibold capitalize">
-                    {item.status === "changes_requested" ? "Changes Requested" : item.status}
+                    {item.status === "changes_requested" 
+                      ? `Changes Requested${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
+                      : item.status === "rejected"
+                      ? `Rejected${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
+                      : item.status}
                   </span>
                 </div>
 
               <CardContent className="p-3 pt-12">
                 <div className="flex items-center gap-3">
-                  {/* Thumbnail */}
+                  {/* Thumbnail - Clickable */}
                   {(item.type === "video" || item.type === "audio") && (
-                    <div className="flex-shrink-0">
+                    <div 
+                      className="flex-shrink-0 cursor-pointer" 
+                      onClick={() => handlePreviewContent(item)}
+                    >
                       {item.type === "video" && (
                         <VideoThumbnail
                           contentId={item._id}
@@ -988,8 +1032,11 @@ export function ContentManager() {
                   <div className="flex-1 min-w-0 flex items-start gap-4">
                     {/* Title and Metadata */}
                     <div className="flex-1 min-w-0">
-                      {/* Title */}
-                      <div className="flex items-center gap-2 mb-1.5">
+                      {/* Title - Clickable */}
+                      <div 
+                        className="flex items-center gap-2 mb-1.5 cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => handlePreviewContent(item)}
+                      >
                         {item.type !== "video" && item.type !== "audio" && (
                           <div className="flex-shrink-0">{getTypeIcon(item.type)}</div>
                         )}
@@ -1014,10 +1061,15 @@ export function ContentManager() {
                           <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
                             {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
                           </Badge>
+                          {item.password && (
+                            <Badge variant="outline" className="gap-1 text-[10px] h-5 border-amber-500 text-amber-600 dark:text-amber-400">
+                              <Lock className="w-2.5 h-2.5" /> Password
+                            </Badge>
+                          )}
                         </div>
 
-                        {/* Line 2: Dates and Reviewer (if applicable) */}
-                        {(item.startDate || item.endDate || (item as any).reviewerName) && (
+                        {/* Line 2: Dates */}
+                        {(item.startDate || item.endDate) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {item.startDate && (
                               <Badge variant="outline" className="gap-1 text-[10px] h-5">
@@ -1029,18 +1081,6 @@ export function ContentManager() {
                               <Badge variant="outline" className="gap-1 text-[10px] h-5">
                                 <CalendarDays className="w-2.5 h-2.5" />
                                 End: {new Date(item.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                              </Badge>
-                            )}
-                            {(item as any).reviewerName && (item.status === "published" || item.status === "rejected" || item.status === "changes_requested") && (
-                              <Badge 
-                                variant="outline" 
-                                className={`gap-1 text-[10px] h-5 ${
-                                  item.status === "published" ? "border-green-500 text-green-700 bg-green-50 dark:bg-green-900/20" :
-                                  item.status === "rejected" ? "border-red-500 text-red-700 bg-red-50 dark:bg-red-900/20" :
-                                  "border-orange-500 text-orange-700 bg-orange-50 dark:bg-orange-900/20"
-                                }`}
-                              >
-                                {item.status === "published" ? "✓" : item.status === "rejected" ? "✗" : "!"} {(item as any).reviewerName}
                               </Badge>
                             )}
                           </div>
@@ -1102,36 +1142,59 @@ export function ContentManager() {
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    {/* Everyone can preview */}
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 
                             size="sm"
                             variant="ghost"
+                            onClick={() => handlePreviewContent(item)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Preview</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    {/* Admins and Contributors can edit */}
+                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="ghost"
                     onClick={() => handleEditContent(item)}
-                            className="h-7 w-7 p-0"
-                          >
-                            <FileEdit className="w-3.5 h-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleViewVersionHistory(item)}
-                            className="h-7 w-7 p-0"
-                          >
-                            <History className="w-3.5 h-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>History</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                              className="h-7 w-7 p-0"
+                            >
+                              <FileEdit className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {/* Admins and Contributors can view history */}
+                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewVersionHistory(item)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>History</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {/* Only admins can manage access */}
                     {userProfile?.role === "admin" && (
                       <TooltipProvider>
                         <Tooltip>
@@ -1149,6 +1212,7 @@ export function ContentManager() {
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    {/* Everyone can share */}
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1168,21 +1232,24 @@ export function ContentManager() {
                         <TooltipContent>{copiedId === item._id ? "Copied!" : "Share"}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setContentToDelete(item)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Delete</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    {/* Admins and Contributors can delete */}
+                    {(userProfile?.role === "admin" || userProfile?.role === "contributor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setContentToDelete(item)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                 </div>
               </div>
               </CardContent>
@@ -1193,7 +1260,7 @@ export function ContentManager() {
       </div>
 
       {/* Access Management Modal */}
-      {selectedContent && (
+      {selectedContent && showAccessModal && (
         <AccessManagementModal
           isOpen={showAccessModal}
           onClose={() => {
@@ -1206,7 +1273,7 @@ export function ContentManager() {
       )}
 
       {/* Edit Content Modal */}
-      {selectedContent && (
+      {selectedContent && showEditModal && (
         <ContentEditModal
           isOpen={showEditModal}
           onClose={() => {
@@ -1218,7 +1285,7 @@ export function ContentManager() {
       )}
 
       {/* Version History Modal */}
-      {selectedContent && (
+      {selectedContent && showVersionHistory && (
         <ContentVersionHistory
           isOpen={showVersionHistory}
           onClose={() => {
@@ -1231,7 +1298,7 @@ export function ContentManager() {
       )}
 
       {/* Review Content Modal */}
-      {selectedContent && (
+      {selectedContent && showReviewModal && (
         <ContentReviewModal
           isOpen={showReviewModal}
           onClose={() => {
@@ -1240,6 +1307,220 @@ export function ContentManager() {
           }}
           contentId={selectedContent._id}
         />
+      )}
+
+      {/* Preview Content Modal */}
+      {selectedContent && (
+        <Dialog open={showPreviewModal} onOpenChange={(open) => {
+          if (!open) {
+            setShowPreviewModal(false);
+            setSelectedContent(null);
+            setPreviewContentId(null);
+          }
+        }}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {getTypeIcon(selectedContent.type)}
+                {selectedContent.title}
+              </DialogTitle>
+              <DialogDescription>
+                Content Preview
+              </DialogDescription>
+            </DialogHeader>
+
+            {!previewContent ? (
+              <div className="flex-1 flex items-center justify-center p-12">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full border-4 border-muted"></div>
+                  <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                </div>
+              </div>
+            ) : (
+            <div className="flex-1 overflow-y-auto space-y-6 p-6">
+              {/* Status and Metadata */}
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={
+                  selectedContent.status === "published" ? "default" :
+                  selectedContent.status === "review" ? "outline" :
+                  selectedContent.status === "rejected" ? "destructive" :
+                  selectedContent.status === "changes_requested" ? "outline" :
+                  "secondary"
+                } className={selectedContent.status === "changes_requested" ? "border-orange-500 text-orange-600" : ""}>
+                  {selectedContent.status === "changes_requested" ? "Changes Requested" : selectedContent.status}
+                </Badge>
+                <Badge variant="outline">{selectedContent.type}</Badge>
+                <Badge variant={selectedContent.isPublic ? "default" : "secondary"}>
+                  {selectedContent.isPublic ? "Public" : "Private"}
+                </Badge>
+                {!selectedContent.active && <Badge variant="destructive">Inactive</Badge>}
+              </div>
+
+              {/* Description */}
+              {selectedContent.description && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Description</h4>
+                  <p className="text-sm text-muted-foreground">{selectedContent.description}</p>
+                </div>
+              )}
+
+              {/* Content Preview */}
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Content</h4>
+                {previewContent.type === "video" && (
+                  <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                    {previewContent.fileUrl ? (
+                      <video src={previewContent.fileUrl} controls className="w-full h-full">
+                        Your browser does not support video playback.
+                      </video>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-muted-foreground">
+                          <Video className="w-16 h-16 mx-auto mb-2" />
+                          <p>Video file not available</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {previewContent.type === "audio" && (
+                  <div className="space-y-4">
+                    {previewContent.thumbnailUrl && (
+                      <div className="w-full max-w-md mx-auto rounded-lg overflow-hidden">
+                        <img 
+                          src={previewContent.thumbnailUrl} 
+                          alt={previewContent.title}
+                          className="w-full h-auto object-cover"
+                        />
+                      </div>
+                    )}
+                    {previewContent.fileUrl ? (
+                      <audio src={previewContent.fileUrl} controls className="w-full">
+                        Your browser does not support audio playback.
+                      </audio>
+                    ) : (
+                      <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
+                        <div className="text-center text-muted-foreground">
+                          <FileAudio className="w-16 h-16 mx-auto mb-2" />
+                          <p>Audio file not available</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {previewContent.type === "document" && (
+                  <div>
+                    {previewContent.fileUrl ? (
+                      <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
+                        <FileText className="w-10 h-10 text-primary" />
+                        <div className="flex-1">
+                          <p className="font-medium">Document File</p>
+                          <p className="text-sm text-muted-foreground">Click to download or view</p>
+                        </div>
+                        <Button asChild variant="outline" size="sm">
+                          <a href={previewContent.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Open
+                          </a>
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
+                        <div className="text-center text-muted-foreground">
+                          <FileText className="w-16 h-16 mx-auto mb-2" />
+                          <p>Document file not available</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {previewContent.type === "article" && (
+                  <div className="space-y-4">
+                    {previewContent.externalUrl && (
+                      <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg">
+                        <ExternalLink className="w-5 h-5 text-primary" />
+                        <a
+                          href={previewContent.externalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline font-medium"
+                        >
+                          {previewContent.externalUrl}
+                        </a>
+                      </div>
+                    )}
+                    {previewContent.richTextContent && (
+                      <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
+                        <div dangerouslySetInnerHTML={{ __html: previewContent.richTextContent }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Body Content */}
+              {previewContent.body && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-3">Additional Content</h4>
+                  <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
+                    <div dangerouslySetInnerHTML={{ __html: previewContent.body }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {previewContent.tags && previewContent.tags.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Tags</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {previewContent.tags.map((tag: string, index: number) => (
+                      <Badge key={index} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dates */}
+              {(previewContent.startDate || previewContent.endDate) && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Availability</h4>
+                  <div className="flex gap-3 text-sm">
+                    {previewContent.startDate && (
+                      <div>
+                        <span className="text-muted-foreground">Start: </span>
+                        <span>{new Date(previewContent.startDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {previewContent.endDate && (
+                      <div>
+                        <span className="text-muted-foreground">End: </span>
+                        <span>{new Date(previewContent.endDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Creator Info */}
+              <div className="text-xs text-muted-foreground pt-4 border-t">
+                <p>Created by {previewContent.creatorName}</p>
+                <p>on {new Date(previewContent._creationTime).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}</p>
+              </div>
+            </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Delete Confirmation Dialog */}

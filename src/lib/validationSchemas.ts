@@ -15,6 +15,7 @@ export const contentFormSchema = z.object({
   active: z.boolean(),
   startDate: z.string().optional().or(z.literal("")),
   endDate: z.string().optional().or(z.literal("")),
+  password: z.string().optional().or(z.literal("")),
 }).refine((data) => {
   // Validate that end date is after start date if both are provided
   if (data.startDate && data.endDate) {

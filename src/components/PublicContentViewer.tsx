@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useQuery } from "convex/react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, User, Calendar, Tag, Eye } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -20,15 +19,71 @@ import {
 export function PublicContentViewer() {
   const { contentId } = useParams<{ contentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState("");
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [attemptedPassword, setAttemptedPassword] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
   const result = useQuery(
     api.publicContent.getPublicContent,
     contentId ? { contentId: contentId as any, password: attemptedPassword } : ("skip" as any)
   );
+  const grantAccess = useMutation(api.content.grantAccessAfterPassword);
+
+  // Debug logging
+  useEffect(() => {
+    if (result) {
+      console.log("PublicContentViewer result:", {
+        requiresAuth: result.requiresAuth,
+        requiresPassword: result.requiresPassword,
+        error: result.error,
+        hasContent: !!result.content,
+        attemptedPassword,
+      });
+    }
+  }, [result, attemptedPassword]);
+
+  // Check if user just logged in and needs to enter password
+  useEffect(() => {
+    if (result && !hasCheckedAuth) {
+      setHasCheckedAuth(true);
+      
+      // If password is required and no password has been attempted yet
+      if (result.requiresPassword && !attemptedPassword && !result.requiresAuth) {
+        setShowPasswordDialog(true);
+      }
+    }
+  }, [result, hasCheckedAuth, attemptedPassword]);
+
+  // Check for returning from login (via URL param)
+  useEffect(() => {
+    const fromLogin = searchParams.get("fromLogin");
+    if (fromLogin === "true" && result?.requiresPassword && !attemptedPassword) {
+      setShowPasswordDialog(true);
+    }
+  }, [searchParams, result, attemptedPassword]);
+
+  // Check if password was incorrect
+  useEffect(() => {
+    if (result?.error === "Incorrect password") {
+      setError("Incorrect password. Please try again.");
+      setShowPasswordDialog(true);
+      setPassword(""); // Clear the password field
+    }
+  }, [result]);
+
+  // Grant access when password is correct
+  useEffect(() => {
+    if (result?.content && attemptedPassword && contentId) {
+      // Password was correct and we have content - grant permanent access
+      void grantAccess({ contentId: contentId as any }).catch((err) => {
+        console.error("Failed to grant access:", err);
+        // Don't show error to user - they still have access via password
+      });
+    }
+  }, [result?.content, attemptedPassword, contentId, grantAccess]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -56,15 +111,114 @@ export function PublicContentViewer() {
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!password.trim()) {
+      setError("Please enter a password");
+      return;
+    }
     setAttemptedPassword(password);
     setShowPasswordDialog(false);
   };
 
-  // Show password dialog if required
-  if (result?.requiresPassword && !attemptedPassword) {
+  const handleGoToLogin = () => {
+    // Store content ID in sessionStorage so we can return here after login
+    if (contentId) {
+      sessionStorage.setItem("returnToContent", contentId);
+    }
+    void navigate("/");
+  };
+
+  // Show password dialog if required and user is authenticated
+  if (result?.requiresPassword && !attemptedPassword && !result?.requiresAuth) {
+    // User is authenticated, password is required, no error - show loading with dialog
     if (!showPasswordDialog) {
       setShowPasswordDialog(true);
     }
+    
+    // Return a loading state while showing the password dialog
+    return (
+      <>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent" />
+        </div>
+
+        {/* Password Dialog */}
+        <Dialog open={showPasswordDialog} onOpenChange={(open) => {
+          setShowPasswordDialog(open);
+          if (!open) {
+            setError(null);
+            setPassword("");
+            void navigate(-1);
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                <DialogTitle>Password Required</DialogTitle>
+              </div>
+              <DialogDescription>
+                This content is password protected. Enter the password to view it.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Enter password"
+                  autoFocus
+                  className={error ? "border-destructive" : ""}
+                />
+                {error && (
+                  <p className="text-sm text-destructive">{error}</p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <Button type="submit" className="flex-1">
+                  Submit
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void navigate(-1)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Show auth required message (only if authentication is needed)
+  if (result?.requiresAuth && !result?.error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>
+              This content is private. Please log in to view it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Button onClick={handleGoToLogin}>Go to Login</Button>
+            <Button variant="outline" onClick={() => void navigate(-1)}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Show error message if there's an error
@@ -79,37 +233,14 @@ export function PublicContentViewer() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {result.requiresAuth && (
-              <Button onClick={() => navigate("/")}>Go to Login</Button>
+              <Button onClick={handleGoToLogin}>Go to Login</Button>
             )}
             {result.requiresPassword && !attemptedPassword && (
               <Button onClick={() => setShowPasswordDialog(true)}>
                 Enter Password
               </Button>
             )}
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Show auth required message
-  if (result?.requiresAuth && !result?.error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>
-              This content is private. Please log in to view it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Button onClick={() => navigate("/")}>Go to Login</Button>
-            <Button variant="outline" onClick={() => navigate(-1)}>
+            <Button variant="outline" onClick={() => void navigate(-1)}>
               Go Back
             </Button>
           </CardContent>
@@ -140,7 +271,7 @@ export function PublicContentViewer() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => navigate(-1)}>
+            <Button className="w-full" onClick={() => void navigate(-1)}>
               Go Back
             </Button>
           </CardContent>
@@ -309,46 +440,6 @@ export function PublicContentViewer() {
           )}
         </div>
       </div>
-
-      {/* Password Dialog */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <Lock className="w-5 h-5" />
-              <DialogTitle>Password Required</DialogTitle>
-            </div>
-            <DialogDescription>
-              This content is password protected. Enter the password to view it.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-3">
-              <Button type="submit" className="flex-1">
-                Submit
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate(-1)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

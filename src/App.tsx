@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
@@ -11,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 export default function App() {
+  const navigate = useNavigate();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const user = useQuery(api.auth.loggedInUser);
@@ -20,6 +22,18 @@ export default function App() {
     // Force a refresh by incrementing the key
     setProfileRefreshKey((prev) => prev + 1);
   };
+
+  // Check if user just logged in and should be redirected to content
+  useEffect(() => {
+    if (user && userProfile) {
+      const returnToContent = sessionStorage.getItem("returnToContent");
+      if (returnToContent) {
+        sessionStorage.removeItem("returnToContent");
+        // Navigate to the content page after login
+        void navigate(`/view/${returnToContent}?fromLogin=true`);
+      }
+    }
+  }, [user, userProfile, navigate]);
 
   console.log("App state:", {
     user: !!user,
