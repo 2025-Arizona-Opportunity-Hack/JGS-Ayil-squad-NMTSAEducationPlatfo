@@ -49,3 +49,4 @@ jspm_packages/
 
 # Convex
 .convex/
+.vercel
