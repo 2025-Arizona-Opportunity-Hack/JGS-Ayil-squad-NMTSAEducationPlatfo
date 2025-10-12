@@ -89,9 +89,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import exampleVideo from "../assets/examples/videos/example_video.mp4";
-import exampleImage1 from "../assets/examples/images/example_image.jpeg";
-import exampleImage2 from "../assets/examples/images/example_image_2.jpg";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -167,8 +164,6 @@ export function ContentManager() {
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const submitForReview = useMutation(api.content.submitForReview);
-  const createDemoContent = useMutation(api.content.createDemoContent);
-  const createDemoContentWithAssets = useMutation(api.content.createDemoContentWithAssets);
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
@@ -405,79 +400,6 @@ export function ContentManager() {
   const handleManageAccess = (content: any) => {
     setSelectedContent(content);
     setShowAccessModal(true);
-  };
-
-  const handleCreateDemoContent = async () => {
-    const toastId = toast.loading("Creating demo content...");
-    try {
-      const result = await createDemoContent();
-      toast.success(`Successfully created ${result.count} demo content items!`, {
-        id: toastId,
-        description: "Demo content has been published and is ready to view"
-      });
-    } catch (error) {
-      console.error("Error creating demo content:", error);
-      toast.error("Failed to create demo content", {
-        id: toastId,
-        description: error instanceof Error ? error.message : "An error occurred"
-      });
-    }
-  };
-
-  const handleCreateDemoContentWithAssets = async () => {
-    const toastId = toast.loading("Uploading demo assets and creating content...");
-    try {
-      const uploadBlob = async (blob: Blob, contentType: string) => {
-        const url = await generateUploadUrl();
-        const resp = await fetch(url, { method: "POST", headers: { "Content-Type": contentType }, body: blob });
-        const json = await resp.json();
-        if (!resp.ok) throw new Error(`Upload failed: ${JSON.stringify(json)}`);
-        return json.storageId as string;
-      };
-
-      const videoRes = await fetch(exampleVideo);
-      if (!videoRes.ok) throw new Error("Failed to load demo video asset");
-      const videoBlob = await videoRes.blob();
-      // Force a broadly supported MIME type; some bundlers return octet-stream
-      const videoFile = new File([videoBlob], "example_video.mp4", { type: "video/mp4" });
-      const videoId = await uploadBlob(videoFile, videoFile.type);
-
-      let thumbnailId: string | undefined = undefined;
-      try {
-        toast.loading("Generating thumbnail...", { id: "thumbnail" });
-        // Some browsers may not be able to decode the demo video codecs; guard with timeout
-        const thumbBlob = await Promise.race([
-          generateVideoThumbnail(videoFile),
-          new Promise<Blob>((_, reject) => setTimeout(() => reject(new Error("thumbnail-timeout")), 6000)),
-        ]);
-        thumbnailId = await uploadBlob(thumbBlob, "image/jpeg");
-        toast.success("Thumbnail generated!", { id: "thumbnail" });
-      } catch (e) {
-        // Proceed without thumbnail if generation fails
-        toast.dismiss("thumbnail");
-      }
-
-      const img1Res = await fetch(exampleImage1);
-      if (!img1Res.ok) throw new Error("Failed to load demo image 1");
-      const image1 = await img1Res.blob();
-      const img2Res = await fetch(exampleImage2);
-      if (!img2Res.ok) throw new Error("Failed to load demo image 2");
-      const image2 = await img2Res.blob();
-
-      const image1Id = await uploadBlob(image1, image1.type || "image/jpeg");
-      const image2Id = await uploadBlob(image2, image2.type || "image/jpeg");
-
-      const result = await createDemoContentWithAssets({
-        videoFileId: videoId as any,
-        thumbnailId: thumbnailId as any,
-        imageIds: [image1Id as any, image2Id as any],
-      });
-
-      toast.success(`Created ${result.count} demo items with assets!`, { id: toastId });
-    } catch (error) {
-      console.error("Error creating demo content with assets:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to create demo content with assets", { id: toastId });
-    }
   };
 
   const handleEditContent = (content: any) => {
@@ -857,14 +779,6 @@ export function ContentManager() {
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete Selected
-            </Button>
-            <Button onClick={() => { void handleCreateDemoContent(); }} variant="outline">
-              <Play className="w-4 h-4 mr-2" />
-              Create Demo Content
-            </Button>
-            <Button onClick={() => { void handleCreateDemoContentWithAssets(); }} variant="outline">
-              <Play className="w-4 h-4 mr-2" />
-              Create Demo Content (with assets)
             </Button>
           </div>
         </div>
