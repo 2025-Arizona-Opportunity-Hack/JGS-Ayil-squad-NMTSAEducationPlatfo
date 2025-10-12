@@ -213,3 +213,32 @@ export const getAllContentAnalytics = query({
     return contentAnalytics;
   },
 });
+
+// Get view counts for all content (admin only)
+export const getContentViewCounts = query({
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const userProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userProfile || userProfile.role !== "admin") {
+      throw new Error("Only admins can view analytics");
+    }
+
+    // Get all content views
+    const allViews = await ctx.db.query("contentViews").collect();
+
+    // Group by content ID and count
+    const viewCounts: Record<string, number> = {};
+    for (const view of allViews) {
+      const contentId = view.contentId;
+      viewCounts[contentId] = (viewCounts[contentId] || 0) + 1;
+    }
+
+    return viewCounts;
+  },
+});

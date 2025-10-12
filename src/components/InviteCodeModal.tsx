@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, X, RefreshCw } from "lucide-react";
+import { Copy, Check, X, RefreshCw, Link } from "lucide-react";
 import { Id } from "../../convex/_generated/dataModel";
 
 interface InviteCodeModalProps {
@@ -35,6 +35,7 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
   const [expiryDays, setExpiryDays] = useState<string>("");
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const createInviteCode = useMutation(api.inviteCodes.createInviteCode);
   const inviteCodes = useQuery(api.inviteCodes.listInviteCodes);
@@ -65,8 +66,16 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopied(true);
-    toast.success("Copied to clipboard!");
+    toast.success("Code copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = (code: string) => {
+    const inviteUrl = `${window.location.origin}?invite=${code}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedLink(true);
+    toast.success("Invite link copied to clipboard!");
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleDeactivate = async (inviteCodeId: Id<"inviteCodes">) => {
@@ -167,6 +176,27 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
                     )}
                   </Button>
                 </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-green-900 dark:text-green-100">
+                    Invite Link:
+                  </p>
+                  <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border">
+                    <code className="text-xs flex-1 truncate">
+                      {window.location.origin}?invite={generatedCode}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyLink(generatedCode)}
+                    >
+                      {copiedLink ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Link className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
                 <Button
                   onClick={handleReset}
                   variant="outline"
@@ -248,8 +278,17 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleCopy(code.code)}
+                          title="Copy code"
                         >
                           <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyLink(code.code)}
+                          title="Copy invite link"
+                        >
+                          <Link className="w-4 h-4" />
                         </Button>
                         {code.isActive ? (
                           <Button

@@ -148,8 +148,14 @@ export const listContent = query({
         reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
       }
 
+      // Get file and thumbnail URLs
+      const fileUrl = content.fileId ? await ctx.storage.getUrl(content.fileId) : null;
+      const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
+
       const contentWithNames = {
         ...content,
+        fileUrl,
+        thumbnailUrl,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
         reviewerName,
       };

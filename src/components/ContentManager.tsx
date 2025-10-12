@@ -36,7 +36,8 @@ import {
   UserPlus,
   ChevronLeft,
   ChevronRight,
-  DollarSign
+  DollarSign,
+  BarChart3
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -45,6 +46,7 @@ import { ContentVersionHistory } from "./ContentVersionHistory";
 import { ContentReviewModal } from "./ContentReviewModal";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { ContentPricingModal } from "./ContentPricingModal";
+import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
@@ -87,6 +89,7 @@ export function ContentManager() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [previewContentId, setPreviewContentId] = useState<string | null>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
@@ -94,6 +97,7 @@ export function ContentManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "title-asc" | "title-desc" | "status" | "type">("date-desc");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
@@ -135,6 +139,7 @@ export function ContentManager() {
   const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const activeViewers = useQuery(api.presence.getActiveViewers);
+  const viewCounts = useQuery(api.analytics.getContentViewCounts);
   const previewContent = useQuery(
     api.content.getContent,
     previewContentId ? { contentId: previewContentId as any } : "skip" as any
@@ -167,6 +172,29 @@ export function ContentManager() {
     return typeMatch && statusMatch && searchMatch && tagMatch && groupMatch;
   }) || [];
 
+  // Sort content
+  const sortedContent = [...filteredContent].sort((a, b) => {
+    const statusOrder = { published: 0, changes_requested: 1, review: 2, draft: 3, rejected: 4 };
+    const typeOrder = { video: 0, audio: 1, article: 2, document: 3 };
+    
+    switch (sortBy) {
+      case "date-desc":
+        return b._creationTime - a._creationTime;
+      case "date-asc":
+        return a._creationTime - b._creationTime;
+      case "title-asc":
+        return a.title.localeCompare(b.title);
+      case "title-desc":
+        return b.title.localeCompare(a.title);
+      case "status":
+        return (statusOrder[a.status as keyof typeof statusOrder] || 5) - (statusOrder[b.status as keyof typeof statusOrder] || 5);
+      case "type":
+        return (typeOrder[a.type as keyof typeof typeOrder] || 4) - (typeOrder[b.type as keyof typeof typeOrder] || 4);
+      default:
+        return 0;
+    }
+  });
+
   // Get all unique tags from content
   const allTags = Array.from(
     new Set(
@@ -175,16 +203,16 @@ export function ContentManager() {
   ).sort();
 
   // Pagination calculations
-  const totalItems = filteredContent.length;
+  const totalItems = sortedContent.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedContent = filteredContent.slice(startIndex, endIndex);
+  const paginatedContent = sortedContent.slice(startIndex, endIndex);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters or sort changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentTypeFilter, statusFilter, searchQuery, selectedTags, selectedGroupId]);
+  }, [contentTypeFilter, statusFilter, searchQuery, selectedTags, selectedGroupId, sortBy]);
 
   // Generate thumbnail from video
   const generateVideoThumbnail = (videoFile: File): Promise<Blob> => {
@@ -634,6 +662,24 @@ export function ContentManager() {
             </>
           )}
 
+          {/* Sort By */}
+          <Separator />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Sort By</Label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="date-desc">Newest First</option>
+              <option value="date-asc">Oldest First</option>
+              <option value="title-asc">Title (A-Z)</option>
+              <option value="title-desc">Title (Z-A)</option>
+              <option value="status">Status</option>
+              <option value="type">Content Type</option>
+            </select>
+          </div>
+
           {/* Results Summary */}
           <Separator />
           <div className="text-sm">
@@ -1054,35 +1100,49 @@ export function ContentManager() {
               <CardContent className="p-3 pt-12">
                 <div className="flex items-center gap-3">
                   {/* Thumbnail - Clickable */}
-                  {(item.type === "video" || item.type === "audio") && (
-                    <div 
-                      className="flex-shrink-0 cursor-pointer" 
-                      onClick={() => handlePreviewContent(item)}
-                    >
-                      {item.type === "video" && (
-                        <VideoThumbnail
-                          contentId={item._id}
-                          videoUrl={(item as any).fileUrl}
-                          thumbnailUrl={(item as any).thumbnailUrl}
-                          title={item.title}
-                        />
-                      )}
-                      {item.type === "audio" && (item as any).thumbnailUrl && (
-                        <div className="w-24 h-16 rounded-md overflow-hidden bg-muted border">
+                  <div 
+                    className="flex-shrink-0 cursor-pointer" 
+                    onClick={() => handlePreviewContent(item)}
+                  >
+                    {item.type === "video" && (
+                      <VideoThumbnail
+                        contentId={item._id}
+                        videoUrl={(item as any).fileUrl}
+                        thumbnailUrl={(item as any).thumbnailUrl}
+                        title={item.title}
+                      />
+                    )}
+                    {item.type === "audio" && (
+                      (item as any).thumbnailUrl ? (
+                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border">
                           <img 
                             src={(item as any).thumbnailUrl} 
                             alt={item.title}
                             className="w-full h-full object-cover"
                           />
                         </div>
-                      )}
-                      {item.type === "audio" && !(item as any).thumbnailUrl && (
-                        <div className="w-24 h-16 rounded-md overflow-hidden bg-muted border flex items-center justify-center">
+                      ) : (
+                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
                           {getTypeIcon(item.type)}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      )
+                    )}
+                    {(item.type === "article" || item.type === "document") && (
+                      (item as any).thumbnailUrl ? (
+                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+                          <img 
+                            src={(item as any).thumbnailUrl} 
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
+                          {getTypeIcon(item.type)}
+                        </div>
+                      )
+                    )}
+                  </div>
 
                   {/* Content Info - Horizontal Layout */}
                   <div className="flex-1 min-w-0 flex items-start gap-4">
@@ -1117,6 +1177,21 @@ export function ContentManager() {
                           {item.status === "published" && (
                             <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
                               {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
+                            </Badge>
+                          )}
+                          {/* Total Views */}
+                          {viewCounts && viewCounts[item._id] && (
+                            <Badge 
+                              variant="outline" 
+                              className="gap-1 text-[10px] h-5 border-blue-500 text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedContent(item);
+                                setShowAnalyticsModal(true);
+                              }}
+                            >
+                              <BarChart3 className="w-2.5 h-2.5" />
+                              {viewCounts[item._id]} views
                             </Badge>
                           )}
                           {/* Live Viewers */}
@@ -1732,6 +1807,19 @@ export function ContentManager() {
           onClose={() => {
             setShowPricingModal(false);
             setSelectedContent(null);
+          }}
+          contentId={selectedContent._id}
+          contentTitle={selectedContent.title}
+        />
+      )}
+
+      {/* Analytics Modal */}
+      {selectedContent && showAnalyticsModal && (
+        <ContentAnalyticsModal
+          open={showAnalyticsModal}
+          onOpenChange={(open) => {
+            setShowAnalyticsModal(open);
+            if (!open) setSelectedContent(null);
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}

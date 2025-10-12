@@ -34,10 +34,15 @@ export function ClientDashboard() {
   const contentGroups = useQuery(api.contentGroups.listContentGroups, {});
   const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
 
+  const [activeTab, setActiveTab] = useState(() => {
+    // Load saved tab from localStorage or default to 'content'
+    return localStorage.getItem('clientDashboardTab') || 'content';
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "title-asc" | "title-desc" | "type">("date-desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(12);
 
@@ -69,21 +74,47 @@ export function ClientDashboard() {
     return matchesSearch && matchesTags && matchesType && matchesGroup;
   }) || [];
 
+  // Sort content
+  const sortedContent = [...filteredContent].sort((a, b) => {
+    const typeOrder = { video: 0, audio: 1, article: 2, document: 3 };
+    
+    switch (sortBy) {
+      case "date-desc":
+        return b._creationTime - a._creationTime;
+      case "date-asc":
+        return a._creationTime - b._creationTime;
+      case "title-asc":
+        return a.title.localeCompare(b.title);
+      case "title-desc":
+        return b.title.localeCompare(a.title);
+      case "type":
+        return (typeOrder[a.type as keyof typeof typeOrder] || 4) - (typeOrder[b.type as keyof typeof typeOrder] || 4);
+      default:
+        return 0;
+    }
+  });
+
   // Pagination calculations
-  const totalItems = filteredContent.length;
+  const totalItems = sortedContent.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedContent = filteredContent.slice(startIndex, endIndex);
+  const paginatedContent = sortedContent.slice(startIndex, endIndex);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters or sort changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentTypeFilter, searchQuery, selectedTags, selectedGroupId]);
+  }, [contentTypeFilter, searchQuery, selectedTags, selectedGroupId, sortBy]);
+
+  // Save active tab to localStorage whenever it changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    localStorage.setItem('clientDashboardTab', value);
+  };
 
   return (
     <div className="w-full h-full flex">
-      <Tabs defaultValue="content" className="w-full flex">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex">
         {/* Left Sidebar Navigation */}
         <div className="w-64 border-r bg-muted/30 flex-shrink-0">
           <div className="p-6 border-b">
@@ -282,6 +313,23 @@ export function ClientDashboard() {
                   </div>
                 </>
               )}
+
+              {/* Sort By */}
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Sort By</Label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="title-asc">Title (A-Z)</option>
+                  <option value="title-desc">Title (Z-A)</option>
+                  <option value="type">Content Type</option>
+                </select>
+              </div>
 
               {/* Results Summary */}
               <Separator />

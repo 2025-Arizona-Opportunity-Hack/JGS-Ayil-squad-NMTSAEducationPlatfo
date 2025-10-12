@@ -1,6 +1,6 @@
 "use client";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,28 @@ import { Logo } from "./components/Logo";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
-  const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
+  const [flow, setFlow] = useState<"signIn" | "signUp" | "forgotPassword" | "resetSent">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+
+  // Check for invite code in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const inviteParam = params.get('invite');
+    if (inviteParam) {
+      setInviteCode(inviteParam.toUpperCase());
+      setShowInviteCode(true);
+      setFlow('signUp'); // Switch to sign up flow
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+      toast.success("Invite code applied!", {
+        description: `Using invite code: ${inviteParam.toUpperCase()}`,
+      });
+    }
+  }, []);
 
   // Validate invite code
   const inviteCodeValidation = useQuery(
@@ -33,6 +50,117 @@ export function SignInForm() {
     showInviteCode && inviteCode.length >= 6 ? { code: inviteCode } : "skip"
   );
 
+  // Handle forgot password submission
+  const handleForgotPassword = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    // Simulate sending reset email
+    setTimeout(() => {
+      toast.success("Password reset email sent", {
+        description: `If an account exists for ${resetEmail}, you will receive a password reset link shortly.`,
+      });
+      setFlow("resetSent");
+      setSubmitting(false);
+    }, 1000);
+  };
+
+  // Forgot Password Flow
+  if (flow === "forgotPassword") {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" showText={false} />
+          </div>
+          <CardTitle className="text-center">Reset Password</CardTitle>
+          <CardDescription className="text-center">
+            Enter your email address and we'll send you a link to reset your password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting ? "Sending..." : "Send Reset Link"}
+            </Button>
+
+            <div className="text-center text-sm">
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto"
+                onClick={() => setFlow("signIn")}
+              >
+                Back to sign in
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Reset Email Sent Confirmation
+  if (flow === "resetSent") {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" showText={false} />
+          </div>
+          <CardTitle className="text-center">Check Your Email</CardTitle>
+          <CardDescription className="text-center">
+            We've sent a password reset link to {resetEmail}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-muted p-4 rounded-lg text-sm text-center space-y-2">
+            <p>Click the link in the email to reset your password.</p>
+            <p className="text-muted-foreground text-xs">
+              Didn't receive the email? Check your spam folder or try again.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setFlow("forgotPassword")}
+          >
+            Resend Email
+          </Button>
+
+          <div className="text-center text-sm">
+            <Button
+              type="button"
+              variant="link"
+              className="p-0 h-auto"
+              onClick={() => {
+                setFlow("signIn");
+                setResetEmail("");
+              }}
+            >
+              Back to sign in
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Normal Sign In / Sign Up Flow
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -195,6 +323,18 @@ export function SignInForm() {
                 Password must be at least 8 characters long and contain at least
                 one letter and one number
               </p>
+            )}
+            {flow === "signIn" && (
+              <div className="text-right">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="p-0 h-auto text-xs"
+                  onClick={() => setFlow("forgotPassword")}
+                >
+                  Forgot password?
+                </Button>
+              </div>
             )}
           </div>
 
