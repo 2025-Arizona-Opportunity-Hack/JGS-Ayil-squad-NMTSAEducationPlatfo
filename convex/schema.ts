@@ -56,7 +56,8 @@ const applicationTables = {
       v.literal("draft"),
       v.literal("review"),
       v.literal("published"),
-      v.literal("rejected")
+      v.literal("rejected"),
+      v.literal("changes_requested")
     ),
     submittedForReviewAt: v.optional(v.number()),
     submittedForReviewBy: v.optional(v.id("users")),
@@ -107,7 +108,8 @@ const applicationTables = {
       v.literal("draft"),
       v.literal("review"),
       v.literal("published"),
-      v.literal("rejected")
+      v.literal("rejected"),
+      v.literal("changes_requested")
     ),
     // Version metadata
     createdBy: v.id("users"),

@@ -486,8 +486,8 @@ export const submitForReview = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, editors, and contributors can submit content for review");
+    if (!profile || !["admin", "contributor"].includes(profile.role)) {
+      throw new Error("Only admins and contributors can submit content for review");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -498,9 +498,9 @@ export const submitForReview = mutation({
       throw new Error("Contributors can only submit their own content");
     }
 
-    // Can only submit drafts or rejected content
-    if (content.status !== "draft" && content.status !== "rejected") {
-      throw new Error("Can only submit drafts or rejected content for review");
+    // Can only submit drafts, rejected content, or content with changes requested
+    if (content.status !== "draft" && content.status !== "rejected" && content.status !== "changes_requested") {
+      throw new Error("Can only submit drafts, rejected content, or content with requested changes for review");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -577,6 +577,42 @@ export const rejectContent = mutation({
 
     await ctx.db.patch(args.contentId, {
       status: "rejected",
+      reviewedAt: Date.now(),
+      reviewedBy: userId,
+      reviewNotes: args.reviewNotes,
+    });
+  },
+});
+
+// Request changes to content
+export const requestChanges = mutation({
+  args: {
+    contentId: v.id("content"),
+    reviewNotes: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    // Only editors and admins can request changes
+    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
+      throw new Error("Only editors and admins can request changes");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (content.status !== "review") {
+      throw new Error("Can only request changes for content in review status");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      status: "changes_requested",
       reviewedAt: Date.now(),
       reviewedBy: userId,
       reviewNotes: args.reviewNotes,

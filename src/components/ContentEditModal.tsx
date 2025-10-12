@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AlertCircle } from "lucide-react";
 
 interface ContentEditModalProps {
   isOpen: boolean;
@@ -43,6 +44,9 @@ interface ContentEditModalProps {
     active: boolean;
     startDate?: number;
     endDate?: number;
+    status?: string;
+    reviewNotes?: string;
+    reviewedAt?: number;
   };
 }
 
@@ -187,6 +191,32 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             Update the content details below. Fields marked with * are required.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Review Notes Alert */}
+        {(content.status === "changes_requested" || content.status === "rejected") && content.reviewNotes && (
+          <div className="p-4 border border-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex gap-3">
+            <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <h4 className="font-semibold text-orange-900 dark:text-orange-100">
+                {content.status === "changes_requested" ? "Changes Requested" : "Content Rejected"}
+              </h4>
+              <p className="text-sm text-orange-800 dark:text-orange-200">
+                {content.reviewNotes}
+              </p>
+              {content.reviewedAt && (
+                <p className="text-xs text-orange-600 dark:text-orange-300 mt-2">
+                  Reviewed on {new Date(content.reviewedAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
           <div className="space-y-2">

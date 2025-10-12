@@ -14,6 +14,7 @@ import {
   FileEdit,
   Eye,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   Calendar as CalendarIcon,
   CheckCheck,
@@ -28,17 +29,19 @@ import {
   ChevronUp,
   Trash2,
   Share2,
-  Check
+  Check,
+  Send
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
 import { ContentVersionHistory } from "./ContentVersionHistory";
+import { ContentReviewModal } from "./ContentReviewModal";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,9 +76,10 @@ export function ContentManager() {
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected" | "changes_requested">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -116,9 +120,11 @@ export function ContentManager() {
   const allContent = useQuery(api.content.listContent, {});
   const contentGroups = useQuery(api.contentGroups.listContentGroups, {});
   const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
+  const submitForReview = useMutation(api.content.submitForReview);
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
@@ -294,6 +300,23 @@ export function ContentManager() {
     setShowVersionHistory(true);
   };
 
+  const handleReviewContent = (content: any) => {
+    setSelectedContent(content);
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitForReview = async (contentId: string) => {
+    const toastId = toast.loading("Submitting for review...");
+    
+    try {
+      await submitForReview({ contentId: contentId as any });
+      toast.success("Content submitted for review!", { id: toastId });
+    } catch (error) {
+      console.error("Error submitting for review:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to submit for review", { id: toastId });
+    }
+  };
+
   const handleDeleteContent = async (contentId: string) => {
     const toastId = toast.loading("Deleting content...");
     
@@ -456,7 +479,7 @@ export function ContentManager() {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Status</Label>
             <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
-              <TabsList className="grid grid-cols-5 w-full">
+              <TabsList className="grid grid-cols-6 w-full">
                 <TabsTrigger value="all" className="text-xs">
                   All
                 </TabsTrigger>
@@ -471,6 +494,13 @@ export function ContentManager() {
                   Review
                   <Badge variant="secondary" className="ml-1 text-xs">
                     {allContent?.filter(c => c.status === "review").length || 0}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="changes_requested" className="text-xs">
+                  <span className="hidden sm:inline">Changes</span>
+                  <span className="sm:hidden">Chg</span>
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {allContent?.filter(c => c.status === "changes_requested").length || 0}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="published" className="text-xs">
@@ -920,77 +950,110 @@ export function ContentManager() {
             >
               <Card>
               <CardContent className="pt-6">
-                <div className="flex justify-between items-start gap-4">
-                  {/* Thumbnail for video/audio content */}
-                  {item.type === "video" && (
-                    <VideoThumbnail
-                      contentId={item._id}
-                      videoUrl={(item as any).fileUrl}
-                      thumbnailUrl={(item as any).thumbnailUrl}
-                      title={item.title}
-                    />
-                  )}
-                  {item.type === "audio" && (item as any).thumbnailUrl && (
-                    <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border">
-                      <img 
-                        src={(item as any).thumbnailUrl} 
-                        alt={item.title}
-                        className="w-full h-full object-cover"
+                <div className="flex gap-4">
+                  {/* Status Indicator on Left */}
+                  <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1 w-16 border-r pr-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      item.status === "published" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                      item.status === "review" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                      item.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                      item.status === "changes_requested" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                      "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                    }`}>
+                      {getStatusIcon(item.status)}
+                    </div>
+                    <span className="text-[10px] font-medium text-center leading-tight uppercase tracking-wide text-muted-foreground">
+                      {item.status === "changes_requested" ? "Changes" : item.status}
+                    </span>
+                  </div>
+
+                  {/* Content Area */}
+                  <div className="flex justify-between items-start gap-4 flex-1 min-w-0">
+                    {/* Thumbnail for video/audio content */}
+                    {item.type === "video" && (
+                      <VideoThumbnail
+                        contentId={item._id}
+                        videoUrl={(item as any).fileUrl}
+                        thumbnailUrl={(item as any).thumbnailUrl}
+                        title={item.title}
                       />
-                    </div>
-                  )}
-                  {item.type === "audio" && !(item as any).thumbnailUrl && (
-                    <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
-                      {getTypeIcon(item.type)}
-                    </div>
-                  )}
-                  
-                  <div className="flex items-start flex-1 min-w-0">
-                    {item.type !== "video" && item.type !== "audio" && (
-                      <div className="mr-3 mt-1 flex-shrink-0">{getTypeIcon(item.type)}</div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-lg">{item.title}</h4>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                    {item.type === "audio" && (item as any).thumbnailUrl && (
+                      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+                        <img 
+                          src={(item as any).thumbnailUrl} 
+                          alt={item.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    {item.type === "audio" && !(item as any).thumbnailUrl && (
+                      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
+                        {getTypeIcon(item.type)}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-start flex-1 min-w-0">
+                      {item.type !== "video" && item.type !== "audio" && (
+                        <div className="mr-3 mt-1 flex-shrink-0">{getTypeIcon(item.type)}</div>
                       )}
-                      <div className="flex items-center flex-wrap gap-2 mt-3">
-                        <Badge variant="secondary" className="capitalize">
-                          {item.type}
-                        </Badge>
-                        <Badge variant={
-                          item.status === "published" ? "default" :
-                          item.status === "review" ? "outline" :
-                          item.status === "rejected" ? "destructive" :
-                          "secondary"
-                        } className="gap-1">
-                          {getStatusIcon(item.status)} <span>{item.status}</span>
-                        </Badge>
-                        <Badge variant={item.isPublic ? "default" : "secondary"}>
-                          {item.isPublic ? "Public" : "Private"}
-                        </Badge>
-                        <Badge variant={item.active ? "default" : "outline"} className="gap-1">
-                          {item.active ? <><CheckCheck className="w-3 h-3" /> Active</> : <><Ban className="w-3 h-3" /> Inactive</>}
-                        </Badge>
-                        {item.startDate && (
-                          <Badge variant="outline" className="gap-1">
-                            <CalendarDays className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
-                          </Badge>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-lg">{item.title}</h4>
+                        {item.description && (
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                         )}
-                        {item.endDate && (
-                          <Badge variant="outline" className="gap-1">
-                            <CalendarDays className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
+                        <div className="flex items-center flex-wrap gap-2 mt-3">
+                          <Badge variant="secondary" className="capitalize">
+                            {item.type}
                           </Badge>
-                        )}
-                        {item.tags && item.tags.length > 0 && item.tags.map((tag, index) => (
-                          <Badge key={index} variant="secondary">
-                            {tag}
+                          <Badge variant={item.isPublic ? "default" : "secondary"}>
+                            {item.isPublic ? "Public" : "Private"}
                           </Badge>
-                        ))}
+                          <Badge variant={item.active ? "default" : "outline"} className="gap-1">
+                            {item.active ? <><CheckCheck className="w-3 h-3" /> Active</> : <><Ban className="w-3 h-3" /> Inactive</>}
+                          </Badge>
+                          {item.startDate && (
+                            <Badge variant="outline" className="gap-1">
+                              <CalendarDays className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
+                            </Badge>
+                          )}
+                          {item.endDate && (
+                            <Badge variant="outline" className="gap-1">
+                              <CalendarDays className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
+                            </Badge>
+                          )}
+                          {item.tags && item.tags.length > 0 && item.tags.map((tag, index) => (
+                            <Badge key={index} variant="secondary">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
+                    <div className="flex gap-2 ml-4 flex-wrap">
+                    {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "editor") && (
+                      <Button 
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleReviewContent(item)}
+                        className="bg-yellow-600 hover:bg-yellow-700"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Review
+                      </Button>
+                    )}
+                    {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
+                     (userProfile?.role === "admin" || userProfile?.role === "contributor") && (
+                      <Button 
+                        size="sm"
+                        variant="default"
+                        onClick={() => void handleSubmitForReview(item._id)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Send className="w-4 h-4 mr-1" />
+                        Submit for Review
+                      </Button>
+                    )}
                     <Button 
                       size="sm"
                       variant="ghost"
@@ -1007,18 +1070,20 @@ export function ContentManager() {
                       <History className="w-4 h-4 mr-1" />
                       History
                     </Button>
+                    {userProfile?.role === "admin" && (
+                      <Button 
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleManageAccess(item)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Access
+                      </Button>
+                    )}
                     <Button 
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleManageAccess(item)}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Access
-                    </Button>
-                    <Button 
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleShareContent(item._id)}
+                      onClick={() => void handleShareContent(item._id)}
                       className={copiedId === item._id ? "text-green-600" : ""}
                     >
                       {copiedId === item._id ? (
@@ -1042,6 +1107,7 @@ export function ContentManager() {
                       <Trash2 className="w-4 h-4 mr-1" />
                       Delete
                     </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1086,6 +1152,18 @@ export function ContentManager() {
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}
+        />
+      )}
+
+      {/* Review Content Modal */}
+      {selectedContent && (
+        <ContentReviewModal
+          isOpen={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setSelectedContent(null);
+          }}
+          contentId={selectedContent._id}
         />
       )}
 
