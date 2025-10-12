@@ -4,6 +4,10 @@ import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  server: {
+    host: "0.0.0.0", // Listen on all network interfaces (localhost, 127.0.0.1, etc.)
+    port: 5173,
+  },
   plugins: [
     react(),
     // The code below enables dev tools like taking screenshots of your site
