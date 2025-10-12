@@ -26,7 +26,9 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  Share2,
+  Check
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -47,6 +49,13 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,10 +78,12 @@ export function ContentManager() {
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // React Hook Form
   const {
@@ -103,6 +114,8 @@ export function ContentManager() {
 
   // Get all content and filter client-side to avoid flickering
   const allContent = useQuery(api.content.listContent, {});
+  const contentGroups = useQuery(api.contentGroups.listContentGroups, {});
+  const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
@@ -121,7 +134,13 @@ export function ContentManager() {
     const tagMatch = selectedTags.length === 0 || 
       (item.tags && selectedTags.some(tag => item.tags?.includes(tag)));
     
-    return typeMatch && statusMatch && searchMatch && tagMatch;
+    // Filter by content group
+    const groupMatch = !selectedGroupId ||
+      (contentGroupItems?.some((groupItem: any) => 
+        groupItem.contentId === item._id && groupItem.groupId === selectedGroupId
+      ));
+    
+    return typeMatch && statusMatch && searchMatch && tagMatch && groupMatch;
   }) || [];
 
   // Get all unique tags from content
@@ -288,6 +307,24 @@ export function ContentManager() {
     }
   };
 
+  const handleShareContent = async (contentId: string) => {
+    const shareUrl = `${window.location.origin}/view/${contentId}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedId(contentId);
+      toast.success("Link copied to clipboard!");
+      
+      // Reset copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedId(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Error copying link:", error);
+      toast.error("Failed to copy link");
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -363,7 +400,7 @@ export function ContentManager() {
                   {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </Button>
               </CollapsibleTrigger>
-              {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all") && (
+              {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all" || selectedGroupId) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -372,6 +409,7 @@ export function ContentManager() {
                     setSelectedTags([]);
                     setStatusFilter("all");
                     setContentTypeFilter("all");
+                    setSelectedGroupId(null);
                   }}
                 >
                   <X className="w-4 h-4 mr-1" />
@@ -526,6 +564,28 @@ export function ContentManager() {
             </>
           )}
 
+          {/* Content Group Filter */}
+          {contentGroups && contentGroups.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Filter by Content Group</Label>
+                <select
+                  value={selectedGroupId || "all"}
+                  onChange={(e) => setSelectedGroupId(e.target.value === "all" ? null : e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="all">All Groups</option>
+                  {contentGroups.map((group: any) => (
+                    <option key={group._id} value={group._id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
           {/* Results Summary */}
           <Separator />
           <div className="flex items-center justify-between text-sm">
@@ -543,14 +603,13 @@ export function ContentManager() {
         </Card>
       </Collapsible>
 
-      {showCreateForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Content</CardTitle>
-            <CardDescription>Add a new piece of content to your library</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Content</DialogTitle>
+            <DialogDescription>Add a new piece of content to your library</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
                 <Input
@@ -803,22 +862,21 @@ export function ContentManager() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-6">
-                <Button type="submit" disabled={uploading}>
-                  {uploading ? "Creating..." : "Create Content"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowCreateForm(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex gap-3 pt-6">
+              <Button type="submit" disabled={uploading}>
+                {uploading ? "Creating..." : "Create Content"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateForm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Content List */}
       <div className="space-y-4">
@@ -956,6 +1014,24 @@ export function ContentManager() {
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Access
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleShareContent(item._id)}
+                      className={copiedId === item._id ? "text-green-600" : ""}
+                    >
+                      {copiedId === item._id ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-4 h-4 mr-1" />
+                          Share
+                        </>
+                      )}
                     </Button>
                     <Button 
                       size="sm"

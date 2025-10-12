@@ -66,6 +66,8 @@ const applicationTables = {
     publishedAt: v.optional(v.number()),
     // Version control
     currentVersion: v.optional(v.number()), // Track current version number
+    // Password protection
+    password: v.optional(v.string()), // Optional password for private content sharing
     // Temporary field for migration
     organizationId: v.optional(v.string()),
   })

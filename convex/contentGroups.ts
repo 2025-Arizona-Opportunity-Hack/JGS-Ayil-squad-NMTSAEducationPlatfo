@@ -228,3 +228,23 @@ export const getAvailableContent = query({
     return allContent.filter(content => !contentInGroup.has(content._id));
   },
 });
+
+// List all content group items (for filtering)
+export const listAllContentGroupItems = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || profile.role !== "admin") {
+      return [];
+    }
+
+    return await ctx.db.query("contentGroupItems").collect();
+  },
+});

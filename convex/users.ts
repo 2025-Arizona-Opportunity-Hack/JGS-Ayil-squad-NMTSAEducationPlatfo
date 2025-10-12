@@ -90,6 +90,8 @@ export const updateUserRole = mutation({
     userId: v.id("users"),
     role: v.union(
       v.literal("admin"),
+      v.literal("editor"),
+      v.literal("contributor"),
       v.literal("client"),
       v.literal("parent"),
       v.literal("professional")

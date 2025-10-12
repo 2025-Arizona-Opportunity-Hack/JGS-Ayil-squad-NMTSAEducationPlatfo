@@ -22,7 +22,7 @@ interface UserAccessModalProps {
 export function UserAccessModal({ isOpen, onClose, userId, userName }: UserAccessModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Access Management: {userName}</DialogTitle>
           <DialogDescription>

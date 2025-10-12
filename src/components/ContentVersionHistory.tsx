@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "convex/react";
 import { History, RotateCcw, Eye, Clock, User, Video, FileText, FileAudio, Newspaper, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
-import { VideoThumbnail } from "./VideoThumbnail";
 import {
   Dialog,
   DialogContent,
@@ -249,7 +248,7 @@ export function ContentVersionHistory({
   return (
     <>
       <Dialog open={isOpen && !showPreview} onOpenChange={onClose}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
+        <DialogContent className="max-w-6xl max-h-[90vh]">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <History className="w-5 h-5" />
@@ -260,7 +259,7 @@ export function ContentVersionHistory({
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="h-[500px] pr-4">
+          <ScrollArea className="h-[calc(90vh-200px)] pr-4">
             <div className="space-y-3">
               {versions?.map((version, index) => (
                 <Card key={version._id} className={index === 0 ? "border-primary" : ""}>
@@ -365,7 +364,7 @@ export function ContentVersionHistory({
             setSelectedVersion(null);
           }
         }}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-6xl max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>
                 Version {selectedVersion.versionNumber} Preview
@@ -375,7 +374,7 @@ export function ContentVersionHistory({
               </DialogDescription>
             </DialogHeader>
 
-            <ScrollArea className="h-[500px] pr-4">
+            <ScrollArea className="h-[calc(90vh-220px)] pr-4">
               <div className="space-y-4">
                 <div className="flex gap-2 flex-wrap">
                   <Badge variant="outline">v{selectedVersion.versionNumber}</Badge>
