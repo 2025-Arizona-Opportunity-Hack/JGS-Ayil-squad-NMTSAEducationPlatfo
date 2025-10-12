@@ -25,61 +25,81 @@ export function AdminDashboard() {
   const isAdmin = userProfile.role === "admin";
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
-          {isAdmin ? "Admin Dashboard" : "Content Dashboard"}
-        </h1>
-        <p className="text-muted-foreground">
-          {isAdmin 
-            ? "Manage your content, users, and groups" 
-            : "Manage and create content"}
-        </p>
-      </div>
+    <div className="w-full h-full flex">
+      <Tabs defaultValue="content" className="w-full flex">
+        {/* Left Sidebar Navigation */}
+        <div className="w-64 border-r bg-muted/30 flex-shrink-0">
+          <div className="p-6 border-b">
+            <h1 className="text-lg font-bold tracking-tight">
+              {isAdmin ? "Admin Dashboard" : "Dashboard"}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isAdmin 
+                ? "Manage your platform" 
+                : "Manage content"}
+            </p>
+          </div>
+          
+          <div className="p-4">
+            <TabsList className="flex flex-col h-auto bg-transparent p-0 space-y-1">
+              <TabsTrigger 
+                value="content" 
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+              >
+                <Folder className="w-4 h-4" />
+                Content
+              </TabsTrigger>
+              {isAdmin && (
+                <>
+                  <TabsTrigger 
+                    value="contentGroups" 
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                  >
+                    <FolderTree className="w-4 h-4" />
+                    Content Groups
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="users" 
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                  >
+                    <Users className="w-4 h-4" />
+                    Users
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="userGroups" 
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                  >
+                    <UsersRound className="w-4 h-4" />
+                    User Groups
+                  </TabsTrigger>
+                </>
+              )}
+            </TabsList>
+          </div>
+        </div>
 
-      <Tabs defaultValue="content" className="space-y-4">
-        <TabsList className={`grid w-full ${isAdmin ? "grid-cols-4" : "grid-cols-1"}`}>
-          <TabsTrigger value="content" className="flex items-center gap-2">
-            <Folder className="w-4 h-4" />
-            Content
-          </TabsTrigger>
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-auto">
+          <TabsContent value="content" className="m-0 p-6 h-full">
+            <ContentManager />
+          </TabsContent>
+
           {isAdmin && (
             <>
-              <TabsTrigger value="contentGroups" className="flex items-center gap-2">
-                <FolderTree className="w-4 h-4" />
-                Content Groups
-              </TabsTrigger>
-              <TabsTrigger value="users" className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Users
-              </TabsTrigger>
-              <TabsTrigger value="userGroups" className="flex items-center gap-2">
-                <UsersRound className="w-4 h-4" />
-                User Groups
-              </TabsTrigger>
+              <TabsContent value="contentGroups" className="m-0 p-6 h-full">
+                <ContentGroupManager />
+              </TabsContent>
+
+              <TabsContent value="users" className="m-0 p-6 h-full">
+                <UserManager />
+              </TabsContent>
+
+              <TabsContent value="userGroups" className="m-0 p-6 h-full">
+                <UserGroupManager />
+              </TabsContent>
             </>
           )}
-        </TabsList>
-
-        <TabsContent value="content" className="space-y-4">
-          <ContentManager />
-        </TabsContent>
-
-        {isAdmin && (
-          <>
-            <TabsContent value="contentGroups" className="space-y-4">
-              <ContentGroupManager />
-            </TabsContent>
-
-            <TabsContent value="users" className="space-y-4">
-              <UserManager />
-            </TabsContent>
-
-            <TabsContent value="userGroups" className="space-y-4">
-              <UserGroupManager />
-            </TabsContent>
-          </>
-        )}
+        </div>
       </Tabs>
     </div>
   );

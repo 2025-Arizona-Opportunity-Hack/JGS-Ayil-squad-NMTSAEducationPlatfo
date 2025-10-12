@@ -89,7 +89,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto py-6 sm:px-6 lg:px-8">
         {userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor" ? (
           <AdminDashboard />
         ) : (

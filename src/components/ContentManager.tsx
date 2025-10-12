@@ -25,8 +25,6 @@ import {
   X,
   Filter,
   CalendarDays,
-  ChevronDown,
-  ChevronUp,
   Trash2,
   Share2,
   Check,
@@ -41,17 +39,16 @@ import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -85,7 +82,6 @@ export function ContentManager() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(true);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -100,14 +96,14 @@ export function ContentManager() {
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
     defaultValues: {
-      title: "",
-      description: "",
+    title: "",
+    description: "",
       type: "video",
-      externalUrl: "",
-      richTextContent: "",
+    externalUrl: "",
+    richTextContent: "",
       body: "",
-      isPublic: false,
-      tags: "",
+    isPublic: false,
+    tags: "",
       active: true,
       startDate: "",
       endDate: "",
@@ -399,50 +395,35 @@ export function ContentManager() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
-          <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
-        </div>
-        <Button onClick={() => setShowCreateForm(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Content
-        </Button>
+    <div className="flex gap-6 h-full -m-6 p-6">
+      {/* Left Sidebar - Filters */}
+      <div className="w-80 flex-shrink-0">
+        <div className="sticky top-0 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              <h3 className="text-lg font-semibold">Filters</h3>
+      </div>
+            {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all" || selectedGroupId) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedTags([]);
+                  setStatusFilter("all");
+                  setContentTypeFilter("all");
+                  setSelectedGroupId(null);
+                }}
+              >
+                <X className="w-4 h-4 mr-1" />
+                Clear
+              </Button>
+            )}
       </div>
 
-      {/* Search and Filters */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 p-0 hover:bg-transparent">
-                  <Filter className="w-5 h-5" />
-                  <CardTitle>Search & Filters</CardTitle>
-                  {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </Button>
-              </CollapsibleTrigger>
-              {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all" || selectedGroupId) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedTags([]);
-                    setStatusFilter("all");
-                    setContentTypeFilter("all");
-                    setSelectedGroupId(null);
-                  }}
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Clear All
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
+          <Card>
+            <CardContent className="p-4 space-y-4">
           {/* Search Bar */}
           <div className="space-y-2">
             <Label htmlFor="search" className="text-sm font-medium">Search Content</Label>
@@ -457,13 +438,13 @@ export function ContentManager() {
                 className="pl-9 pr-9"
               />
               {searchQuery && (
-                <button
+        <button
                   type="button"
                   onClick={() => setSearchQuery("")}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
+        >
                   <X className="w-4 h-4" />
-                </button>
+        </button>
               )}
             </div>
             {searchQuery && (
@@ -471,96 +452,85 @@ export function ContentManager() {
                 Found {filteredContent.length} result{filteredContent.length !== 1 ? "s" : ""}
               </p>
             )}
-          </div>
+      </div>
 
           <Separator />
 
           {/* Status Filter */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Status</Label>
-            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
-              <TabsList className="grid grid-cols-6 w-full">
-                <TabsTrigger value="all" className="text-xs">
-                  All
-                </TabsTrigger>
-                <TabsTrigger value="draft" className="text-xs">
-                  <span className="hidden sm:inline">Drafts</span>
-                  <span className="sm:hidden">Draft</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {allContent?.filter(c => c.status === "draft").length || 0}
+            <div className="space-y-1">
+              {[
+                { value: "all", label: "All Statuses", count: allContent?.length || 0 },
+                { value: "draft", label: "Drafts", count: allContent?.filter(c => c.status === "draft").length || 0 },
+                { value: "review", label: "In Review", count: allContent?.filter(c => c.status === "review").length || 0 },
+                { value: "changes_requested", label: "Changes Requested", count: allContent?.filter(c => c.status === "changes_requested").length || 0 },
+                { value: "published", label: "Published", count: allContent?.filter(c => c.status === "published").length || 0 },
+                { value: "rejected", label: "Rejected", count: allContent?.filter(c => c.status === "rejected").length || 0 },
+              ].map((status) => (
+                <button
+                  key={status.value}
+                  type="button"
+                  onClick={() => setStatusFilter(status.value as any)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors",
+                    statusFilter === status.value
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  <span>{status.label}</span>
+                  <Badge 
+                    variant={statusFilter === status.value ? "secondary" : "outline"}
+                    className="ml-2"
+                  >
+                    {status.count}
                   </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="review" className="text-xs">
-                  Review
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {allContent?.filter(c => c.status === "review").length || 0}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="changes_requested" className="text-xs">
-                  <span className="hidden sm:inline">Changes</span>
-                  <span className="sm:hidden">Chg</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {allContent?.filter(c => c.status === "changes_requested").length || 0}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="published" className="text-xs">
-                  <span className="hidden sm:inline">Published</span>
-                  <span className="sm:hidden">Pub</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {allContent?.filter(c => c.status === "published").length || 0}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="rejected" className="text-xs">
-                  <span className="hidden sm:inline">Rejected</span>
-                  <span className="sm:hidden">Rej</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {allContent?.filter(c => c.status === "rejected").length || 0}
-                  </Badge>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+                </button>
+              ))}
+            </div>
           </div>
 
           <Separator />
-          
-          {/* Content Type Filter */}
+
+      {/* Content Type Filter */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Content Type</Label>
-            <Tabs value={contentTypeFilter} onValueChange={(value) => setContentTypeFilter(value as any)}>
-              <TabsList className="grid grid-cols-5 w-full">
-                <TabsTrigger value="all" className="text-xs">
-                  All
-                </TabsTrigger>
-                <TabsTrigger value="video" className="text-xs flex items-center gap-1">
-                  <Video className="w-3 h-3" />
-                  <span className="hidden sm:inline">Video</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {getContentTypeCount("video")}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="audio" className="text-xs flex items-center gap-1">
-                  <FileAudio className="w-3 h-3" />
-                  <span className="hidden sm:inline">Audio</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {getContentTypeCount("audio")}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="article" className="text-xs flex items-center gap-1">
-                  <Newspaper className="w-3 h-3" />
-                  <span className="hidden sm:inline">Article</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {getContentTypeCount("article")}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="document" className="text-xs flex items-center gap-1">
-                  <FileText className="w-3 h-3" />
-                  <span className="hidden sm:inline">Doc</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {getContentTypeCount("document")}
-                  </Badge>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="space-y-1">
+              {[
+                { value: "all", label: "All Types", icon: null, count: allContent?.length || 0 },
+                { value: "video", label: "Video", icon: Video, count: getContentTypeCount("video") },
+                { value: "audio", label: "Audio", icon: FileAudio, count: getContentTypeCount("audio") },
+                { value: "article", label: "Article", icon: Newspaper, count: getContentTypeCount("article") },
+                { value: "document", label: "Document", icon: FileText, count: getContentTypeCount("document") },
+              ].map((type) => {
+                const Icon = type.icon;
+                return (
+            <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => setContentTypeFilter(type.value as any)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors",
+                      contentTypeFilter === type.value
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      {Icon && <Icon className="w-4 h-4" />}
+                      {type.label}
+              </span>
+                    <Badge 
+                      variant={contentTypeFilter === type.value ? "secondary" : "outline"}
+                      className="ml-2"
+                    >
+                      {type.count}
+                    </Badge>
+            </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Tag Filter */}
@@ -589,7 +559,7 @@ export function ContentManager() {
                       )}
                     </Badge>
                   ))}
-                </div>
+      </div>
               </div>
             </>
           )}
@@ -618,20 +588,33 @@ export function ContentManager() {
 
           {/* Results Summary */}
           <Separator />
-          <div className="flex items-center justify-between text-sm">
+          <div className="text-sm">
             <span className="text-muted-foreground">
-              Showing {filteredContent.length} of {allContent?.length || 0} items
+              Showing <span className="font-semibold text-foreground">{filteredContent.length}</span> of {allContent?.length || 0}
             </span>
             {filteredContent.length !== allContent?.length && (
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="ml-2">
                 Filtered
               </Badge>
             )}
           </div>
             </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+          </Card>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 min-w-0 space-y-6">
+        <div className="flex justify-between items-center">
+            <div>
+            <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
+            <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
+          </div>
+          <Button onClick={() => setShowCreateForm(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Content
+          </Button>
+        </div>
 
       <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -650,7 +633,7 @@ export function ContentManager() {
                 {errors.title && (
                   <p className="text-sm text-destructive">{errors.title.message}</p>
                 )}
-              </div>
+            </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -658,82 +641,82 @@ export function ContentManager() {
                   id="description"
                   {...register("description")}
                   className={errors.description ? "border-destructive" : ""}
-                  rows={3}
-                />
+                rows={3}
+              />
                 {errors.description && (
                   <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
-              </div>
+            </div>
 
               <div className="space-y-2">
                 <Label htmlFor="type">Type *</Label>
-                <select
+              <select
                   id="type"
                   {...register("type")}
                   className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
                     errors.type ? "border-destructive" : ""
                   }`}
-                >
-                  <option value="video">Video</option>
-                  <option value="audio">Audio</option>
-                  <option value="article">Article</option>
-                  <option value="document">Document</option>
-                </select>
+              >
+                <option value="video">Video</option>
+                <option value="audio">Audio</option>
+                <option value="article">Article</option>
+                <option value="document">Document</option>
+              </select>
                 {errors.type && (
                   <p className="text-sm text-destructive">{errors.type.message}</p>
                 )}
-              </div>
+            </div>
 
               {formType === "video" && (
                 <div className="space-y-2">
                   <Label htmlFor="videoFile">Video File</Label>
                   <Input
                     id="videoFile"
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileChange}
-                  />
-                  {selectedFile && (
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileChange}
+                />
+                {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                </div>
-              )}
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+            )}
 
               {formType === "audio" && (
                 <div className="space-y-2">
                   <Label htmlFor="audioFile">Audio File</Label>
                   <Input
                     id="audioFile"
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileChange}
-                  />
-                  {selectedFile && (
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleFileChange}
+                />
+                {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                </div>
-              )}
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+            )}
 
               {formType === "document" && (
                 <div className="space-y-2">
                   <Label htmlFor="documentFile">Document File</Label>
                   <Input
                     id="documentFile"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt,.rtf"
-                    onChange={handleFileChange}
-                  />
-                  {selectedFile && (
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.rtf"
+                  onChange={handleFileChange}
+                />
+                {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                </div>
-              )}
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+            )}
 
               {formType === "article" && (
                 <div className="space-y-2">
@@ -741,11 +724,11 @@ export function ContentManager() {
                   <Textarea
                     id="richTextContent"
                     {...register("richTextContent")}
-                    rows={6}
-                    placeholder="Enter article content..."
-                  />
-                </div>
-              )}
+                  rows={6}
+                  placeholder="Enter article content..."
+                />
+              </div>
+            )}
 
               <div className="space-y-2">
                 <Label htmlFor="body">Body (optional rich text)</Label>
@@ -768,35 +751,35 @@ export function ContentManager() {
                 <Label htmlFor="externalUrl">External URL (optional)</Label>
                 <Input
                   id="externalUrl"
-                  type="url"
+                type="url"
                   {...register("externalUrl")}
                   className={errors.externalUrl ? "border-destructive" : ""}
-                  placeholder="https://..."
-                />
+                placeholder="https://..."
+              />
                 {errors.externalUrl && (
                   <p className="text-sm text-destructive">{errors.externalUrl.message}</p>
                 )}
-              </div>
+            </div>
 
               <div className="space-y-2">
                 <Label htmlFor="tags">Tags (comma-separated)</Label>
                 <Input
                   id="tags"
-                  type="text"
+                type="text"
                   {...register("tags")}
-                  placeholder="therapy, music, neurologic"
-                />
-              </div>
+                placeholder="therapy, music, neurologic"
+              />
+            </div>
 
               <div className="flex items-center space-x-2">
                 <Checkbox
-                  id="isPublic"
+                id="isPublic"
                   {...register("isPublic")}
-                />
+              />
                 <Label htmlFor="isPublic" className="font-normal">
-                  Make this content public
+                Make this content public
                 </Label>
-              </div>
+            </div>
 
               <Separator className="my-6" />
 
@@ -850,7 +833,7 @@ export function ContentManager() {
                         <p className="text-sm text-destructive">{errors.startDate.message}</p>
                       )}
                       <p className="text-xs text-muted-foreground">Content becomes available on this date</p>
-                    </div>
+            </div>
 
                     <div className="space-y-2">
                       <Label>End Date (optional)</Label>
@@ -910,33 +893,39 @@ export function ContentManager() {
 
       {/* Content List */}
       <div className="space-y-4">
-        {allContent === undefined ? (
-          // Loading state
-          <Card>
-            <CardContent className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-2 text-muted-foreground">Loading content...</span>
-            </CardContent>
-          </Card>
+                  {allContent === undefined ? (
+                    // Loading state
+                    <Card>
+                      <CardContent className="flex flex-col justify-center items-center py-16 gap-4">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full border-4 border-muted"></div>
+                          <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground">Loading content...</p>
+                          <p className="text-xs text-muted-foreground mt-1">Please wait</p>
+                        </div>
+                      </CardContent>
+                    </Card>
         ) : filteredContent.length === 0 ? (
           // Empty state
           <Card>
             <CardContent className="text-center py-12">
               <div className="text-muted-foreground mb-4 flex justify-center">
                 {contentTypeFilter === "all" ? <Folder className="w-16 h-16" /> : <div className="[&>svg]:w-16 [&>svg]:h-16">{getTypeIcon(contentTypeFilter)}</div>}
-              </div>
+            </div>
               <h3 className="text-lg font-medium mb-2">
-                {contentTypeFilter === "all" 
-                  ? "No content available" 
-                  : `No ${contentTypeFilter}${contentTypeFilter === "audio" ? "" : "s"} available`
-                }
-              </h3>
+              {contentTypeFilter === "all" 
+                ? "No content available" 
+                : `No ${contentTypeFilter}${contentTypeFilter === "audio" ? "" : "s"} available`
+              }
+            </h3>
               <p className="text-muted-foreground">
-                {contentTypeFilter === "all"
-                  ? "Create your first piece of content to get started."
-                  : `Create your first ${contentTypeFilter} to get started.`
-                }
-              </p>
+              {contentTypeFilter === "all"
+                ? "Create your first piece of content to get started."
+                : `Create your first ${contentTypeFilter} to get started.`
+              }
+            </p>
             </CardContent>
           </Card>
         ) : (
@@ -948,168 +937,254 @@ export function ContentManager() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <Card>
-              <CardContent className="pt-6">
-                <div className="flex gap-4">
-                  {/* Status Indicator on Left */}
-                  <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1 w-16 border-r pr-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      item.status === "published" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                      item.status === "review" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
-                      item.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                      item.status === "changes_requested" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
-                      "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                    }`}>
-                      {getStatusIcon(item.status)}
-                    </div>
-                    <span className="text-[10px] font-medium text-center leading-tight uppercase tracking-wide text-muted-foreground">
-                      {item.status === "changes_requested" ? "Changes" : item.status}
-                    </span>
+              <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
+                {/* Status Banner - Positioned at top */}
+                <div className={`absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-2 border-b ${
+                  item.status === "published" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800" :
+                  item.status === "review" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                  item.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800" :
+                  item.status === "changes_requested" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
+                  "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700"
+                }`}>
+                  <div className="w-4 h-4 flex-shrink-0">
+                    {getStatusIcon(item.status)}
                   </div>
+                  <span className="text-xs font-semibold capitalize">
+                    {item.status === "changes_requested" ? "Changes Requested" : item.status}
+                  </span>
+                </div>
 
-                  {/* Content Area */}
-                  <div className="flex justify-between items-start gap-4 flex-1 min-w-0">
-                    {/* Thumbnail for video/audio content */}
-                    {item.type === "video" && (
-                      <VideoThumbnail
-                        contentId={item._id}
-                        videoUrl={(item as any).fileUrl}
-                        thumbnailUrl={(item as any).thumbnailUrl}
-                        title={item.title}
-                      />
-                    )}
-                    {item.type === "audio" && (item as any).thumbnailUrl && (
-                      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border">
-                        <img 
-                          src={(item as any).thumbnailUrl} 
-                          alt={item.title}
-                          className="w-full h-full object-cover"
+              <CardContent className="p-3 pt-12">
+                <div className="flex items-center gap-3">
+                  {/* Thumbnail */}
+                  {(item.type === "video" || item.type === "audio") && (
+                    <div className="flex-shrink-0">
+                      {item.type === "video" && (
+                        <VideoThumbnail
+                          contentId={item._id}
+                          videoUrl={(item as any).fileUrl}
+                          thumbnailUrl={(item as any).thumbnailUrl}
+                          title={item.title}
                         />
-                      </div>
-                    )}
-                    {item.type === "audio" && !(item as any).thumbnailUrl && (
-                      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">
-                        {getTypeIcon(item.type)}
-                      </div>
-                    )}
-                    
-                    <div className="flex items-start flex-1 min-w-0">
-                      {item.type !== "video" && item.type !== "audio" && (
-                        <div className="mr-3 mt-1 flex-shrink-0">{getTypeIcon(item.type)}</div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-lg">{item.title}</h4>
-                        {item.description && (
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
-                        )}
-                        <div className="flex items-center flex-wrap gap-2 mt-3">
-                          <Badge variant="secondary" className="capitalize">
-                            {item.type}
-                          </Badge>
-                          <Badge variant={item.isPublic ? "default" : "secondary"}>
-                            {item.isPublic ? "Public" : "Private"}
-                          </Badge>
-                          <Badge variant={item.active ? "default" : "outline"} className="gap-1">
-                            {item.active ? <><CheckCheck className="w-3 h-3" /> Active</> : <><Ban className="w-3 h-3" /> Inactive</>}
-                          </Badge>
-                          {item.startDate && (
-                            <Badge variant="outline" className="gap-1">
-                              <CalendarDays className="w-3 h-3" /> Starts: {new Date(item.startDate).toLocaleDateString()}
-                            </Badge>
-                          )}
-                          {item.endDate && (
-                            <Badge variant="outline" className="gap-1">
-                              <CalendarDays className="w-3 h-3" /> Ends: {new Date(item.endDate).toLocaleDateString()}
-                            </Badge>
-                          )}
-                          {item.tags && item.tags.length > 0 && item.tags.map((tag, index) => (
-                            <Badge key={index} variant="secondary">
-                              {tag}
-                            </Badge>
-                          ))}
+                      {item.type === "audio" && (item as any).thumbnailUrl && (
+                        <div className="w-24 h-16 rounded-md overflow-hidden bg-muted border">
+                          <img 
+                            src={(item as any).thumbnailUrl} 
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-4 flex-wrap">
-                    {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "editor") && (
-                      <Button 
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleReviewContent(item)}
-                        className="bg-yellow-600 hover:bg-yellow-700"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-1" />
-                        Review
-                      </Button>
-                    )}
-                    {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
-                     (userProfile?.role === "admin" || userProfile?.role === "contributor") && (
-                      <Button 
-                        size="sm"
-                        variant="default"
-                        onClick={() => void handleSubmitForReview(item._id)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Send className="w-4 h-4 mr-1" />
-                        Submit for Review
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEditContent(item)}
-                    >
-                      <FileEdit className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button 
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleViewVersionHistory(item)}
-                    >
-                      <History className="w-4 h-4 mr-1" />
-                      History
-                    </Button>
-                    {userProfile?.role === "admin" && (
-                      <Button 
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleManageAccess(item)}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Access
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void handleShareContent(item._id)}
-                      className={copiedId === item._id ? "text-green-600" : ""}
-                    >
-                      {copiedId === item._id ? (
-                        <>
-                          <Check className="w-4 h-4 mr-1" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Share2 className="w-4 h-4 mr-1" />
-                          Share
-                        </>
                       )}
-                    </Button>
-                    <Button 
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setContentToDelete(item)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete
-                    </Button>
+                      {item.type === "audio" && !(item as any).thumbnailUrl && (
+                        <div className="w-24 h-16 rounded-md overflow-hidden bg-muted border flex items-center justify-center">
+                          {getTypeIcon(item.type)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Content Info - Horizontal Layout */}
+                  <div className="flex-1 min-w-0 flex items-start gap-4">
+                    {/* Title and Metadata */}
+                    <div className="flex-1 min-w-0">
+                      {/* Title */}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        {item.type !== "video" && item.type !== "audio" && (
+                          <div className="flex-shrink-0">{getTypeIcon(item.type)}</div>
+                        )}
+                        <h4 className="font-semibold text-base leading-tight truncate">{item.title}</h4>
+                      </div>
+                      
+                      {/* Description */}
+                    {item.description && (
+                        <p className="text-xs text-muted-foreground mb-1.5 line-clamp-1">{item.description}</p>
+                      )}
+
+                      {/* Metadata - Multi-line */}
+                      <div className="space-y-1">
+                        {/* Line 1: Type, Visibility, Active Status */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="secondary" className="text-[10px] capitalize h-5">
+                        {item.type}
+                          </Badge>
+                          <Badge variant={item.isPublic ? "default" : "secondary"} className="text-[10px] h-5">
+                        {item.isPublic ? "Public" : "Private"}
+                          </Badge>
+                          <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
+                            {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
+                          </Badge>
+                        </div>
+
+                        {/* Line 2: Dates and Reviewer (if applicable) */}
+                        {(item.startDate || item.endDate || (item as any).reviewerName) && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.startDate && (
+                              <Badge variant="outline" className="gap-1 text-[10px] h-5">
+                                <CalendarDays className="w-2.5 h-2.5" />
+                                Start: {new Date(item.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </Badge>
+                            )}
+                            {item.endDate && (
+                              <Badge variant="outline" className="gap-1 text-[10px] h-5">
+                                <CalendarDays className="w-2.5 h-2.5" />
+                                End: {new Date(item.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </Badge>
+                            )}
+                            {(item as any).reviewerName && (item.status === "published" || item.status === "rejected" || item.status === "changes_requested") && (
+                              <Badge 
+                                variant="outline" 
+                                className={`gap-1 text-[10px] h-5 ${
+                                  item.status === "published" ? "border-green-500 text-green-700 bg-green-50 dark:bg-green-900/20" :
+                                  item.status === "rejected" ? "border-red-500 text-red-700 bg-red-50 dark:bg-red-900/20" :
+                                  "border-orange-500 text-orange-700 bg-orange-50 dark:bg-orange-900/20"
+                                }`}
+                              >
+                                {item.status === "published" ? "✓" : item.status === "rejected" ? "✗" : "!"} {(item as any).reviewerName}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Line 3: Tags */}
+                      {item.tags && item.tags.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.tags.slice(0, 3).map((tag, index) => (
+                              <Badge key={index} variant="secondary" className="text-[10px] h-5">
+                              {tag}
+                              </Badge>
+                          ))}
+                            {item.tags.length > 3 && (
+                              <Badge variant="secondary" className="text-[10px] h-5">
+                                +{item.tags.length - 3}
+                              </Badge>
+                            )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+
+                  {/* Action Buttons - Horizontal */}
+                  <div className="flex items-center gap-1 flex-shrink-0 border-l pl-3">
+                    {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "editor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleReviewContent(item)}
+                              className="bg-yellow-600 hover:bg-yellow-700 h-7 w-7 p-0"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Review</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
+                     (userProfile?.role === "admin" || userProfile?.role === "contributor") && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="default"
+                              onClick={() => void handleSubmitForReview(item._id)}
+                              className="bg-blue-600 hover:bg-blue-700 h-7 w-7 p-0"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Submit for Review</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            size="sm"
+                            variant="ghost"
+                    onClick={() => handleEditContent(item)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <FileEdit className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleViewVersionHistory(item)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>History</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    {userProfile?.role === "admin" && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="sm"
+                              variant="ghost"
+                    onClick={() => handleManageAccess(item)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Access</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void handleShareContent(item._id)}
+                            className={`h-7 w-7 p-0 ${copiedId === item._id ? "text-green-600" : ""}`}
+                          >
+                            {copiedId === item._id ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Share2 className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{copiedId === item._id ? "Copied!" : "Share"}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setContentToDelete(item)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                </div>
+              </div>
               </CardContent>
               </Card>
             </motion.div>
@@ -1194,6 +1269,7 @@ export function ContentManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

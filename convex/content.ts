@@ -343,12 +343,30 @@ export const getContent = query({
 
     if (!profile) return null;
 
+    // Get creator name
+    const creator = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", content.createdBy))
+      .unique();
+
+    // Get reviewer name if content was reviewed
+    let reviewerName: string | null = null;
+    if (content.reviewedBy) {
+      const reviewer = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", content.reviewedBy as any))
+        .unique();
+      reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
+    }
+
     // Admins and editors can see all content
     if (profile.role === "admin" || profile.role === "editor") {
       return {
         ...content,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
+        creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
+        reviewerName,
       };
     }
 
@@ -363,6 +381,8 @@ export const getContent = query({
         ...content,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
+        creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
+        reviewerName,
       };
     }
 
@@ -373,6 +393,8 @@ export const getContent = query({
       ...content,
       fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
       thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
+      creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
+      reviewerName,
     };
   },
 });

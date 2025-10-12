@@ -336,17 +336,33 @@ export function ContentReviewModal({
                   </>
                 )}
 
-                {/* Previous Review Notes */}
-                {content.reviewNotes && (
+                {/* Review Information */}
+                {(content.reviewNotes || (content.status === "published" && content.reviewerName)) && (
                   <>
                     <Separator />
                     <div className="space-y-2">
                       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
                         <AlertCircle className="w-4 h-4" />
-                        Previous Review
+                        Review Information
                       </h4>
-                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                        <p className="text-sm">{content.reviewNotes}</p>
+                      <div className={`p-3 rounded-lg border ${
+                        content.status === "published" 
+                          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                          : content.status === "rejected"
+                          ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                          : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
+                      }`}>
+                        {content.reviewerName && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <User className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {content.status === "published" ? "Approved" : content.status === "rejected" ? "Rejected" : "Reviewed"} by {content.reviewerName}
+                            </span>
+                          </div>
+                        )}
+                        {content.reviewNotes && (
+                          <p className="text-sm">{content.reviewNotes}</p>
+                        )}
                         {content.reviewedAt && (
                           <p className="text-xs text-muted-foreground mt-2">
                             {formatDate(content.reviewedAt)}

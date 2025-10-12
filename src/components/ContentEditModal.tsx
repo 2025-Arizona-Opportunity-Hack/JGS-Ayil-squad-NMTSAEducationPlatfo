@@ -47,6 +47,7 @@ interface ContentEditModalProps {
     status?: string;
     reviewNotes?: string;
     reviewedAt?: number;
+    reviewerName?: string;
   };
 }
 
@@ -194,17 +195,36 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
         {/* Review Notes Alert */}
         {(content.status === "changes_requested" || content.status === "rejected") && content.reviewNotes && (
-          <div className="p-4 border border-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex gap-3">
-            <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+          <div className={`p-4 border rounded-lg flex gap-3 ${
+            content.status === "rejected"
+              ? "border-red-500 bg-red-50 dark:bg-red-900/20"
+              : "border-orange-500 bg-orange-50 dark:bg-orange-900/20"
+          }`}>
+            <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+              content.status === "rejected" ? "text-red-600" : "text-orange-600"
+            }`} />
             <div className="flex-1 space-y-1">
-              <h4 className="font-semibold text-orange-900 dark:text-orange-100">
+              <h4 className={`font-semibold ${
+                content.status === "rejected"
+                  ? "text-red-900 dark:text-red-100"
+                  : "text-orange-900 dark:text-orange-100"
+              }`}>
                 {content.status === "changes_requested" ? "Changes Requested" : "Content Rejected"}
+                {content.reviewerName && ` by ${content.reviewerName}`}
               </h4>
-              <p className="text-sm text-orange-800 dark:text-orange-200">
+              <p className={`text-sm ${
+                content.status === "rejected"
+                  ? "text-red-800 dark:text-red-200"
+                  : "text-orange-800 dark:text-orange-200"
+              }`}>
                 {content.reviewNotes}
               </p>
               {content.reviewedAt && (
-                <p className="text-xs text-orange-600 dark:text-orange-300 mt-2">
+                <p className={`text-xs mt-2 ${
+                  content.status === "rejected"
+                    ? "text-red-600 dark:text-red-300"
+                    : "text-orange-600 dark:text-orange-300"
+                }`}>
                   Reviewed on {new Date(content.reviewedAt).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
