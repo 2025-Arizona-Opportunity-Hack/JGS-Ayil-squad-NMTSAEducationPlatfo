@@ -45,6 +45,7 @@ export const createUserProfile = mutation({
         v.literal("parent")
       )
     ),
+    inviteCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -88,9 +89,43 @@ export const createUserProfile = mutation({
       }
     }
 
+    // Determine the role based on invite code or provided role
+    let roleToAssign:
+      | "admin"
+      | "editor"
+      | "contributor"
+      | "client"
+      | "parent"
+      | "professional" = args.role || "client";
+
+    // If invite code is provided, validate and use it
+    if (args.inviteCode && args.inviteCode.trim() !== "") {
+      const inviteCode = await ctx.db
+        .query("inviteCodes")
+        .withIndex("by_code", (q) =>
+          q.eq("code", args.inviteCode!.toUpperCase())
+        )
+        .unique();
+
+      if (!inviteCode) {
+        throw new Error("Invalid invite code");
+      }
+
+      if (!inviteCode.isActive) {
+        throw new Error("This invite code has been deactivated");
+      }
+
+      if (inviteCode.expiresAt && inviteCode.expiresAt < Date.now()) {
+        throw new Error("This invite code has expired");
+      }
+
+      // Use the role from the invite code
+      roleToAssign = inviteCode.role;
+    }
+
     const newProfile = await ctx.db.insert("userProfiles", {
       userId,
-      role: args.role || "client", // Use selected role or default to client
+      role: roleToAssign,
       firstName: args.firstName || user.name?.split(" ")[0] || "User",
       lastName: args.lastName || user.name?.split(" ").slice(1).join(" ") || "",
       isActive: true,

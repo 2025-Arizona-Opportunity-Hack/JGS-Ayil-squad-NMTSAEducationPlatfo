@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -36,6 +36,47 @@ export function RoleSelection() {
   const user = useQuery(api.auth.loggedInUser);
   const hasNameFromAuth = user?.name && user.name.trim().length > 0;
 
+  // Check if there's an invite code from sign up
+  const inviteCode = localStorage.getItem("signupInviteCode");
+  const inviteCodeValidation = useQuery(
+    api.inviteCodes.validateInviteCode,
+    inviteCode ? { code: inviteCode } : "skip"
+  );
+
+  // Auto-create profile if there's a valid invite code
+  useEffect(() => {
+    if (inviteCode && inviteCodeValidation?.valid && !submitting) {
+      setSubmitting(true);
+      createProfile({
+        inviteCode,
+        firstName: hasNameFromAuth ? undefined : firstName || undefined,
+        lastName: hasNameFromAuth ? undefined : lastName || undefined,
+      })
+        .then(() => {
+          // Clear invite code from localStorage
+          localStorage.removeItem("signupInviteCode");
+          toast.success(
+            `Profile created with ${inviteCodeValidation.role} role!`
+          );
+        })
+        .catch((error) => {
+          console.error("Error creating profile with invite code:", error);
+          // Clear invalid invite code
+          localStorage.removeItem("signupInviteCode");
+          setError("invite_code_error");
+          setSubmitting(false);
+        });
+    }
+  }, [
+    inviteCode,
+    inviteCodeValidation,
+    createProfile,
+    submitting,
+    hasNameFromAuth,
+    firstName,
+    lastName,
+  ]);
+
   const handleRoleSelection = async () => {
     // Validate name fields for non-Google users
     if (!hasNameFromAuth && (!firstName.trim() || !lastName.trim())) {
@@ -49,6 +90,7 @@ export function RoleSelection() {
         role: selectedRole,
         firstName: hasNameFromAuth ? undefined : firstName.trim(),
         lastName: hasNameFromAuth ? undefined : lastName.trim(),
+        inviteCode: undefined, // No invite code in normal role selection
       });
     } catch (error) {
       console.error("Error creating profile:", error);
@@ -69,6 +111,42 @@ export function RoleSelection() {
       setSubmitting(false);
     }
   };
+
+  // Show loading state while processing invite code
+  if (inviteCode && inviteCodeValidation === undefined) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-auto">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent mx-auto" />
+              <p className="text-muted-foreground">
+                Validating your invite code...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading state while creating profile with invite code
+  if (inviteCode && inviteCodeValidation?.valid && submitting) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-auto">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent mx-auto" />
+              <p className="text-muted-foreground">
+                Setting up your {inviteCodeValidation.role} profile...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">

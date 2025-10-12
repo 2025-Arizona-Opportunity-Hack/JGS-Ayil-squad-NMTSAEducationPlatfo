@@ -20,6 +20,7 @@ import type * as contentShares from "../contentShares.js";
 import type * as contentVersions from "../contentVersions.js";
 import type * as generateThumbnail from "../generateThumbnail.js";
 import type * as http from "../http.js";
+import type * as inviteCodes from "../inviteCodes.js";
 import type * as publicContent from "../publicContent.js";
 import type * as router from "../router.js";
 import type * as userGroups from "../userGroups.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   contentVersions: typeof contentVersions;
   generateThumbnail: typeof generateThumbnail;
   http: typeof http;
+  inviteCodes: typeof inviteCodes;
   publicContent: typeof publicContent;
   router: typeof router;
   userGroups: typeof userGroups;

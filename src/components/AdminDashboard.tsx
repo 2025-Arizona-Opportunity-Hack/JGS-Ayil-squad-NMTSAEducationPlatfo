@@ -1,16 +1,20 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
 import { ContentGroupManager } from "./ContentGroupManager";
 import { ShareLinksManager } from "./ShareLinksManager";
+import { InviteCodeModal } from "./InviteCodeModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 
 export function AdminDashboard() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
-  
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
   // Wait for profile to load to avoid race conditions
   if (!userProfile) {
     return (
@@ -21,97 +25,117 @@ export function AdminDashboard() {
       </div>
     );
   }
-  
+
   const isAdmin = userProfile.role === "admin";
 
   return (
-    <div className="w-full h-full flex">
-      <Tabs defaultValue="content" className="w-full flex">
-        {/* Left Sidebar Navigation */}
-        <div className="w-64 border-r bg-muted/30 flex-shrink-0">
-          <div className="p-6 border-b">
-            <h1 className="text-lg font-bold tracking-tight">
-              {isAdmin ? "Admin Dashboard" : "Dashboard"}
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isAdmin 
-                ? "Manage your platform" 
-                : "Manage content"}
-            </p>
-          </div>
-          
-          <div className="p-4">
-            <TabsList className="flex flex-col h-auto bg-transparent p-0 space-y-1">
-              <TabsTrigger 
-                value="content" 
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-              >
-                <Folder className="w-4 h-4" />
-                Content
-              </TabsTrigger>
-              <TabsTrigger 
-                value="shareLinks" 
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Share Links
-              </TabsTrigger>
+    <>
+      {isAdmin && (
+        <InviteCodeModal
+          open={inviteModalOpen}
+          onOpenChange={setInviteModalOpen}
+        />
+      )}
+      
+      <div className="w-full h-full flex">
+        <Tabs defaultValue="content" className="w-full flex">
+          {/* Left Sidebar Navigation */}
+          <div className="w-64 border-r bg-muted/30 flex-shrink-0">
+            <div className="p-6 border-b">
+              <h1 className="text-lg font-bold tracking-tight">
+                {isAdmin ? "Admin Dashboard" : "Dashboard"}
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isAdmin 
+                  ? "Manage your platform" 
+                  : "Manage content"}
+              </p>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <TabsList className="flex flex-col h-auto bg-transparent p-0 space-y-1">
+                <TabsTrigger 
+                  value="content" 
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                >
+                  <Folder className="w-4 h-4" />
+                  Content
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="shareLinks" 
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Share Links
+                </TabsTrigger>
+                {isAdmin && (
+                  <>
+                    <TabsTrigger 
+                      value="contentGroups" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <FolderTree className="w-4 h-4" />
+                      Content Groups
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="users" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <Users className="w-4 h-4" />
+                      Users
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="userGroups" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <UsersRound className="w-4 h-4" />
+                      User Groups
+                    </TabsTrigger>
+                  </>
+                )}
+              </TabsList>
+
               {isAdmin && (
-                <>
-                  <TabsTrigger 
-                    value="contentGroups" 
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-                  >
-                    <FolderTree className="w-4 h-4" />
-                    Content Groups
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="users" 
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-                  >
-                    <Users className="w-4 h-4" />
-                    Users
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="userGroups" 
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-                  >
-                    <UsersRound className="w-4 h-4" />
-                    User Groups
-                  </TabsTrigger>
-                </>
+                <Button
+                  onClick={() => setInviteModalOpen(true)}
+                  className="w-full flex items-center gap-2"
+                  variant="outline"
+                >
+                  <Mail className="w-4 h-4" />
+                  Generate Invite Code
+                </Button>
               )}
-            </TabsList>
+            </div>
           </div>
-        </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-auto">
-          <TabsContent value="content" className="m-0 p-6 h-full">
-            <ContentManager />
-          </TabsContent>
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-auto">
+            <TabsContent value="content" className="m-0 p-6 h-full">
+              <ContentManager />
+            </TabsContent>
 
-          <TabsContent value="shareLinks" className="m-0 p-6 h-full">
-            <ShareLinksManager />
-          </TabsContent>
+            <TabsContent value="shareLinks" className="m-0 p-6 h-full">
+              <ShareLinksManager />
+            </TabsContent>
 
-          {isAdmin && (
-            <>
-              <TabsContent value="contentGroups" className="m-0 p-6 h-full">
-                <ContentGroupManager />
-              </TabsContent>
+            {isAdmin && (
+              <>
+                <TabsContent value="contentGroups" className="m-0 p-6 h-full">
+                  <ContentGroupManager />
+                </TabsContent>
 
-              <TabsContent value="users" className="m-0 p-6 h-full">
-                <UserManager />
-              </TabsContent>
+                <TabsContent value="users" className="m-0 p-6 h-full">
+                  <UserManager />
+                </TabsContent>
 
-              <TabsContent value="userGroups" className="m-0 p-6 h-full">
-                <UserGroupManager />
-              </TabsContent>
-            </>
-          )}
-        </div>
-      </Tabs>
-    </div>
+                <TabsContent value="userGroups" className="m-0 p-6 h-full">
+                  <UserGroupManager />
+                </TabsContent>
+              </>
+            )}
+          </div>
+        </Tabs>
+      </div>
+    </>
   );
 }
