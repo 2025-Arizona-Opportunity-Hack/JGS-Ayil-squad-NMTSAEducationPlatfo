@@ -48,7 +48,7 @@ const applicationTables = {
     tags: v.optional(v.array(v.string())),
     accessExpiresAt: v.optional(v.number()),
     // Availability control fields
-    active: v.boolean(),
+    active: v.optional(v.boolean()),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     // Workflow fields
@@ -125,8 +125,7 @@ const applicationTables = {
     description: v.optional(v.string()),
     createdBy: v.id("users"),
     isActive: v.boolean(),
-  })
-    .index("by_creator", ["createdBy"]),
+  }).index("by_creator", ["createdBy"]),
 
   // Content group items (many-to-many)
   contentGroupItems: defineTable({
@@ -145,8 +144,7 @@ const applicationTables = {
     description: v.optional(v.string()),
     createdBy: v.id("users"),
     isActive: v.boolean(),
-  })
-    .index("by_creator", ["createdBy"]),
+  }).index("by_creator", ["createdBy"]),
 
   // User group members (many-to-many)
   userGroupMembers: defineTable({
@@ -162,11 +160,13 @@ const applicationTables = {
     contentId: v.id("content"),
     userId: v.optional(v.id("users")), // Individual user access
     userGroupId: v.optional(v.id("userGroups")), // User group access
-    role: v.optional(v.union(
-      v.literal("client"),
-      v.literal("parent"),
-      v.literal("professional")
-    )), // Role-based access
+    role: v.optional(
+      v.union(
+        v.literal("client"),
+        v.literal("parent"),
+        v.literal("professional")
+      )
+    ), // Role-based access
     grantedBy: v.id("users"),
     expiresAt: v.optional(v.number()),
     canShare: v.boolean(),
@@ -181,11 +181,13 @@ const applicationTables = {
     groupId: v.id("contentGroups"),
     userId: v.optional(v.id("users")), // Individual user access
     userGroupId: v.optional(v.id("userGroups")), // User group access
-    role: v.optional(v.union(
-      v.literal("client"),
-      v.literal("parent"),
-      v.literal("professional")
-    )), // Role-based access
+    role: v.optional(
+      v.union(
+        v.literal("client"),
+        v.literal("parent"),
+        v.literal("professional")
+      )
+    ), // Role-based access
     grantedBy: v.id("users"),
     expiresAt: v.optional(v.number()),
     canShare: v.boolean(),

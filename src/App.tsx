@@ -1,17 +1,25 @@
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientDashboard } from "./components/ClientDashboard";
-import { Toaster } from "@/components/ui/sonner";
+import { RoleSelection } from "./components/RoleSelection";
 
 export default function App() {
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
-  const createProfile = useMutation(api.users.createUserProfile);
 
-  if (user === undefined || userProfile === undefined) {
+  console.log("App state:", {
+    user: !!user,
+    userProfile: !!userProfile,
+    userUndefined: user === undefined,
+    profileUndefined: userProfile === undefined,
+  });
+
+  // Loading state - wait for user query to resolve first
+  // userProfile can be null/false, but user should not be undefined
+  if (user === undefined) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -19,6 +27,7 @@ export default function App() {
     );
   }
 
+  // Not authenticated - show sign in form
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -37,22 +46,28 @@ export default function App() {
     );
   }
 
-  if (!userProfile && user) {
-    // Create profile for new user
-    void createProfile({});
+  // If we have a user but userProfile is still loading
+  if (user && userProfile === undefined) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Setting up your profile...</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Loading your profile...
+          </h2>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         </div>
       </div>
     );
   }
 
+  // Authenticated but no profile - show role selection
+  if (user && !userProfile) {
+    console.log("Showing role selection for user:", user.email);
+    return <RoleSelection />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Toaster />
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
