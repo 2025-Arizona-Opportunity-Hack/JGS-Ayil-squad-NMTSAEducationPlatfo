@@ -20,7 +20,7 @@ import {
   CheckCheck,
   Ban,
   Plus,
-  History,
+  Archive,
   Search,
   X,
   Filter,
@@ -43,7 +43,6 @@ import {
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentEditModal } from "./ContentEditModal";
-import { ContentVersionHistory } from "./ContentVersionHistory";
 import { ContentReviewModal } from "./ContentReviewModal";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { ContentPricingModal } from "./ContentPricingModal";
@@ -94,7 +93,6 @@ export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showThirdPartyShareModal, setShowThirdPartyShareModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -162,6 +160,7 @@ export function ContentManager() {
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const deleteContentMutation = useMutation(api.content.deleteContent);
+  const archiveContentMutation = useMutation(api.content.archiveContent);
   const submitForReview = useMutation(api.content.submitForReview);
 
   // Filter content client-side for better UX
@@ -406,11 +405,6 @@ export function ContentManager() {
     setShowEditModal(true);
   };
 
-  const handleViewVersionHistory = (content: any) => {
-    setSelectedContent(content);
-    setShowVersionHistory(true);
-  };
-
   const handleReviewContent = (content: any) => {
     setSelectedContent(content);
     setShowReviewModal(true);
@@ -444,6 +438,18 @@ export function ContentManager() {
     } catch (error) {
       console.error("Error deleting content:", error);
       toast.error(error instanceof Error ? error.message : "Failed to delete content", { id: toastId });
+    }
+  };
+
+  const handleArchiveContent = async (contentId: string) => {
+    const toastId = toast.loading("Archiving content...");
+    
+    try {
+      await archiveContentMutation({ contentId: contentId as any });
+      toast.success("Content archived successfully!", { id: toastId });
+    } catch (error) {
+      console.error("Error archiving content:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to archive content", { id: toastId });
     }
   };
 
@@ -1394,14 +1400,6 @@ export function ContentManager() {
                           </DropdownMenuItem>
                         )}
 
-                        {/* Version History - Admins and Contributors */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
-                          <DropdownMenuItem onClick={() => handleViewVersionHistory(item)}>
-                            <History className="w-4 h-4 mr-2" />
-                            Version History
-                          </DropdownMenuItem>
-                        )}
-
                         <DropdownMenuSeparator />
 
                         {/* Share Link - Everyone */}
@@ -1463,6 +1461,17 @@ export function ContentManager() {
                         )}
 
                         <DropdownMenuSeparator />
+
+                        {/* Archive - Admins only */}
+                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                          <DropdownMenuItem 
+                            onClick={() => void handleArchiveContent(item._id)}
+                            className="text-orange-600 focus:text-orange-600 focus:bg-orange-50"
+                          >
+                            <Archive className="w-4 h-4 mr-2" />
+                            Archive Content
+                          </DropdownMenuItem>
+                        )}
 
                         {/* Delete - Admins and Contributors */}
                         {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
@@ -1571,19 +1580,6 @@ export function ContentManager() {
             setSelectedContent(null);
           }}
           content={selectedContent}
-        />
-      )}
-
-      {/* Version History Modal */}
-      {selectedContent && showVersionHistory && (
-        <ContentVersionHistory
-          isOpen={showVersionHistory}
-          onClose={() => {
-            setShowVersionHistory(false);
-            setSelectedContent(null);
-          }}
-          contentId={selectedContent._id}
-          contentTitle={selectedContent.title}
         />
       )}
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
@@ -10,6 +10,7 @@ import { ShareLinksManager } from "./ShareLinksManager";
 import { InviteCodeModal } from "./InviteCodeModal";
 import { SalesAnalytics } from "./admin/SalesAnalytics";
 import { AdminOrders } from "./admin/AdminOrders";
+import { ArchivedContent } from "./admin/ArchivedContent";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
@@ -121,6 +122,13 @@ export function AdminDashboard() {
                       <ShoppingCart className="w-4 h-4" />
                       Orders
                     </TabsTrigger>
+                    <TabsTrigger 
+                      value="archived" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <Archive className="w-4 h-4" />
+                      Archived Content
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -168,6 +176,10 @@ export function AdminDashboard() {
 
                 <TabsContent value="orders" className="m-0 p-6 h-full">
                   <AdminOrders />
+                </TabsContent>
+
+                <TabsContent value="archived" className="m-0 p-6 h-full">
+                  <ArchivedContent />
                 </TabsContent>
               </>
             )}

@@ -53,29 +53,7 @@ export const createContent = mutation({
       ...data,
       createdBy: userId,
       status: "draft",
-      currentVersion: 1,
-    });
-
-    // Create initial version
-    await ctx.db.insert("contentVersions", {
-      contentId,
-      versionNumber: 1,
-      title: data.title,
-      description: data.description,
-      type: data.type,
-      fileId: data.fileId,
-      externalUrl: data.externalUrl,
-      richTextContent: data.richTextContent,
-      body: data.body,
-      isPublic: data.isPublic,
-      tags: data.tags,
-      active: data.active,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      status: "draft",
-      createdBy: userId,
-      createdAt: Date.now(),
-      changeDescription: "Initial version",
+      isArchived: false,
     });
 
     return contentId;
@@ -169,10 +147,16 @@ export const listContent = query({
       allContent = await ctx.db.query("content").collect();
     }
 
+    // Filter out archived content for non-admins
+    const isAdmin = profile.role === "admin" || profile.role === "owner";
+    const filteredContent = isAdmin 
+      ? allContent.filter(c => !c.isArchived) // Admins see non-archived in main list (archived has separate view)
+      : allContent.filter(c => !c.isArchived); // Non-admins never see archived
+
     // Filter content based on access and workflow status
     const accessibleContent = [];
 
-    for (const content of allContent) {
+    for (const content of filteredContent) {
       // Get creator name
       const creator = await ctx.db
         .query("userProfiles")
@@ -537,38 +521,9 @@ export const updateContent = mutation({
       ? { ...args, richTextContent: undefined }
       : args;
 
-    // Get current version number
-    const currentVersion = content.currentVersion || 1;
-    const newVersion = currentVersion + 1;
-
-    // Create version snapshot before updating
-    await ctx.db.insert("contentVersions", {
-      contentId: normalized.contentId,
-      versionNumber: newVersion,
-      title: normalized.title,
-      description: normalized.description,
-      type: normalized.type,
-      fileId: normalized.fileId,
-      externalUrl: normalized.externalUrl,
-      richTextContent: normalized.richTextContent,
-      body: normalized.body,
-      isPublic: normalized.isPublic,
-      tags: normalized.tags,
-      active: normalized.active,
-      startDate: normalized.startDate,
-      endDate: normalized.endDate,
-      status: content.status,
-      createdBy: userId,
-      createdAt: Date.now(),
-      changeDescription: "Content updated",
-    });
-
-    // Update content with new data and version number
+    // Update content
     const { contentId, ...updateData } = normalized;
-    await ctx.db.patch(contentId, {
-      ...updateData,
-      currentVersion: newVersion,
-    });
+    await ctx.db.patch(contentId, updateData);
   },
 });
 
@@ -790,17 +745,7 @@ export const deleteContent = mutation({
     }
 
     // Delete related records
-    // 1. Delete all versions
-    const versions = await ctx.db
-      .query("contentVersions")
-      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
-      .collect();
-    
-    for (const version of versions) {
-      await ctx.db.delete(version._id);
-    }
-
-    // 2. Delete content access records
+    // 1. Delete content access records
     const accessRecords = await ctx.db
       .query("contentAccess")
       .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
@@ -1299,5 +1244,139 @@ export const createDemoContentWithAssets = mutation({
       count: createdIds.length,
       contentIds: createdIds,
     };
+  },
+});
+
+// Archive content (admin only)
+export const archiveContent = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can archive content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (content.isArchived) {
+      throw new Error("Content is already archived");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      isArchived: true,
+      archivedAt: Date.now(),
+      archivedBy: userId,
+    });
+  },
+});
+
+// Unarchive content (admin only)
+export const unarchiveContent = mutation({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can unarchive content");
+    }
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) throw new Error("Content not found");
+
+    if (!content.isArchived) {
+      throw new Error("Content is not archived");
+    }
+
+    await ctx.db.patch(args.contentId, {
+      isArchived: false,
+      archivedAt: undefined,
+      archivedBy: undefined,
+    });
+  },
+});
+
+// List archived content (admin only)
+export const listArchivedContent = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can view archived content");
+    }
+
+    const archivedContent = await ctx.db
+      .query("content")
+      .withIndex("by_archived", (q) => q.eq("isArchived", true))
+      .collect();
+
+    // Get file URLs and creator names
+    const contentWithDetails = await Promise.all(
+      archivedContent.map(async (content) => {
+        const fileUrl = content.fileId
+          ? await ctx.storage.getUrl(content.fileId)
+          : null;
+        const thumbnailUrl = content.thumbnailId
+          ? await ctx.storage.getUrl(content.thumbnailId)
+          : null;
+
+        // Get creator name
+        const creatorProfile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user_id", (q) => q.eq("userId", content.createdBy))
+          .first();
+
+        const creatorName = creatorProfile
+          ? `${creatorProfile.firstName} ${creatorProfile.lastName}`
+          : "Unknown";
+
+        // Get archiver name
+        let archivedByName = "Unknown";
+        if (content.archivedBy) {
+          const archiverId = content.archivedBy;
+          const archiverProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_user_id", (q) => q.eq("userId", archiverId))
+            .first();
+          archivedByName = archiverProfile
+            ? `${archiverProfile.firstName} ${archiverProfile.lastName}`
+            : "Unknown";
+        }
+
+        return {
+          ...content,
+          fileUrl,
+          thumbnailUrl,
+          creatorName,
+          archivedByName,
+        };
+      })
+    );
+
+    return contentWithDetails;
   },
 });
