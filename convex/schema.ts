@@ -297,26 +297,12 @@ const applicationTables = {
     contentId: v.id("content"),
     userId: v.optional(v.id("users")), // Optional for anonymous views
     viewedAt: v.number(),
-    timeSpent: v.optional(v.number()), // Time spent in seconds
     sessionId: v.string(), // To track unique sessions
   })
     .index("by_content", ["contentId"])
     .index("by_user", ["userId"])
     .index("by_content_user", ["contentId", "userId"])
     .index("by_viewed_at", ["viewedAt"]),
-
-  // Active presence (who is currently viewing content)
-  activePresence: defineTable({
-    userId: v.id("users"),
-    userName: v.string(),
-    contentId: v.id("content"),
-    contentTitle: v.string(),
-    lastHeartbeat: v.number(), // Timestamp of last activity
-  })
-    .index("by_user", ["userId"])
-    .index("by_content", ["contentId"])
-    .index("by_user_content", ["userId", "contentId"])
-    .index("by_heartbeat", ["lastHeartbeat"]),
 
   // Content recommendations (professionals recommend content to users)
   contentRecommendations: defineTable({

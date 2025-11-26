@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Eye, Users, Clock, Calendar } from "lucide-react";
+import { Eye, Users, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface ContentAnalyticsModalProps {
@@ -30,13 +30,6 @@ export function ContentAnalyticsModal({
     api.analytics.getContentAnalytics,
     open ? { contentId } : "skip"
   );
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    if (minutes === 0) return `${remainingSeconds}s`;
-    return `${minutes}m ${remainingSeconds}s`;
-  };
 
   if (!analytics) {
     return (
@@ -59,15 +52,15 @@ export function ContentAnalyticsModal({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" />
-            Content Analytics
+            <Users className="w-5 h-5" />
+            Who Viewed This Content
           </DialogTitle>
           <DialogDescription>{contentTitle}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -89,22 +82,6 @@ export function ContentAnalyticsModal({
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">
-                      Unique Sessions
-                    </p>
-                    <p className="text-2xl font-bold">{analytics.uniqueSessions}</p>
-                  </div>
-                  <div className="bg-green-50 p-2 rounded-full">
-                    <BarChart3 className="w-5 h-5 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
                       Unique Users
                     </p>
                     <p className="text-2xl font-bold">{analytics.uniqueUsers}</p>
@@ -115,33 +92,15 @@ export function ContentAnalyticsModal({
                 </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Avg. Time
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {formatTime(analytics.averageTimeSpent)}
-                    </p>
-                  </div>
-                  <div className="bg-orange-50 p-2 rounded-full">
-                    <Clock className="w-5 h-5 text-orange-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Recent Viewers */}
+          {/* Viewers List */}
           {analytics.viewersList && analytics.viewersList.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Users className="w-5 h-5" />
-                  Top Viewers
+                  Viewers
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -172,12 +131,6 @@ export function ContentAnalyticsModal({
                           </div>
                         </div>
                       </div>
-                      {viewer.totalTimeSpent && (
-                        <Badge variant="secondary" className="gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(viewer.totalTimeSpent)}
-                        </Badge>
-                      )}
                     </div>
                   ))}
                 </div>

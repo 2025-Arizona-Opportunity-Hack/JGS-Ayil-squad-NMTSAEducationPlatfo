@@ -150,7 +150,6 @@ export function ContentManager() {
   const contentGroups = useQuery(api.contentGroups.listContentGroups, {});
   const contentGroupItems = useQuery(api.contentGroups.listAllContentGroupItems, {});
   const userProfile = useQuery(api.users.getCurrentUserProfile);
-  const activeViewers = useQuery(api.presence.getActiveViewers);
   const viewCounts = useQuery(api.analytics.getContentViewCounts);
   const allPricing = useQuery(
     api.pricing.listAllPricing,
@@ -1298,34 +1297,6 @@ export function ContentManager() {
                               })()}
                             </Badge>
                           )}
-                          {/* Live Viewers */}
-                          {(() => {
-                            const viewers = activeViewers?.filter(v => v.contentId === item._id) || [];
-                            if (viewers.length === 0) return null;
-                            return (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="gap-1 text-[10px] h-5 border-green-500 text-green-600 dark:text-green-400">
-                                      <Eye className="w-2.5 h-2.5" />
-                                      {viewers.length} viewing
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <div className="space-y-1">
-                                      <div className="font-semibold text-xs mb-1">Currently viewing:</div>
-                                      {viewers.map((viewer) => (
-                                        <div key={viewer._id} className="flex items-center gap-1 text-xs">
-                                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                                          {viewer.userName}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          })()}
                           {item.password && (
                             <Badge variant="outline" className="gap-1 text-[10px] h-5 border-amber-500 text-amber-600 dark:text-amber-400">
                               <Lock className="w-2.5 h-2.5" /> Password

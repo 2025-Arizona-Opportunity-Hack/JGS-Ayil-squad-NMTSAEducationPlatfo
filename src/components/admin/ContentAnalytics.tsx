@@ -9,8 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Eye,
   Users,
-  Clock,
-  TrendingUp,
   ArrowLeft,
   Video,
   FileText,
@@ -47,13 +45,6 @@ export function ContentAnalytics() {
     }
   };
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  };
-
   if (!allAnalytics) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -65,13 +56,6 @@ export function ContentAnalytics() {
   // Calculate overall stats
   const totalViews = allAnalytics.reduce((sum, item) => sum + item.totalViews, 0);
   const totalUniqueUsers = allAnalytics.reduce((sum, item) => sum + item.uniqueUsers, 0);
-  const avgTimeAcrossAll =
-    allAnalytics.length > 0
-      ? Math.round(
-          allAnalytics.reduce((sum, item) => sum + item.averageTimeSpent, 0) /
-            allAnalytics.length
-        )
-      : 0;
 
   return (
     <div className="space-y-6">
@@ -83,7 +67,7 @@ export function ContentAnalytics() {
       </div>
 
       {/* Overall Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -111,22 +95,6 @@ export function ContentAnalytics() {
               </div>
               <div className="bg-green-50 p-3 rounded-full">
                 <Users className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Avg. Time Spent
-                </p>
-                <p className="text-2xl font-bold">{formatTime(avgTimeAcrossAll)}</p>
-              </div>
-              <div className="bg-purple-50 p-3 rounded-full">
-                <Clock className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -166,10 +134,6 @@ export function ContentAnalytics() {
                           <Users className="w-4 h-4" />
                           {item.uniqueUsers} users
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {formatTime(item.averageTimeSpent)} avg
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -202,7 +166,7 @@ export function ContentAnalytics() {
           {contentAnalytics && (
             <div className="space-y-6">
               {/* Key Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardContent className="p-4">
                     <div className="space-y-1">
@@ -214,26 +178,8 @@ export function ContentAnalytics() {
                 <Card>
                   <CardContent className="p-4">
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Unique Sessions</p>
-                      <p className="text-2xl font-bold">{contentAnalytics.uniqueSessions}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Unique Users</p>
                       <p className="text-2xl font-bold">{contentAnalytics.uniqueUsers}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Avg. Time</p>
-                      <p className="text-2xl font-bold">
-                        {formatTime(contentAnalytics.averageTimeSpent)}
-                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -264,9 +210,6 @@ export function ContentAnalytics() {
                           </div>
                           <div className="text-right text-sm">
                             <p className="font-medium">{viewer.viewCount} views</p>
-                            <p className="text-muted-foreground">
-                              {formatTime(viewer.totalTimeSpent)} total
-                            </p>
                           </div>
                         </div>
                       ))}
@@ -275,23 +218,6 @@ export function ContentAnalytics() {
                 </CardContent>
               </Card>
 
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
-                    Recent Activity (Last 30 Days)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Views in last 30 days:</span>
-                      <span className="font-semibold">{contentAnalytics.recentViews}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           )}
         </DialogContent>
