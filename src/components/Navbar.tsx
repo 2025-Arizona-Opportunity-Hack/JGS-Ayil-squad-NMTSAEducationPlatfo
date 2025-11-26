@@ -35,10 +35,7 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-4">
-              <Logo size="md" showText={false} />
-              <h1 className="text-xl font-semibold text-gray-900">
-                NMTSA Content Platform
-              </h1>
+              <Logo size="md" showText={true} />
               <Button
                 variant="ghost"
                 size="sm"

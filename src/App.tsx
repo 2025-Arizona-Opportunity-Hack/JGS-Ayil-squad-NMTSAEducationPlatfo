@@ -8,6 +8,8 @@ import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientDashboard } from "./components/ClientDashboard";
 import { RoleSelection } from "./components/RoleSelection";
 import { ProfileEditModal } from "./components/ProfileEditModal";
+import { SiteSetup } from "./components/SiteSetup";
+import { Logo } from "./components/Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -18,13 +20,23 @@ export default function App() {
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
+  const siteSetupNeeded = useQuery(api.siteSettings.isSetupNeeded);
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
   const createOwnerProfile = useMutation(api.users.createOwnerProfile);
   const [ownerBootstrapping, setOwnerBootstrapping] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(false);
 
   const handleProfileUpdated = () => {
     // Force a refresh by incrementing the key
     setProfileRefreshKey((prev) => prev + 1);
   };
+
+  // Update document title based on site settings
+  useEffect(() => {
+    if (siteSettings?.organizationName) {
+      document.title = `${siteSettings.organizationName} - Content Portal`;
+    }
+  }, [siteSettings?.organizationName]);
 
   // Check if user just logged in and should be redirected to content
   useEffect(() => {
@@ -75,15 +87,21 @@ export default function App() {
 
   // Not authenticated - show sign in form
   if (!user) {
+    const siteName = siteSettings?.organizationName || "Content Platform";
+    const siteTagline = siteSettings?.tagline || "Access your resources";
+    
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full space-y-8">
-          <div>
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-              NMTSA Content Platform
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" showText={false} />
+            </div>
+            <h2 className="text-3xl font-extrabold text-gray-900">
+              {siteName}
             </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
-              Access your neurologic music therapy resources
+            <p className="mt-2 text-sm text-gray-600">
+              {siteTagline}
             </p>
           </div>
           <SignInForm />
@@ -125,15 +143,18 @@ export default function App() {
     return <RoleSelection />;
   }
 
+  // Owner needs to complete site setup
+  if (userProfile?.role === "owner" && siteSetupNeeded && !setupComplete) {
+    return <SiteSetup onComplete={() => setSetupComplete(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">
-                NMTSA Content Platform
-              </h1>
+            <div className="flex items-center gap-3">
+              <Logo size="md" showText={true} />
             </div>
             <div className="flex items-center space-x-4">
               <Button

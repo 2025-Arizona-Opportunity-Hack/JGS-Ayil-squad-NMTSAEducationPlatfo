@@ -35,7 +35,9 @@ export function RoleSelection() {
 
   // Get current user to check if they have a name from Google
   const user = useQuery(api.auth.loggedInUser);
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
   const hasNameFromAuth = user?.name && user.name.trim().length > 0;
+  const orgName = siteSettings?.organizationName || "Content Platform";
 
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");
@@ -166,7 +168,7 @@ export function RoleSelection() {
           <div className="flex justify-center mb-4">
             <Logo size="lg" showText={false} />
           </div>
-          <CardTitle className="text-center">Welcome to NMTSA!</CardTitle>
+          <CardTitle className="text-center">Welcome to {orgName}!</CardTitle>
           <CardDescription className="text-center">
             {hasNameFromAuth
               ? "Please select your role to personalize your experience."

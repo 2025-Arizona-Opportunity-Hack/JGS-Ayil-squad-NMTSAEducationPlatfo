@@ -3,6 +3,21 @@ import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
 const applicationTables = {
+  // Site settings (singleton - only one record)
+  siteSettings: defineTable({
+    organizationName: v.string(),
+    tagline: v.optional(v.string()),
+    description: v.optional(v.string()),
+    logoId: v.optional(v.id("_storage")),
+    faviconId: v.optional(v.id("_storage")),
+    primaryColor: v.optional(v.string()),
+    setupCompleted: v.boolean(),
+    setupCompletedAt: v.optional(v.number()),
+    setupCompletedBy: v.optional(v.id("users")),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  }),
+
   // User profiles
   userProfiles: defineTable({
     userId: v.id("users"),

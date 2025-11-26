@@ -15,7 +15,16 @@ interface OrderDetails {
   userEmail?: string;
 }
 
-export function generateReceipt(order: OrderDetails) {
+interface SiteInfo {
+  organizationName: string;
+  tagline?: string;
+  supportEmail?: string;
+}
+
+export function generateReceipt(order: OrderDetails, siteInfo?: SiteInfo) {
+  const orgName = siteInfo?.organizationName || "Content Platform";
+  const tagline = siteInfo?.tagline || "";
+  const supportEmail = siteInfo?.supportEmail || "support@example.com";
   const doc = new jsPDF();
   
   // Set up colors
@@ -30,11 +39,13 @@ export function generateReceipt(order: OrderDetails) {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
-  doc.text("NMTSA", 20, 25);
+  doc.text(orgName, 20, 25);
   
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Neurological Music Therapy Services of Arizona", 20, 32);
+  if (tagline) {
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(tagline, 20, 32);
+  }
   
   // Receipt title
   doc.setTextColor(textColor);
@@ -150,10 +161,10 @@ export function generateReceipt(order: OrderDetails) {
   doc.text("Thank you for your purchase!", 105, yPos, { align: "center" });
   
   yPos += 5;
-  doc.text("For questions or support, please contact support@nmtsa.org", 105, yPos, { align: "center" });
+  doc.text(`For questions or support, please contact ${supportEmail}`, 105, yPos, { align: "center" });
   
   // Generate filename
-  const filename = `NMTSA-Receipt-${order.orderId}-${format(new Date(order.createdAt), "yyyy-MM-dd")}.pdf`;
+  const filename = `${orgName.replace(/\s+/g, "-")}-Receipt-${order.orderId}-${format(new Date(order.createdAt), "yyyy-MM-dd")}.pdf`;
   
   // Download the PDF
   doc.save(filename);
