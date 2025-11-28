@@ -47,6 +47,7 @@ export function SiteSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,21 +66,23 @@ export function SiteSettings() {
       setDescription(siteSettings.description || "");
       setPrimaryColor(siteSettings.primaryColor || "#3b82f6");
       setLogoPreview(siteSettings.logoUrl || null);
+      setLogoRemoved(false);
     }
   }, [siteSettings]);
 
   // Track changes
   useEffect(() => {
     if (siteSettings) {
+      const logoChanged = logoFile !== null || (logoRemoved && !!siteSettings.logoUrl);
       const changed =
         organizationName !== (siteSettings.organizationName || "") ||
         tagline !== (siteSettings.tagline || "") ||
         description !== (siteSettings.description || "") ||
         primaryColor !== (siteSettings.primaryColor || "#3b82f6") ||
-        logoFile !== null;
+        logoChanged;
       setHasChanges(changed);
     }
-  }, [organizationName, tagline, description, primaryColor, logoFile, siteSettings]);
+  }, [organizationName, tagline, description, primaryColor, logoFile, logoRemoved, siteSettings]);
 
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,6 +112,7 @@ export function SiteSettings() {
       setPrimaryColor(siteSettings.primaryColor || "#3b82f6");
       setLogoPreview(siteSettings.logoUrl || null);
       setLogoFile(null);
+      setLogoRemoved(false);
     }
   };
 
@@ -122,7 +126,7 @@ export function SiteSettings() {
     const toastId = toast.loading("Saving settings...");
 
     try {
-      let logoId: string | undefined;
+      let logoId: string | null | undefined = undefined;
 
       // Upload new logo if selected
       if (logoFile) {
@@ -134,6 +138,9 @@ export function SiteSettings() {
         });
         const { storageId } = await response.json();
         logoId = storageId;
+      } else if (logoRemoved) {
+        // Explicitly set to null to remove the logo
+        logoId = null;
       }
 
       await updateSiteSettings({
@@ -145,6 +152,7 @@ export function SiteSettings() {
       });
 
       setLogoFile(null);
+      setLogoRemoved(false);
       toast.success("Settings saved successfully!", { id: toastId });
     } catch (error) {
       console.error("Save error:", error);
@@ -284,6 +292,7 @@ export function SiteSettings() {
                       onClick={() => {
                         setLogoPreview(null);
                         setLogoFile(null);
+                        setLogoRemoved(true);
                       }}
                       className="text-xs text-muted-foreground h-auto p-0"
                     >

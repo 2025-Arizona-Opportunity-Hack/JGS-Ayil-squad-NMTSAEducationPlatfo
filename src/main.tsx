@@ -7,18 +7,21 @@ import "./index.css";
 import App from "./App";
 import { PublicContentViewer } from "./components/PublicContentViewer";
 import { SharedContentViewer } from "./components/SharedContentViewer";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
 
 createRoot(document.getElementById("root")!).render(
   <ConvexAuthProvider client={convex}>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/view/:contentId" element={<PublicContentViewer />} />
-        <Route path="/share/:accessToken" element={<SharedContentViewer />} />
-        <Route path="/*" element={<App />} />
-      </Routes>
-    </BrowserRouter>
-    <Toaster position="top-center" />
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/view/:contentId" element={<PublicContentViewer />} />
+          <Route path="/share/:accessToken" element={<SharedContentViewer />} />
+          <Route path="/*" element={<App />} />
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-center" />
+    </ThemeProvider>
   </ConvexAuthProvider>
 );

@@ -102,7 +102,7 @@ export const updateSiteSettings = mutation({
     organizationName: v.optional(v.string()),
     tagline: v.optional(v.string()),
     description: v.optional(v.string()),
-    logoId: v.optional(v.id("_storage")),
+    logoId: v.optional(v.union(v.id("_storage"), v.null())),
     primaryColor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -141,7 +141,8 @@ export const updateSiteSettings = mutation({
       updateData.description = args.description;
     }
     if (args.logoId !== undefined) {
-      updateData.logoId = args.logoId;
+      // If null is passed, set to undefined to remove the logo
+      updateData.logoId = args.logoId === null ? undefined : args.logoId;
     }
     if (args.primaryColor !== undefined) {
       updateData.primaryColor = args.primaryColor;

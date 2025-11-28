@@ -1,7 +1,7 @@
 "use client";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,6 @@ import { Logo } from "./components/Logo";
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
-  const createOwnerProfile = useMutation(api.users.createOwnerProfile);
   const [flow, setFlow] = useState<"signIn" | "signUp" | "forgotPassword" | "resetSent">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -208,21 +207,8 @@ export function SignInForm() {
             }
 
             void signIn("password", formData)
-              .then(async () => {
-                // If this is the very first account, make it the owner
-                if (flow === "signUp" && bootstrapNeeded) {
-                  try {
-                    await createOwnerProfile({});
-                    toast.success("Owner account created", {
-                      description: "You are the site owner. You can promote other users to admin in settings.",
-                    });
-                  } catch (err) {
-                    console.error("createOwnerProfile error:", err);
-                    toast.error("Failed to finalize owner setup", {
-                      description: "You're signed in, but owner setup did not complete. Try again or contact support.",
-                    });
-                  }
-                }
+              .then(() => {
+                // Owner profile creation is handled in App.tsx after auth state is ready
                 setSubmitting(false);
               })
               .catch((error) => {
