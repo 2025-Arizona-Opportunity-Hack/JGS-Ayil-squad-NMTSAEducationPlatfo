@@ -23,6 +23,18 @@ This app uses [Convex Auth](https://auth.convex.dev/) with multiple authenticati
 - **Google OAuth** - Sign in with Google account
 - **Anonymous auth** - For easy testing
 
+### Setting up Authentication
+
+Before using authentication, you must set up the JWT private key for signing tokens:
+
+```bash
+npm run setup:auth
+```
+
+This generates a secure RSA key pair and sets both required environment variables in your Convex deployment:
+- `JWT_PRIVATE_KEY` - Private key for signing JWTs
+- `JWKS` - Public key in JSON Web Key Set format for verification
+
 ### Setting up Google OAuth
 
 To enable Google sign-in, you need to:
