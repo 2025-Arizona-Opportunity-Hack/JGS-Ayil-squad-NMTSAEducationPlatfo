@@ -56,12 +56,12 @@ export function ContentGroupManager() {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle>Content Groups</CardTitle>
-              <CardDescription>Organize content into groups for easier management</CardDescription>
+              <CardTitle>Content Bundles</CardTitle>
+              <CardDescription>Organize content into bundles for easier management</CardDescription>
             </div>
             <Button onClick={() => setShowCreateForm(true)}>
               <Plus className="w-4 h-4 mr-1" />
-              Create Group
+              Create Bundle
             </Button>
           </div>
         </CardHeader>
@@ -69,12 +69,12 @@ export function ContentGroupManager() {
           <CardContent>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Create New Content Group</CardTitle>
+                <CardTitle className="text-base">Create New Content Bundle</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="groupName">Group Name</Label>
+                    <Label htmlFor="groupName">Bundle Name</Label>
                     <Input
                       id="groupName"
                       required
@@ -91,13 +91,13 @@ export function ContentGroupManager() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={3}
-                      placeholder="Describe what this group contains..."
+                      placeholder="Describe what this bundle contains..."
                     />
                   </div>
 
                   <div className="flex gap-3">
                     <Button type="submit">
-                      Create Group
+                      Create Bundle
                     </Button>
                     <Button
                       type="button"

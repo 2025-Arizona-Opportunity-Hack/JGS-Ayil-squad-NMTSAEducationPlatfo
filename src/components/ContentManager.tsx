@@ -177,7 +177,7 @@ export function ContentManager() {
     const tagMatch = selectedTags.length === 0 || 
       (item.tags && selectedTags.some(tag => item.tags?.includes(tag)));
     
-    // Filter by content group
+    // Filter by content bundle
     const groupMatch = !selectedGroupId ||
       (contentGroupItems?.some((groupItem: any) => 
         groupItem.contentId === item._id && groupItem.groupId === selectedGroupId
@@ -697,18 +697,18 @@ export function ContentManager() {
             </>
           )}
 
-          {/* Content Group Filter */}
+          {/* Content Bundle Filter */}
           {contentGroups && contentGroups.length > 0 && (
             <>
               <Separator />
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Filter by Content Group</Label>
+                <Label className="text-sm font-medium">Filter by Content Bundle</Label>
                 <select
                   value={selectedGroupId || "all"}
                   onChange={(e) => setSelectedGroupId(e.target.value === "all" ? null : e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="all">All Groups</option>
+                  <option value="all">All Bundles</option>
                   {contentGroups.map((group: any) => (
                     <option key={group._id} value={group._id}>
                       {group.name}
@@ -1902,7 +1902,7 @@ export function ContentManager() {
               Are you sure you want to delete "{contentToDelete?.title}"? This action cannot be undone and will:
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Delete all version history</li>
-                <li>Remove from all content groups</li>
+                <li>Remove from all content bundles</li>
                 <li>Delete all access permissions</li>
                 <li>Remove all shares</li>
               </ul>

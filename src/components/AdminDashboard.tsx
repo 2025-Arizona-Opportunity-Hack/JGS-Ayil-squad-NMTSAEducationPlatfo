@@ -93,7 +93,7 @@ export function AdminDashboard() {
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
                     >
                       <FolderTree className="w-4 h-4" />
-                      Content Groups
+                      Content Bundles
                     </TabsTrigger>
                     <TabsTrigger 
                       value="users" 

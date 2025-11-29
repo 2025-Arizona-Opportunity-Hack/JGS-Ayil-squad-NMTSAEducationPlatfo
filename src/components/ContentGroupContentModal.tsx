@@ -90,7 +90,7 @@ export function ContentGroupContentModal({
         <DialogHeader>
           <DialogTitle>Manage Content: {groupName}</DialogTitle>
           <DialogDescription>
-            Add or remove content from this group
+            Add or remove content from this bundle
           </DialogDescription>
         </DialogHeader>
 
@@ -99,7 +99,7 @@ export function ContentGroupContentModal({
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-sm font-medium">
-                Content in Group ({groupWithItems?.items?.length || 0})
+                Content in Bundle ({groupWithItems?.items?.length || 0})
               </h4>
               <Button
                 onClick={() => setShowAddContent(!showAddContent)}
@@ -174,7 +174,7 @@ export function ContentGroupContentModal({
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                   <Folder className="w-12 h-12 text-muted-foreground mb-2" />
-                  <p className="text-muted-foreground">No content in this group yet</p>
+                  <p className="text-muted-foreground">No content in this bundle yet</p>
                 </CardContent>
               </Card>
             )}
@@ -185,7 +185,7 @@ export function ContentGroupContentModal({
             <>
               <Separator />
               <div>
-                <h4 className="text-sm font-medium mb-3">Add Content to Group</h4>
+                <h4 className="text-sm font-medium mb-3">Add Content to Bundle</h4>
                 
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
