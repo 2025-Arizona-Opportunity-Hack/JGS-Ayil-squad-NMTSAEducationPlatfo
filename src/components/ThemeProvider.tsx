@@ -75,6 +75,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       
       // Also set a CSS custom property for the raw hex value (useful for gradients, etc.)
       document.documentElement.style.setProperty("--primary-hex", siteSettings.primaryColor);
+      
+      // Cache in localStorage to prevent flash on next page load
+      localStorage.setItem("theme-primary-color", siteSettings.primaryColor);
     }
   }, [siteSettings?.primaryColor]);
 
