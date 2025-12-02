@@ -45,24 +45,27 @@ const applicationTables = {
   // Content items
   content: defineTable({
     title: v.string(),
-    description: v.optional(v.string()),
-    type: v.union(
+    description: v.optional(v.string()), // Short description
+    // Main attachment - one of these types
+    attachmentType: v.union(
       v.literal("video"),
-      v.literal("article"),
-      v.literal("document"),
-      v.literal("audio")
+      v.literal("image"),
+      v.literal("pdf"),
+      v.literal("audio"),
+      v.literal("richtext")
     ),
+    // For file-based attachments (video, image, pdf, audio)
     fileId: v.optional(v.id("_storage")),
-    externalUrl: v.optional(v.string()),
-    richTextContent: v.optional(v.string()),
-    body: v.optional(v.string()), // General rich text body field for all content types
+    externalUrl: v.optional(v.string()), // For external video/audio URLs
+    // File metadata
     thumbnailId: v.optional(v.id("_storage")),
     duration: v.optional(v.number()),
     fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
+    // Access control
     isPublic: v.boolean(),
     createdBy: v.id("users"),
-    authorName: v.optional(v.string()), // Optional author name, defaults to "Neurological Music Therapy Services of Arizona"
+    authorName: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     accessExpiresAt: v.optional(v.number()),
     // Availability control fields
@@ -86,16 +89,23 @@ const applicationTables = {
     reviewNotes: v.optional(v.string()),
     publishedAt: v.optional(v.number()),
     // Archive
-    isArchived: v.optional(v.boolean()), // Archived content is only visible to admins
+    isArchived: v.optional(v.boolean()),
     archivedAt: v.optional(v.number()),
     archivedBy: v.optional(v.id("users")),
     // Password protection
-    password: v.optional(v.string()), // Optional password for private content sharing
-    // Temporary field for migration
+    password: v.optional(v.string()),
+    // Legacy fields for migration (can be removed after migration)
+    type: v.optional(v.union(
+      v.literal("video"),
+      v.literal("article"),
+      v.literal("document"),
+      v.literal("audio")
+    )),
+    body: v.optional(v.string()),
     organizationId: v.optional(v.string()),
   })
     .index("by_creator", ["createdBy"])
-    .index("by_type", ["type"])
+    .index("by_attachment_type", ["attachmentType"])
     .index("by_public", ["isPublic"])
     .index("by_status", ["status"])
     .index("by_active", ["active"])

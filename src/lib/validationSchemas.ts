@@ -3,13 +3,11 @@ import { z } from "zod";
 // Content form validation schema
 export const contentFormSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
-  description: z.string().max(1000, "Description must be less than 1000 characters").optional().or(z.literal("")),
-  type: z.enum(["video", "article", "document", "audio"], {
-    message: "Content type is required",
+  description: z.string().max(500, "Description must be less than 500 characters").optional().or(z.literal("")),
+  attachmentType: z.enum(["video", "image", "pdf", "audio", "richtext"], {
+    message: "Attachment type is required",
   }),
   externalUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
-  richTextContent: z.string().optional().or(z.literal("")),
-  body: z.string().optional().or(z.literal("")),
   isPublic: z.boolean(),
   authorName: z.string().max(200, "Author name must be less than 200 characters").optional().or(z.literal("")),
   tags: z.string().optional().or(z.literal("")),

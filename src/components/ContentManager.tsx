@@ -101,7 +101,7 @@ export function ContentManager() {
   const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [previewContentId, setPreviewContentId] = useState<string | null>(null);
-  const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
+  const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "image" | "pdf" | "audio" | "richtext">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected" | "changes_requested">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -126,22 +126,20 @@ export function ContentManager() {
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
     defaultValues: {
-    title: "",
-    description: "",
-      type: "video",
-    externalUrl: "",
-    richTextContent: "",
-      body: "",
-    isPublic: false,
-    authorName: "",
-    tags: "",
+      title: "",
+      description: "",
+      attachmentType: "video",
+      externalUrl: "",
+      isPublic: false,
+      authorName: "",
+      tags: "",
       active: true,
       startDate: "",
       endDate: "",
     },
   });
 
-  const formType = watch("type");
+  const formAttachmentType = watch("attachmentType");
 
   // Get all content and filter client-side to avoid flickering
   const allContent = useQuery(api.content.listContent, {});
@@ -165,7 +163,7 @@ export function ContentManager() {
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
-    const typeMatch = contentTypeFilter === "all" || item.type === contentTypeFilter;
+    const typeMatch = contentTypeFilter === "all" || item.attachmentType === contentTypeFilter;
     const statusMatch = statusFilter === "all" || item.status === statusFilter;
     
     // Search by title or description
@@ -189,7 +187,7 @@ export function ContentManager() {
   // Sort content
   const sortedContent = [...filteredContent].sort((a, b) => {
     const statusOrder = { published: 0, changes_requested: 1, review: 2, draft: 3, rejected: 4 };
-    const typeOrder = { video: 0, audio: 1, article: 2, document: 3 };
+    const typeOrder = { video: 0, image: 1, pdf: 2, audio: 3, richtext: 4 };
     
     switch (sortBy) {
       case "date-desc":
@@ -203,7 +201,7 @@ export function ContentManager() {
       case "status":
         return (statusOrder[a.status as keyof typeof statusOrder] || 5) - (statusOrder[b.status as keyof typeof statusOrder] || 5);
       case "type":
-        return (typeOrder[a.type as keyof typeof typeOrder] || 4) - (typeOrder[b.type as keyof typeof typeOrder] || 4);
+        return (typeOrder[a.attachmentType as keyof typeof typeOrder] || 5) - (typeOrder[b.attachmentType as keyof typeof typeOrder] || 5);
       default:
         return 0;
     }
@@ -322,8 +320,8 @@ export function ContentManager() {
       let fileId = undefined;
       let thumbnailId = undefined;
       
-      // Handle file upload for videos, documents, and audio
-      if (selectedFile && (data.type === "video" || data.type === "document" || data.type === "audio")) {
+      // Handle file upload for videos, pdfs, images, and audio
+      if (selectedFile && (data.attachmentType === "video" || data.attachmentType === "pdf" || data.attachmentType === "audio" || data.attachmentType === "image")) {
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
@@ -337,7 +335,7 @@ export function ContentManager() {
         fileId = json.storageId;
         
         // Generate and upload thumbnail for videos
-        if (data.type === "video") {
+        if (data.attachmentType === "video") {
           try {
             toast.loading("Generating thumbnail...", { id: "thumbnail" });
             const thumbnailBlob = await generateVideoThumbnail(selectedFile);
@@ -367,12 +365,10 @@ export function ContentManager() {
       await createContent({
         title: data.title,
         description: data.description || undefined,
-        type: data.type,
+        attachmentType: data.attachmentType,
         fileId: fileId,
         thumbnailId: thumbnailId,
         externalUrl: data.externalUrl || undefined,
-        richTextContent: data.richTextContent || undefined,
-        body: data.body || undefined,
         isPublic: data.isPublic,
         authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
@@ -479,19 +475,24 @@ export function ContentManager() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file type based on content type
-      if (formType === "video" && !file.type.startsWith('video/')) {
+      // Check file type based on attachment type
+      if (formAttachmentType === "video" && !file.type.startsWith('video/')) {
         toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
-      if (formType === "audio" && !file.type.startsWith('audio/')) {
+      if (formAttachmentType === "audio" && !file.type.startsWith('audio/')) {
         toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
-      if (formType === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
-        toast.error('Please select a document file (PDF, DOC, etc.)');
+      if (formAttachmentType === "pdf" && !file.type.includes('pdf')) {
+        toast.error('Please select a PDF file');
+        e.target.value = '';
+        return;
+      }
+      if (formAttachmentType === "image" && !file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
         e.target.value = '';
         return;
       }
@@ -499,20 +500,21 @@ export function ContentManager() {
     }
   };
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (attachmentType: string) => {
     const iconProps = { className: "w-5 h-5", strokeWidth: 2 };
-    switch (type) {
+    switch (attachmentType) {
       case "video": return <Video {...iconProps} />;
-      case "article": return <Newspaper {...iconProps} />;
-      case "document": return <FileText {...iconProps} />;
+      case "richtext": return <Newspaper {...iconProps} />;
+      case "pdf": return <FileText {...iconProps} />;
       case "audio": return <FileAudio {...iconProps} />;
+      case "image": return <Folder {...iconProps} />;
       default: return <Folder {...iconProps} />;
     }
   };
 
-  const getContentTypeCount = (type: "all" | "video" | "article" | "document" | "audio") => {
-    if (type === "all") return allContent?.length || 0;
-    return allContent?.filter(item => item.type === type).length || 0;
+  const getContentTypeCount = (attachmentType: "all" | "video" | "image" | "pdf" | "audio" | "richtext") => {
+    if (attachmentType === "all") return allContent?.length || 0;
+    return allContent?.filter(item => item.attachmentType === attachmentType).length || 0;
   };
 
   const getStatusIcon = (status: string | undefined) => {
@@ -628,14 +630,15 @@ export function ContentManager() {
 
       {/* Content Type Filter */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Content Type</Label>
+            <Label className="text-sm font-medium">Attachment Type</Label>
             <div className="space-y-1">
               {[
                 { value: "all", label: "All Types", icon: null, count: allContent?.length || 0 },
                 { value: "video", label: "Video", icon: Video, count: getContentTypeCount("video") },
                 { value: "audio", label: "Audio", icon: FileAudio, count: getContentTypeCount("audio") },
-                { value: "article", label: "Article", icon: Newspaper, count: getContentTypeCount("article") },
-                { value: "document", label: "Document", icon: FileText, count: getContentTypeCount("document") },
+                { value: "image", label: "Image", icon: Folder, count: getContentTypeCount("image") },
+                { value: "pdf", label: "PDF", icon: FileText, count: getContentTypeCount("pdf") },
+                { value: "richtext", label: "Rich Text", icon: Newspaper, count: getContentTypeCount("richtext") },
               ].map((type) => {
                 const Icon = type.icon;
                 return (
@@ -837,25 +840,26 @@ export function ContentManager() {
             </div>
 
               <div className="space-y-2">
-                <Label htmlFor="type">Type *</Label>
+                <Label htmlFor="attachmentType">Attachment Type *</Label>
               <select
-                  id="type"
-                  {...register("type")}
+                  id="attachmentType"
+                  {...register("attachmentType")}
                   className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    errors.type ? "border-destructive" : ""
+                    errors.attachmentType ? "border-destructive" : ""
                   }`}
               >
                 <option value="video">Video</option>
                 <option value="audio">Audio</option>
-                <option value="article">Article</option>
-                <option value="document">Document</option>
+                <option value="image">Image</option>
+                <option value="pdf">PDF</option>
+                <option value="richtext">Rich Text</option>
               </select>
-                {errors.type && (
-                  <p className="text-sm text-destructive">{errors.type.message}</p>
+                {errors.attachmentType && (
+                  <p className="text-sm text-destructive">{errors.attachmentType.message}</p>
                 )}
             </div>
 
-              {formType === "video" && (
+              {formAttachmentType === "video" && (
                 <div className="space-y-2">
                   <Label htmlFor="videoFile">Video File</Label>
                   <Input
@@ -872,7 +876,7 @@ export function ContentManager() {
               </div>
             )}
 
-              {formType === "audio" && (
+              {formAttachmentType === "audio" && (
                 <div className="space-y-2">
                   <Label htmlFor="audioFile">Audio File</Label>
                   <Input
@@ -889,13 +893,13 @@ export function ContentManager() {
               </div>
             )}
 
-              {formType === "document" && (
+              {formAttachmentType === "image" && (
                 <div className="space-y-2">
-                  <Label htmlFor="documentFile">Document File</Label>
+                  <Label htmlFor="imageFile">Image File</Label>
                   <Input
-                    id="documentFile"
+                    id="imageFile"
                   type="file"
-                  accept=".pdf,.doc,.docx,.txt,.rtf"
+                  accept="image/*"
                   onChange={handleFileChange}
                 />
                 {selectedFile && (
@@ -906,34 +910,40 @@ export function ContentManager() {
               </div>
             )}
 
-              {formType === "article" && (
+              {formAttachmentType === "pdf" && (
                 <div className="space-y-2">
-                  <Label htmlFor="richTextContent">Content</Label>
-                  <Textarea
-                    id="richTextContent"
-                    {...register("richTextContent")}
-                  rows={6}
-                  placeholder="Enter article content..."
+                  <Label htmlFor="pdfFile">PDF File</Label>
+                  <Input
+                    id="pdfFile"
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileChange}
                 />
+                {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
               </div>
             )}
 
-              <div className="space-y-2">
-                <Label htmlFor="body">Body (optional rich text)</Label>
-                <Controller
-                  name="body"
-                  control={control}
-                  render={({ field }) => (
-                    <LexicalEditor
-                      value={field.value || ""}
-                      onChange={field.onChange}
-                      placeholder="Add additional rich text content, notes, or descriptions here..."
-                      isRichText={true}
-                    />
-                  )}
-                />
-                <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information. Use the toolbar for formatting.</p>
+              {formAttachmentType === "richtext" && (
+                <div className="space-y-2">
+                  <Label htmlFor="description">Content</Label>
+                  <Controller
+                    name="description"
+                    control={control}
+                    render={({ field }) => (
+                      <LexicalEditor
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        placeholder="Enter your rich text content here..."
+                        isRichText={true}
+                      />
+                    )}
+                  />
               </div>
+            )}
 
               <div className="space-y-2">
                 <Label htmlFor="externalUrl">External URL (optional)</Label>
@@ -1771,9 +1781,9 @@ export function ContentManager() {
                         </a>
                       </div>
                     )}
-                    {previewContent.richTextContent && (
+                    {previewContent.attachmentType === "richtext" && previewContent.description && (
                       <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
-                        <div dangerouslySetInnerHTML={{ __html: previewContent.richTextContent }} />
+                        <div dangerouslySetInnerHTML={{ __html: previewContent.description }} />
                       </div>
                     )}
                   </div>

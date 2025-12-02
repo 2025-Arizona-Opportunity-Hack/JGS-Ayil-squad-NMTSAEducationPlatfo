@@ -42,15 +42,15 @@ export function ClientDashboard() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "article" | "document" | "audio">("all");
+  const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "image" | "pdf" | "audio" | "richtext">("all");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "title-asc" | "title-desc" | "type">("date-desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(12);
 
-  const getContentTypeCount = (type: "all" | "video" | "article" | "document" | "audio") => {
-    if (type === "all") return allContent?.length || 0;
-    return allContent?.filter(item => item.type === type).length || 0;
+  const getContentTypeCount = (attachmentType: "all" | "video" | "image" | "pdf" | "audio" | "richtext") => {
+    if (attachmentType === "all") return allContent?.length || 0;
+    return allContent?.filter(item => item.attachmentType === attachmentType).length || 0;
   };
 
   const allTags = Array.from(new Set(allContent?.flatMap(item => item.tags || [])));
@@ -66,7 +66,7 @@ export function ClientDashboard() {
       : true;
 
     const matchesType = contentTypeFilter !== "all"
-      ? item.type === contentTypeFilter
+      ? item.attachmentType === contentTypeFilter
       : true;
 
     const matchesGroup = selectedGroupId
@@ -78,7 +78,7 @@ export function ClientDashboard() {
 
   // Sort content
   const sortedContent = [...filteredContent].sort((a, b) => {
-    const typeOrder = { video: 0, audio: 1, article: 2, document: 3 };
+    const typeOrder = { video: 0, image: 1, pdf: 2, audio: 3, richtext: 4 };
     
     switch (sortBy) {
       case "date-desc":
@@ -90,7 +90,7 @@ export function ClientDashboard() {
       case "title-desc":
         return b.title.localeCompare(a.title);
       case "type":
-        return (typeOrder[a.type as keyof typeof typeOrder] || 4) - (typeOrder[b.type as keyof typeof typeOrder] || 4);
+        return (typeOrder[a.attachmentType as keyof typeof typeOrder] || 5) - (typeOrder[b.attachmentType as keyof typeof typeOrder] || 5);
       default:
         return 0;
     }
@@ -232,14 +232,15 @@ export function ClientDashboard() {
 
               {/* Content Type Filter */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Content Type</Label>
+                <Label className="text-sm font-medium">Attachment Type</Label>
                 <div className="space-y-1">
                   {[
                     { value: "all", label: "All Types", icon: null, count: allContent?.length || 0 },
                     { value: "video", label: "Video", icon: Video, count: getContentTypeCount("video") },
                     { value: "audio", label: "Audio", icon: FileAudio, count: getContentTypeCount("audio") },
-                    { value: "article", label: "Article", icon: Newspaper, count: getContentTypeCount("article") },
-                    { value: "document", label: "Document", icon: FileText, count: getContentTypeCount("document") },
+                    { value: "image", label: "Image", icon: Folder, count: getContentTypeCount("image") },
+                    { value: "pdf", label: "PDF", icon: FileText, count: getContentTypeCount("pdf") },
+                    { value: "richtext", label: "Rich Text", icon: Newspaper, count: getContentTypeCount("richtext") },
                   ].map((type) => {
                     const Icon = type.icon;
                     return (

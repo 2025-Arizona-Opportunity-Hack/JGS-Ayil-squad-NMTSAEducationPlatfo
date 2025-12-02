@@ -7,17 +7,16 @@ export const createContent = mutation({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
-    type: v.union(
+    attachmentType: v.union(
       v.literal("video"),
-      v.literal("article"),
-      v.literal("document"),
-      v.literal("audio")
+      v.literal("image"),
+      v.literal("pdf"),
+      v.literal("audio"),
+      v.literal("richtext")
     ),
     fileId: v.optional(v.id("_storage")),
     thumbnailId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
-    richTextContent: v.optional(v.string()),
-    body: v.optional(v.string()),
     isPublic: v.boolean(),
     authorName: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
@@ -45,12 +44,9 @@ export const createContent = mutation({
       throw new Error("Start date must be before end date");
     }
 
-    // Normalize: Articles should not store richTextContent
-    const data = args.type === "article" ? { ...args, richTextContent: undefined } : args;
-
     // All new content starts as draft
     const contentId = await ctx.db.insert("content", {
-      ...data,
+      ...args,
       createdBy: userId,
       status: "draft",
       isArchived: false,
@@ -60,8 +56,8 @@ export const createContent = mutation({
   },
 });
 
-// One-time migration: remove richTextContent from article documents
-export const normalizeArticlesRemoveRichText = mutation({
+// One-time migration: migrate old type field to new attachmentType field
+export const migrateContentToAttachmentType = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -73,24 +69,36 @@ export const normalizeArticlesRemoveRichText = mutation({
       .unique();
 
     if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can run normalization");
+      throw new Error("Only admins or the owner can run migration");
     }
 
-    const all = await ctx.db
-      .query("content")
-      .withIndex("by_type", (q) => q.eq("type", "article"))
-      .collect();
+    const all = await ctx.db.query("content").collect();
 
     let updated = 0;
     for (const doc of all) {
-      const needsMove = typeof (doc as any).richTextContent === "string" && (doc as any).richTextContent.length > 0;
-      if (!needsMove) continue;
+      // Skip if already has attachmentType
+      if (doc.attachmentType) continue;
 
-      const next: any = { richTextContent: undefined };
-      if (!doc.body || doc.body.length === 0) {
-        next.body = (doc as any).richTextContent;
+      // Map old type to new attachmentType
+      const oldType = doc.type;
+      let attachmentType: "video" | "image" | "pdf" | "audio" | "richtext" = "richtext";
+      
+      if (oldType === "video") attachmentType = "video";
+      else if (oldType === "audio") attachmentType = "audio";
+      else if (oldType === "document") attachmentType = "pdf";
+      else if (oldType === "article") {
+        // Articles become richtext, move body to richTextContent
+        attachmentType = "richtext";
       }
-      await ctx.db.patch(doc._id, next);
+
+      const updateData: any = { attachmentType };
+      
+      // For articles, move body content to description
+      if (oldType === "article" && doc.body && !doc.description) {
+        updateData.description = doc.body;
+      }
+
+      await ctx.db.patch(doc._id, updateData);
       updated++;
     }
 
@@ -101,11 +109,12 @@ export const normalizeArticlesRemoveRichText = mutation({
 // List content (with access control and workflow filtering)
 export const listContent = query({
   args: {
-    type: v.optional(v.union(
+    attachmentType: v.optional(v.union(
       v.literal("video"),
-      v.literal("article"),
-      v.literal("document"),
-      v.literal("audio")
+      v.literal("image"),
+      v.literal("pdf"),
+      v.literal("audio"),
+      v.literal("richtext")
     )),
     status: v.optional(v.union(
       v.literal("draft"),
@@ -134,14 +143,14 @@ export const listContent = query({
         .withIndex("by_status", (q) => q.eq("status", args.status!))
         .collect();
       
-      // Further filter by type if provided
-      if (args.type) {
-        allContent = allContent.filter(c => c.type === args.type);
+      // Further filter by attachmentType if provided
+      if (args.attachmentType) {
+        allContent = allContent.filter(c => c.attachmentType === args.attachmentType);
       }
-    } else if (args.type) {
+    } else if (args.attachmentType) {
       allContent = await ctx.db
         .query("content")
-        .withIndex("by_type", (q) => q.eq("type", args.type!))
+        .withIndex("by_attachment_type", (q) => q.eq("attachmentType", args.attachmentType!))
         .collect();
     } else {
       allContent = await ctx.db.query("content").collect();
@@ -460,16 +469,15 @@ export const updateContent = mutation({
     contentId: v.id("content"),
     title: v.string(),
     description: v.optional(v.string()),
-    type: v.union(
+    attachmentType: v.union(
       v.literal("video"),
-      v.literal("article"),
-      v.literal("document"),
-      v.literal("audio")
+      v.literal("image"),
+      v.literal("pdf"),
+      v.literal("audio"),
+      v.literal("richtext")
     ),
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
-    richTextContent: v.optional(v.string()),
-    body: v.optional(v.string()),
     isPublic: v.boolean(),
     authorName: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
@@ -516,13 +524,8 @@ export const updateContent = mutation({
       throw new Error("Start date must be before end date");
     }
 
-    // Normalize: Articles should not store richTextContent
-    const normalized = args.type === "article"
-      ? { ...args, richTextContent: undefined }
-      : args;
-
     // Update content
-    const { contentId, ...updateData } = normalized;
+    const { contentId, ...updateData } = args;
     await ctx.db.patch(contentId, updateData);
   },
 });
@@ -855,9 +858,8 @@ export const createDemoContent = mutation({
       // Autism Spectrum Disorder Resources
       {
         title: "Music Therapy for Autism Spectrum Disorder",
-        description: "Evidence-based approaches for using music therapy with individuals on the autism spectrum",
-        type: "article" as const,
-        body: `<h2>Music Therapy and Autism</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy and Autism</h2>
 <p>Music therapy has emerged as a powerful intervention for individuals with Autism Spectrum Disorder (ASD), addressing communication, social interaction, and behavioral challenges.</p>
 <h3>Key Applications:</h3>
 <ul>
@@ -876,9 +878,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Stress Reduction Through Music Therapy",
-        description: "Practical techniques for managing stress and anxiety using therapeutic music interventions",
-        type: "article" as const,
-        body: `<h2>Music Therapy for Stress Management</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy for Stress Management</h2>
 <p>Music therapy offers evidence-based techniques for reducing stress, managing anxiety, and promoting relaxation and well-being.</p>
 <h3>Stress-Reducing Techniques:</h3>
 <ul>
@@ -896,9 +897,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Introduction to Neurologic Music Therapy",
-        description: "Learn about the fundamentals of NMT and how it helps patients with neurological conditions",
-        type: "article" as const,
-        body: `<h2>What is Neurologic Music Therapy?</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>What is Neurologic Music Therapy?</h2>
 <p>Neurologic Music Therapy (NMT) is an evidence-based treatment system that uses music to address cognitive, sensory, and motor dysfunctions due to neurological disease.</p>
 <h3>Key Benefits:</h3>
 <ul>
@@ -914,9 +914,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Sensory Processing and Music Therapy",
-        description: "How music therapy supports individuals with sensory processing challenges",
-        type: "article" as const,
-        body: `<h2>Music Therapy for Sensory Processing</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy for Sensory Processing</h2>
 <p>Music therapy provides structured sensory experiences that can help individuals with sensory processing difficulties regulate their responses to environmental stimuli.</p>
 <h3>Sensory Integration Through Music:</h3>
 <ul>
@@ -932,9 +931,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Music Therapy for ADHD and Executive Function",
-        description: "Using music-based interventions to support attention, focus, and executive functioning",
-        type: "article" as const,
-        body: `<h2>Music Therapy and ADHD</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy and ADHD</h2>
 <p>Music therapy offers unique approaches to supporting individuals with ADHD by engaging attention, promoting self-regulation, and developing executive function skills.</p>
 <h3>Therapeutic Approaches:</h3>
 <ul>
@@ -951,9 +949,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Trauma-Informed Music Therapy",
-        description: "Approaches for using music therapy with trauma survivors in a safe and supportive way",
-        type: "article" as const,
-        body: `<h2>Music Therapy and Trauma Recovery</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy and Trauma Recovery</h2>
 <p>Trauma-informed music therapy provides a safe, non-verbal medium for processing traumatic experiences and building resilience.</p>
 <h3>Core Principles:</h3>
 <ul>
@@ -972,9 +969,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Music Therapy for Depression and Mood Disorders",
-        description: "Evidence-based music therapy interventions for managing depression and improving mood",
-        type: "article" as const,
-        body: `<h2>Music Therapy and Depression</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy and Depression</h2>
 <p>Music therapy has demonstrated effectiveness in reducing symptoms of depression and supporting emotional well-being through active and receptive interventions.</p>
 <h3>Therapeutic Interventions:</h3>
 <ul>
@@ -992,9 +988,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Rhythmic Auditory Stimulation for Gait Training",
-        description: "Using RAS techniques to improve walking patterns in neurological rehabilitation",
-        type: "article" as const,
-        body: `<h2>Rhythmic Auditory Stimulation (RAS)</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Rhythmic Auditory Stimulation (RAS)</h2>
 <p>RAS is a neurologic music therapy technique that uses rhythmic cues to improve motor control and coordination, particularly in gait rehabilitation.</p>
 <h3>Clinical Applications:</h3>
 <ul>
@@ -1013,9 +1008,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Music Therapy for Dementia and Alzheimer's",
-        description: "Using music to support memory, cognition, and quality of life in dementia care",
-        type: "article" as const,
-        body: `<h2>Music Therapy in Dementia Care</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy in Dementia Care</h2>
 <p>Music therapy is one of the most effective non-pharmacological interventions for individuals with dementia, accessing preserved musical memory even in advanced stages.</p>
 <h3>Benefits:</h3>
 <ul>
@@ -1033,9 +1027,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Melodic Intonation Therapy for Aphasia",
-        description: "Using MIT to support speech recovery after stroke or brain injury",
-        type: "article" as const,
-        body: `<h2>Melodic Intonation Therapy (MIT)</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Melodic Intonation Therapy (MIT)</h2>
 <p>MIT is a specialized neurologic music therapy technique that uses melodic and rhythmic elements to facilitate speech production in individuals with non-fluent aphasia.</p>
 <h3>The MIT Process:</h3>
 <ul>
@@ -1053,9 +1046,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Music Therapy for Pain Management",
-        description: "Using music-based interventions to reduce pain perception and improve coping",
-        type: "article" as const,
-        body: `<h2>Music Therapy and Pain Management</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy and Pain Management</h2>
 <p>Music therapy offers non-pharmacological approaches to pain management through multiple mechanisms including distraction, relaxation, and emotional support.</p>
 <h3>Pain Management Techniques:</h3>
 <ul>
@@ -1072,9 +1064,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Pediatric Music Therapy: Developmental Support",
-        description: "Using music therapy to support child development across multiple domains",
-        type: "article" as const,
-        body: `<h2>Music Therapy in Pediatric Care</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy in Pediatric Care</h2>
 <p>Music therapy supports children's development across cognitive, motor, communication, social, and emotional domains through engaging, developmentally appropriate interventions.</p>
 <h3>Developmental Areas:</h3>
 <ul>
@@ -1092,9 +1083,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Group Music Therapy: Building Community and Connection",
-        description: "The power of group music-making for social connection and therapeutic growth",
-        type: "article" as const,
-        body: `<h2>Group Music Therapy</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Group Music Therapy</h2>
 <p>Group music therapy harnesses the power of shared musical experiences to build community, develop social skills, and provide mutual support.</p>
 <h3>Group Benefits:</h3>
 <ul>
@@ -1112,9 +1102,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Music Therapy Assessment and Treatment Planning",
-        description: "Professional guide to conducting music therapy assessments and developing individualized treatment plans",
-        type: "article" as const,
-        body: `<h2>Music Therapy Assessment</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Music Therapy Assessment</h2>
 <p>Comprehensive assessment is the foundation of effective music therapy practice, informing individualized treatment planning and goal development.</p>
 <h3>Assessment Domains:</h3>
 <ul>
@@ -1134,9 +1123,8 @@ export const createDemoContent = mutation({
       },
       {
         title: "Cultural Considerations in Music Therapy",
-        description: "Providing culturally responsive and inclusive music therapy services",
-        type: "article" as const,
-        body: `<h2>Culturally Responsive Music Therapy</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Culturally Responsive Music Therapy</h2>
 <p>Effective music therapy practice requires cultural humility, awareness, and responsiveness to the diverse backgrounds and identities of clients.</p>
 <h3>Key Principles:</h3>
 <ul>
@@ -1203,8 +1191,7 @@ export const createDemoContentWithAssets = mutation({
     const demoContents = [
       {
         title: "Therapy Session Demo Video",
-        description: "Example video uploaded to Convex storage",
-        type: "video" as const,
+        attachmentType: "video" as const,
         fileId: args.videoFileId,
         thumbnailId: args.thumbnailId,
         isPublic: true,
@@ -1213,9 +1200,8 @@ export const createDemoContentWithAssets = mutation({
       },
       {
         title: "Music Therapy Visuals",
-        description: "Demo article showcasing images from Convex storage",
-        type: "article" as const,
-        body: `<h2>Image Examples</h2>
+        attachmentType: "richtext" as const,
+        description: `<h2>Image Examples</h2>
 <p>Below are sample images uploaded to Convex storage.</p>
 <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start">${imageUrls
   .slice(0, 4)

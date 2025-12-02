@@ -14,9 +14,8 @@ interface ContentViewerProps {
     _id: string;
     title: string;
     description?: string;
-    type: "video" | "article" | "document" | "audio";
+    attachmentType: "video" | "image" | "pdf" | "audio" | "richtext";
     externalUrl?: string;
-    richTextContent?: string;
     authorName?: string;
     tags?: string[];
     _creationTime: number;
@@ -62,13 +61,14 @@ export function ContentViewer({ content }: ContentViewerProps) {
     );
   }
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (attachmentType: string) => {
     const iconProps = { className: "w-5 h-5", strokeWidth: 2 };
-    switch (type) {
+    switch (attachmentType) {
       case "video": return <Video {...iconProps} />;
-      case "article": return <Newspaper {...iconProps} />;
-      case "document": return <FileText {...iconProps} />;
+      case "richtext": return <Newspaper {...iconProps} />;
+      case "pdf": return <FileText {...iconProps} />;
       case "audio": return <FileAudio {...iconProps} />;
+      case "image": return <Folder {...iconProps} />;
       default: return <Folder {...iconProps} />;
     }
   };
@@ -79,9 +79,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
         <Card key={item._id} className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <div className="flex items-start justify-between mb-2">
-              <div>{getTypeIcon(item.type)}</div>
+              <div>{getTypeIcon(item.attachmentType)}</div>
               <Badge variant="secondary" className="capitalize">
-                {item.type}
+                {item.attachmentType === "richtext" ? "Rich Text" : item.attachmentType === "pdf" ? "PDF" : item.attachmentType}
               </Badge>
             </div>
             <CardTitle className="text-lg">{item.title}</CardTitle>
@@ -95,9 +95,9 @@ export function ContentViewer({ content }: ContentViewerProps) {
           
           <CardContent className="space-y-4">
             {/* Rich text preview - fixed height area */}
-            {item.richTextContent && item.type === "article" ? (
+            {item.description && item.attachmentType === "richtext" ? (
               <p className="text-sm text-muted-foreground line-clamp-3 min-h-[60px]">
-                {item.richTextContent.substring(0, 150)}...
+                {item.description.substring(0, 150)}...
               </p>
             ) : (
               <div className="min-h-[60px]" /> 

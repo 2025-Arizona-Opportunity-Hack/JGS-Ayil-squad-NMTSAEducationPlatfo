@@ -38,11 +38,10 @@ interface ContentEditModalProps {
     _id: string;
     title: string;
     description?: string;
-    type: "video" | "article" | "document" | "audio";
+    attachmentType: "video" | "image" | "pdf" | "audio" | "richtext";
     fileId?: string;
     externalUrl?: string;
     richTextContent?: string;
-    body?: string;
     isPublic: boolean;
     tags?: string[];
     active: boolean;
@@ -71,15 +70,12 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   } = useForm<ContentFormData>({
     resolver: zodResolver(contentFormSchema),
     defaultValues: {
-    title: content.title,
-    description: content.description || "",
-    type: content.type,
-    externalUrl: content.externalUrl || "",
-    richTextContent: content.richTextContent || "",
-      body: content.body || "",
-    isPublic: content.isPublic,
-    authorName: content.authorName || "",
-    tags: content.tags?.join(", ") || "",
+      title: content.title,
+      description: content.description || "",
+      attachmentType: content.attachmentType,
+      externalUrl: content.externalUrl || "",
+      isPublic: content.isPublic,
+      tags: content.tags?.join(", ") || "",
       active: content.active,
       startDate: content.startDate ? format(new Date(content.startDate), "yyyy-MM-dd'T'HH:mm") : "",
       endDate: content.endDate ? format(new Date(content.endDate), "yyyy-MM-dd'T'HH:mm") : "",
@@ -87,7 +83,7 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     },
   });
 
-  const formType = watch("type");
+  const formAttachmentType = watch("attachmentType");
   const formIsPublic = watch("isPublic");
   const formActive = watch("active");
 
@@ -96,11 +92,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     reset({
       title: content.title,
       description: content.description || "",
-      type: content.type,
+      attachmentType: content.attachmentType,
       externalUrl: content.externalUrl || "",
-      authorName: content.authorName || "",
-      richTextContent: content.richTextContent || "",
-      body: content.body || "",
       isPublic: content.isPublic,
       tags: content.tags?.join(", ") || "",
       active: content.active,
@@ -122,8 +115,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
     try {
       let fileId = content.fileId;
       
-      // Handle file upload for videos, documents, and audio if a new file is selected
-      if (selectedFile && (data.type === "video" || data.type === "document" || data.type === "audio")) {
+      // Handle file upload for videos, pdfs, images, and audio if a new file is selected
+      if (selectedFile && (data.attachmentType === "video" || data.attachmentType === "pdf" || data.attachmentType === "audio" || data.attachmentType === "image")) {
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
@@ -141,11 +134,9 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
         contentId: content._id as any,
         title: data.title,
         description: data.description || undefined,
-        type: data.type,
+        attachmentType: data.attachmentType,
         fileId: fileId as any,
         externalUrl: data.externalUrl || undefined,
-        richTextContent: data.richTextContent || undefined,
-        body: data.body || undefined,
         isPublic: data.isPublic,
         authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
@@ -168,19 +159,24 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file type based on content type
-      if (formType === "video" && !file.type.startsWith('video/')) {
+      // Check file type based on attachment type
+      if (formAttachmentType === "video" && !file.type.startsWith('video/')) {
         toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
-      if (formType === "audio" && !file.type.startsWith('audio/')) {
+      if (formAttachmentType === "audio" && !file.type.startsWith('audio/')) {
         toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
-      if (formType === "document" && !file.type.includes('pdf') && !file.type.includes('document')) {
-        toast.error('Please select a document file (PDF, DOC, etc.)');
+      if (formAttachmentType === "pdf" && !file.type.includes('pdf')) {
+        toast.error('Please select a PDF file');
+        e.target.value = '';
+        return;
+      }
+      if (formAttachmentType === "image" && !file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
         e.target.value = '';
         return;
       }
@@ -283,35 +279,37 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="type">Type *</Label>
-            <Select value={formType} onValueChange={(value) => setValue("type", value as "video" | "article" | "document" | "audio")}>
-              <SelectTrigger id="type" className={errors.type ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select content type" />
+            <Label htmlFor="attachmentType">Attachment Type *</Label>
+            <Select value={formAttachmentType} onValueChange={(value) => setValue("attachmentType", value as "video" | "image" | "pdf" | "audio" | "richtext")}>
+              <SelectTrigger id="attachmentType" className={errors.attachmentType ? "border-red-500" : ""}>
+                <SelectValue placeholder="Select attachment type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="video">Video</SelectItem>
                 <SelectItem value="audio">Audio</SelectItem>
-                <SelectItem value="article">Article</SelectItem>
-                <SelectItem value="document">Document</SelectItem>
+                <SelectItem value="image">Image</SelectItem>
+                <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="richtext">Rich Text</SelectItem>
               </SelectContent>
             </Select>
-            {errors.type && (
-              <p className="text-sm text-red-500">{errors.type.message}</p>
+            {errors.attachmentType && (
+              <p className="text-sm text-red-500">{errors.attachmentType.message}</p>
             )}
           </div>
 
-          {(formType === "video" || formType === "document" || formType === "audio") && (
+          {(formAttachmentType === "video" || formAttachmentType === "pdf" || formAttachmentType === "audio" || formAttachmentType === "image") && (
             <div className="space-y-2">
               <Label htmlFor="file">
-                {formType === "video" ? "Video File" : 
-                 formType === "audio" ? "Audio File" : "Document File"}
+                {formAttachmentType === "video" ? "Video File" : 
+                 formAttachmentType === "audio" ? "Audio File" : 
+                 formAttachmentType === "image" ? "Image File" : "PDF File"}
               </Label>
               
               {contentWithFile?.fileUrl && !selectedFile && (
                 <div className="p-3 bg-muted border rounded-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium">Current {formType} file</p>
+                      <p className="text-sm font-medium">Current {formAttachmentType} file</p>
                       <p className="text-xs text-muted-foreground">Choose a new file to replace</p>
                     </div>
                     <Button
@@ -336,9 +334,10 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
                 id="file"
                 type="file"
                 accept={
-                  formType === "video" ? "video/*" : 
-                  formType === "audio" ? "audio/*" : 
-                  ".pdf,.doc,.docx,.txt,.rtf"
+                  formAttachmentType === "video" ? "video/*" : 
+                  formAttachmentType === "audio" ? "audio/*" : 
+                  formAttachmentType === "image" ? "image/*" :
+                  ".pdf"
                 }
                 onChange={handleFileChange}
               />
@@ -353,34 +352,23 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             </div>
           )}
 
-          {formType === "article" && (
+          {formAttachmentType === "richtext" && (
             <div className="space-y-2">
-              <Label htmlFor="richTextContent">Content</Label>
-              <Textarea
-                id="richTextContent"
-                {...register("richTextContent")}
-                rows={6}
-                placeholder="Enter article content..."
+              <Label htmlFor="description">Content</Label>
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <LexicalEditor
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    placeholder="Enter your rich text content here..."
+                    isRichText={true}
+                  />
+                )}
               />
             </div>
           )}
-
-          <div className="space-y-2">
-            <Label htmlFor="body">Body (optional rich text)</Label>
-            <Controller
-              name="body"
-              control={control}
-              render={({ field }) => (
-                <LexicalEditor
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  placeholder="Add additional rich text content, notes, or descriptions here..."
-                  isRichText={true}
-                />
-              )}
-            />
-            <p className="text-xs text-muted-foreground">This field is available for all content types to add supplementary information. Use the toolbar for formatting.</p>
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="externalUrl">External URL (optional)</Label>
