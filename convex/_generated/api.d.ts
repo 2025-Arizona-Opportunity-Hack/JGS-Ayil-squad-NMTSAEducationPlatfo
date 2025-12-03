@@ -24,6 +24,7 @@ import type * as inviteCodes from "../inviteCodes.js";
 import type * as orders from "../orders.js";
 import type * as pricing from "../pricing.js";
 import type * as publicContent from "../publicContent.js";
+import type * as purchaseRequests from "../purchaseRequests.js";
 import type * as recommendations from "../recommendations.js";
 import type * as router from "../router.js";
 import type * as siteSettings from "../siteSettings.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   pricing: typeof pricing;
   publicContent: typeof publicContent;
+  purchaseRequests: typeof purchaseRequests;
   recommendations: typeof recommendations;
   router: typeof router;
   siteSettings: typeof siteSettings;

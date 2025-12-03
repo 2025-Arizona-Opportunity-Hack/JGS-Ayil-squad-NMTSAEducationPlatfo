@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive, Settings } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive, Settings, ClipboardList } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
@@ -12,6 +12,7 @@ import { SalesAnalytics } from "./admin/SalesAnalytics";
 import { AdminOrders } from "./admin/AdminOrders";
 import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
+import { PurchaseRequests } from "./admin/PurchaseRequests";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
@@ -117,6 +118,13 @@ export function AdminDashboard() {
                       Analytics
                     </TabsTrigger>
                     <TabsTrigger 
+                      value="purchaseRequests" 
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+                    >
+                      <ClipboardList className="w-4 h-4" />
+                      Purchase Requests
+                    </TabsTrigger>
+                    <TabsTrigger 
                       value="orders" 
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
                     >
@@ -180,6 +188,10 @@ export function AdminDashboard() {
 
                 <TabsContent value="analytics" className="m-0 p-6 h-full">
                   <SalesAnalytics />
+                </TabsContent>
+
+                <TabsContent value="purchaseRequests" className="m-0 p-6 h-full">
+                  <PurchaseRequests />
                 </TabsContent>
 
                 <TabsContent value="orders" className="m-0 p-6 h-full">

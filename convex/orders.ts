@@ -7,6 +7,7 @@ export const createOrder = mutation({
   args: {
     contentId: v.id("content"),
     pricingId: v.id("contentPricing"),
+    purchaseRequestId: v.optional(v.id("purchaseRequests")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -34,6 +35,24 @@ export const createOrder = mutation({
       throw new Error("You already have access to this content");
     }
 
+    // Check for approved purchase request
+    const approvedRequest = await ctx.db
+      .query("purchaseRequests")
+      .withIndex("by_user_content", (q) => 
+        q.eq("userId", userId).eq("contentId", args.contentId)
+      )
+      .filter((q) => q.eq(q.field("status"), "approved"))
+      .first();
+
+    if (!approvedRequest) {
+      throw new Error("You need an approved purchase request to buy this content. Please request permission first.");
+    }
+
+    // Check if the approved request has already been used
+    if (approvedRequest.purchaseCompletedAt) {
+      throw new Error("This purchase request has already been used");
+    }
+
     // Calculate access expiration
     let accessExpiresAt: number | undefined = undefined;
     if (pricing.accessDuration) {
@@ -53,7 +72,7 @@ export const createOrder = mutation({
       createdAt: Date.now(),
     });
 
-    return orderId;
+    return { orderId, purchaseRequestId: approvedRequest._id };
   },
 });
 
@@ -61,6 +80,7 @@ export const createOrder = mutation({
 export const completeOrder = mutation({
   args: {
     orderId: v.id("orders"),
+    purchaseRequestId: v.optional(v.id("purchaseRequests")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -88,6 +108,28 @@ export const completeOrder = mutation({
         expiresAt: order.accessExpiresAt,
         canShare: false,
       });
+    }
+
+    // Mark the purchase request as completed
+    if (args.purchaseRequestId) {
+      await ctx.db.patch(args.purchaseRequestId, {
+        purchaseCompletedAt: Date.now(),
+      });
+    } else {
+      // Find and mark the approved request as completed
+      const approvedRequest = await ctx.db
+        .query("purchaseRequests")
+        .withIndex("by_user_content", (q) => 
+          q.eq("userId", userId).eq("contentId", order.contentId)
+        )
+        .filter((q) => q.eq(q.field("status"), "approved"))
+        .first();
+
+      if (approvedRequest && !approvedRequest.purchaseCompletedAt) {
+        await ctx.db.patch(approvedRequest._id, {
+          purchaseCompletedAt: Date.now(),
+        });
+      }
     }
 
     return { success: true };

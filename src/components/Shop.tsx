@@ -1,10 +1,21 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { toast } from "sonner";
 import { MockPaymentModal } from "./MockPaymentModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Video,
   FileText,
@@ -13,12 +24,19 @@ import {
   ShoppingCart,
   CheckCircle2,
   Clock,
+  Send,
+  Loader2,
 } from "lucide-react";
 
 export function Shop() {
   const pricedContent = useQuery(api.pricing.listPricedContent);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestMessage, setRequestMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createPurchaseRequest = useMutation(api.purchaseRequests.createPurchaseRequest);
 
   const getContentIcon = (type: string) => {
     switch (type) {
@@ -51,6 +69,30 @@ export function Shop() {
   const handleBuyClick = (item: any) => {
     setSelectedItem(item);
     setShowPaymentModal(true);
+  };
+
+  const handleRequestClick = (item: any) => {
+    setSelectedItem(item);
+    setRequestMessage("");
+    setShowRequestModal(true);
+  };
+
+  const handleSubmitRequest = async () => {
+    if (!selectedItem) return;
+    setIsSubmitting(true);
+    try {
+      await createPurchaseRequest({
+        contentId: selectedItem._id,
+        message: requestMessage || undefined,
+      });
+      toast.success("Purchase request submitted! You'll be notified when it's reviewed.");
+      setShowRequestModal(false);
+      setSelectedItem(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to submit request");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!pricedContent) {
@@ -101,7 +143,7 @@ export function Shop() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    {getContentIcon(item.type)}
+                    {getContentIcon(item.attachmentType || item.type || "unknown")}
                   </div>
                 )}
                 {item.hasAccess && (
@@ -118,9 +160,9 @@ export function Shop() {
               <div className="p-4 space-y-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    {getContentIcon(item.type)}
+                    {getContentIcon(item.attachmentType || item.type || "unknown")}
                     <Badge variant="outline" className="text-xs capitalize">
-                      {item.type}
+                      {item.attachmentType || item.type || "content"}
                     </Badge>
                   </div>
                   <h3 className="font-semibold text-lg line-clamp-2">
@@ -154,28 +196,73 @@ export function Shop() {
                 </div>
 
                 {/* Action Button */}
-                <Button
-                  className="w-full"
-                  onClick={() => handleBuyClick(item)}
-                  disabled={item.hasAccess || false}
-                >
-                  {item.hasAccess ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Already Owned
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Buy Now
-                    </>
-                  )}
-                </Button>
+                <ShopItemButton 
+                  item={item} 
+                  onRequestClick={handleRequestClick}
+                  onBuyClick={handleBuyClick}
+                />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Request Modal */}
+      <Dialog open={showRequestModal} onOpenChange={setShowRequestModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Request to Purchase</DialogTitle>
+            <DialogDescription>
+              Submit a request to purchase this content. An admin will review your request.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedItem && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium">{selectedItem.title}</h4>
+                <p className="text-lg font-bold mt-1">
+                  ${formatPrice(selectedItem.pricing.price)} {selectedItem.pricing.currency}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="requestMessage">Message (optional)</Label>
+                <Textarea
+                  id="requestMessage"
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder="Tell us why you'd like to purchase this content..."
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRequestModal(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitRequest} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Submit Request
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Modal */}
       {selectedItem && showPaymentModal && (
@@ -193,5 +280,73 @@ export function Shop() {
         />
       )}
     </div>
+  );
+}
+
+// Separate component to handle per-item purchase request status
+function ShopItemButton({ 
+  item, 
+  onRequestClick, 
+  onBuyClick 
+}: { 
+  item: any; 
+  onRequestClick: (item: any) => void;
+  onBuyClick: (item: any) => void;
+}) {
+  const purchaseStatus = useQuery(api.purchaseRequests.canPurchaseContent, {
+    contentId: item._id,
+  });
+
+  if (!purchaseStatus) {
+    return (
+      <Button className="w-full" disabled>
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Loading...
+      </Button>
+    );
+  }
+
+  // Already owns the content
+  if (item.hasAccess) {
+    return (
+      <Button className="w-full" disabled>
+        <CheckCircle2 className="w-4 h-4 mr-2" />
+        Already Owned
+      </Button>
+    );
+  }
+
+  // Can purchase (has approved request)
+  if (purchaseStatus.canPurchase) {
+    return (
+      <div className="space-y-2">
+        <Badge className="w-full justify-center bg-green-100 text-green-800 hover:bg-green-100">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          Request Approved
+        </Badge>
+        <Button className="w-full" onClick={() => onBuyClick(item)}>
+          <ShoppingCart className="w-4 h-4 mr-2" />
+          Complete Purchase
+        </Button>
+      </div>
+    );
+  }
+
+  // Has pending request
+  if (purchaseStatus.requestStatus === "pending") {
+    return (
+      <Button className="w-full" disabled variant="secondary">
+        <Clock className="w-4 h-4 mr-2" />
+        Request Pending
+      </Button>
+    );
+  }
+
+  // Needs to request
+  return (
+    <Button className="w-full" onClick={() => onRequestClick(item)}>
+      <Send className="w-4 h-4 mr-2" />
+      Request to Purchase
+    </Button>
   );
 }

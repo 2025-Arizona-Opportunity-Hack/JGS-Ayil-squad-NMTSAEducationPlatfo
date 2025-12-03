@@ -292,6 +292,28 @@ const applicationTables = {
     .index("by_content_user", ["contentId", "userId"])
     .index("by_viewed_at", ["viewedAt"]),
 
+  // Purchase requests (users request permission to purchase content)
+  purchaseRequests: defineTable({
+    userId: v.id("users"),
+    contentId: v.id("content"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("denied")
+    ),
+    message: v.optional(v.string()), // Optional message from user explaining why they want access
+    adminNotes: v.optional(v.string()), // Notes from admin when approving/denying
+    createdAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.id("users")),
+    // Once approved, track if they've completed the purchase
+    purchaseCompletedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_content", ["contentId"])
+    .index("by_status", ["status"])
+    .index("by_user_content", ["userId", "contentId"]),
+
   // Content recommendations (professionals recommend content to users)
   contentRecommendations: defineTable({
     contentId: v.id("content"),
