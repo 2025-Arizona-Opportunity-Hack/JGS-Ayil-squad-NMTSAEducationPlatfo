@@ -1,6 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
+
+// Helper to get effective permissions for a user profile
+function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
+  if (profile.permissions && profile.permissions.length > 0) {
+    return profile.permissions as Permission[];
+  }
+  return getDefaultPermissions(profile.role);
+}
 
 // Generate a random invite code
 function generateCode(): string {
@@ -28,14 +37,17 @@ export const createInviteCode = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Check if user is an admin
+    // Check if user has permission to generate invite codes
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can create invite codes");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
+      throw new Error("You don't have permission to create invite codes");
     }
 
     // Generate a unique code
@@ -107,14 +119,17 @@ export const listInviteCodes = query({
       throw new Error("Not authenticated");
     }
 
-    // Check if user is an admin
+    // Check if user has permission to view invite codes
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can view invite codes");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
+      throw new Error("You don't have permission to view invite codes");
     }
 
     const inviteCodes = await ctx.db.query("inviteCodes").collect();
@@ -151,14 +166,17 @@ export const deactivateInviteCode = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Check if user is an admin
+    // Check if user has permission to manage invite codes
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can deactivate invite codes");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
+      throw new Error("You don't have permission to deactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {
@@ -178,14 +196,17 @@ export const reactivateInviteCode = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Check if user is an admin
+    // Check if user has permission to manage invite codes
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can reactivate invite codes");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
+      throw new Error("You don't have permission to reactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {

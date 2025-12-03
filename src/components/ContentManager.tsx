@@ -88,6 +88,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -149,7 +150,8 @@ export function ContentManager() {
   const viewCounts = useQuery(api.analytics.getContentViewCounts);
   const allPricing = useQuery(
     api.pricing.listAllPricing,
-    (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor" || userProfile?.role === "contributor") ? undefined as any : "skip" as any
+    hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SET_CONTENT_PRICING) || 
+    hasPermission(userProfile?.effectivePermissions, PERMISSIONS.VIEW_ALL_CONTENT) ? undefined as any : "skip" as any
   );
   const previewContent = useQuery(
     api.content.getContent,
@@ -1082,8 +1084,8 @@ export function ContentManager() {
                 </div>
               </div>
 
-              {/* Password Protection (Admin and Owner Only) */}
-              {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+              {/* Password Protection (requires MANAGE_CONTENT_ACCESS permission) */}
+              {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.MANAGE_CONTENT_ACCESS) && (
                 <div className="space-y-2 pt-4 border-t">
                   <Label htmlFor="password">Password Protection (optional)</Label>
                   <Input
@@ -1379,8 +1381,8 @@ export function ContentManager() {
                           Preview Content
                         </DropdownMenuItem>
 
-                        {/* Review - Admins and Editors only, when in review status */}
-                        {item.status === "review" && (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor") && (
+                        {/* Review - requires REVIEW_CONTENT permission, when in review status */}
+                        {item.status === "review" && hasPermission(userProfile?.effectivePermissions, PERMISSIONS.REVIEW_CONTENT) && (
                           <DropdownMenuItem 
                             onClick={() => handleReviewContent(item)}
                             className="text-yellow-600 focus:text-yellow-600"
@@ -1390,9 +1392,9 @@ export function ContentManager() {
                           </DropdownMenuItem>
                         )}
 
-                        {/* Submit for Review - Admins and Contributors, when draft/rejected/changes_requested */}
+                        {/* Submit for Review - requires SUBMIT_FOR_REVIEW permission, when draft/rejected/changes_requested */}
                         {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
-                         (userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                         hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SUBMIT_FOR_REVIEW) && (
                           <DropdownMenuItem 
                             onClick={() => void handleSubmitForReview(item._id)}
                             className="text-blue-600 focus:text-blue-600"
@@ -1402,8 +1404,8 @@ export function ContentManager() {
                           </DropdownMenuItem>
                         )}
 
-                        {/* Edit - Admins and Contributors */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                        {/* Edit - requires EDIT_CONTENT permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.EDIT_CONTENT) && (
                           <DropdownMenuItem onClick={() => handleEditContent(item)}>
                             <FileEdit className="w-4 h-4 mr-2" />
                             Edit Content
@@ -1421,16 +1423,16 @@ export function ContentManager() {
                           )}
                         </DropdownMenuItem>
 
-                        {/* Share with 3rd Party - Admins, Editors, Contributors */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "editor" || userProfile?.role === "contributor") && (
+                        {/* Share with 3rd Party - requires SHARE_WITH_THIRD_PARTY permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SHARE_WITH_THIRD_PARTY) && (
                           <DropdownMenuItem onClick={() => handleThirdPartyShare(item)}>
                             <UserPlus className="w-4 h-4 mr-2" />
                             Share with 3rd Party
                           </DropdownMenuItem>
                         )}
 
-                        {/* Recommend to User - Professionals only */}
-                        {userProfile?.role === "professional" && (
+                        {/* Recommend to User - requires RECOMMEND_CONTENT permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.RECOMMEND_CONTENT) && (
                           <DropdownMenuItem onClick={() => {
                             setSelectedContent(item);
                             setShowRecommendModal(true);
@@ -1440,16 +1442,16 @@ export function ContentManager() {
                           </DropdownMenuItem>
                         )}
 
-                        {/* Manage Access - Admins and Owners only */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                        {/* Manage Access - requires MANAGE_CONTENT_ACCESS permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.MANAGE_CONTENT_ACCESS) && (
                           <DropdownMenuItem onClick={() => handleManageAccess(item)}>
                             <Eye className="w-4 h-4 mr-2" />
                             Manage Access
                           </DropdownMenuItem>
                         )}
 
-                        {/* Set Pricing - Admins and Owners only */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                        {/* Set Pricing - requires SET_CONTENT_PRICING permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SET_CONTENT_PRICING) && (
                           <DropdownMenuItem onClick={() => {
                             setSelectedContent(item);
                             setShowPricingModal(true);
@@ -1472,8 +1474,8 @@ export function ContentManager() {
 
                         <DropdownMenuSeparator />
 
-                        {/* Archive - Admins only */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner") && (
+                        {/* Archive - requires ARCHIVE_CONTENT permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.ARCHIVE_CONTENT) && (
                           <DropdownMenuItem 
                             onClick={() => void handleArchiveContent(item._id)}
                             className="text-orange-600 focus:text-orange-600 focus:bg-orange-50"
@@ -1483,8 +1485,8 @@ export function ContentManager() {
                           </DropdownMenuItem>
                         )}
 
-                        {/* Delete - Admins and Contributors */}
-                        {(userProfile?.role === "admin" || userProfile?.role === "owner" || userProfile?.role === "contributor") && (
+                        {/* Delete - requires DELETE_CONTENT permission */}
+                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.DELETE_CONTENT) && (
                           <DropdownMenuItem 
                             onClick={() => setContentToDelete(item)}
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"

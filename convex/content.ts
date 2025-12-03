@@ -1,6 +1,15 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
+
+// Helper to get effective permissions for a user profile
+function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
+  if (profile.permissions && profile.permissions.length > 0) {
+    return profile.permissions as Permission[];
+  }
+  return getDefaultPermissions(profile.role);
+}
 
 // Create content (as draft)
 export const createContent = mutation({
@@ -29,14 +38,17 @@ export const createContent = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if user has permission to create content (contributor, editor, or admin)
+    // Check if user has permission to create content
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
-      throw new Error("Only admins, editors, contributors, or the owner can create content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
+      throw new Error("You don't have permission to create content");
     }
 
     // Validate dates
@@ -68,8 +80,11 @@ export const migrateContentToAttachmentType = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can run migration");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_SITE_SETTINGS)) {
+      throw new Error("You don't have permission to run migrations");
     }
 
     const all = await ctx.db.query("content").collect();
@@ -156,11 +171,12 @@ export const listContent = query({
       allContent = await ctx.db.query("content").collect();
     }
 
-    // Filter out archived content for non-admins
-    const isAdmin = profile.role === "admin" || profile.role === "owner";
-    const filteredContent = isAdmin 
-      ? allContent.filter(c => !c.isArchived) // Admins see non-archived in main list (archived has separate view)
-      : allContent.filter(c => !c.isArchived); // Non-admins never see archived
+    // Filter out archived content
+    const permissions = getEffectivePermissions(profile);
+    const canViewArchived = hasPermission(permissions, PERMISSIONS.VIEW_ARCHIVED_CONTENT);
+    const filteredContent = canViewArchived 
+      ? allContent.filter(c => !c.isArchived) // Users with permission see non-archived in main list (archived has separate view)
+      : allContent.filter(c => !c.isArchived); // Others never see archived
 
     // Filter content based on access and workflow status
     const accessibleContent = [];
@@ -194,14 +210,14 @@ export const listContent = query({
         reviewerName,
       };
 
-      // Admins, owners, and editors can see all content regardless of status and availability
-      if (profile.role === "admin" || profile.role === "owner" || profile.role === "editor") {
+      // Users with VIEW_ALL_CONTENT permission can see all content regardless of status and availability
+      if (hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
         accessibleContent.push(contentWithNames);
         continue;
       }
 
-      // Contributors can see their own drafts and all published content
-      if (profile.role === "contributor") {
+      // Users with CREATE_CONTENT permission can see their own drafts and all published content
+      if (hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
         if (content.createdBy === userId) {
           // Can see own content in any status
           accessibleContent.push(contentWithNames);
@@ -328,14 +344,17 @@ export const grantContentAccess = mutation({
     const currentUserId = await getAuthUserId(ctx);
     if (!currentUserId) throw new Error("Not authenticated");
 
-    // Check if current user is admin
+    // Check if current user has permission to manage content access
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can grant content access");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
+      throw new Error("You don't have permission to grant content access");
     }
 
     return await ctx.db.insert("contentAccess", {
@@ -357,8 +376,11 @@ export const generateUploadUrl = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
-      throw new Error("Only admins, editors, contributors, or the owner can upload content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
+      throw new Error("You don't have permission to upload content");
     }
 
     return await ctx.storage.generateUploadUrl();
@@ -380,8 +402,11 @@ export const updateContentPublic = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can update content visibility");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
+      throw new Error("You don't have permission to update content visibility");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -423,8 +448,9 @@ export const getContent = query({
       reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
     }
 
-    // Admins, owners, and editors can see all content
-    if (profile.role === "admin" || profile.role === "owner" || profile.role === "editor") {
+    // Users with VIEW_ALL_CONTENT permission can see all content
+    const permissions = getEffectivePermissions(profile);
+    if (hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
       return {
         ...content,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
@@ -495,29 +521,28 @@ export const updateContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "owner", "editor", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, the owner, editors, and contributors can update content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)) {
+      throw new Error("You don't have permission to edit content");
     }
 
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new Error("Content not found");
 
-    // Permission checks based on role
-    if (profile.role === "contributor") {
-      // Contributors can only edit their own drafts or rejected content
+    // Permission checks: users without VIEW_ALL_CONTENT can only edit their own content or drafts
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
+      // Can only edit own content
       if (content.createdBy !== userId) {
-        throw new Error("Contributors can only edit their own content");
+        throw new Error("You can only edit your own content");
       }
-      if (content.status !== "draft" && content.status !== "rejected") {
-        throw new Error("Contributors can only edit content in draft or rejected status");
-      }
-    } else if (profile.role === "editor") {
-      // Editors can edit any draft or rejected content
-      if (content.status !== "draft" && content.status !== "rejected") {
-        throw new Error("Editors can only edit content in draft or rejected status");
+      // Can only edit drafts, rejected, or changes_requested
+      if (content.status !== "draft" && content.status !== "rejected" && content.status !== "changes_requested") {
+        throw new Error("You can only edit content in draft, rejected, or changes_requested status");
       }
     }
-    // Admins and owner can edit any content at any time
+    // Users with VIEW_ALL_CONTENT can edit any content at any time
 
     // Validate dates
     if (args.startDate && args.endDate && args.startDate > args.endDate) {
@@ -544,16 +569,19 @@ export const submitForReview = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "owner", "contributor"].includes(profile.role)) {
-      throw new Error("Only admins, the owner, and contributors can submit content for review");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.SUBMIT_FOR_REVIEW)) {
+      throw new Error("You don't have permission to submit content for review");
     }
 
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new Error("Content not found");
 
-    // Contributors can only submit their own content (admins and owner can submit any)
-    if (profile.role === "contributor" && content.createdBy !== userId) {
-      throw new Error("Contributors can only submit their own content");
+    // Users without VIEW_ALL_CONTENT can only submit their own content
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT) && content.createdBy !== userId) {
+      throw new Error("You can only submit your own content for review");
     }
 
     // Can only submit drafts, rejected content, or content with changes requested
@@ -584,9 +612,11 @@ export const approveContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only editors and admins can approve content
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
-      throw new Error("Only editors, admins, or the owner can approve content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
+      throw new Error("You don't have permission to approve content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -621,9 +651,11 @@ export const rejectContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only editors and admins can reject content
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
-      throw new Error("Only editors, admins, or the owner can reject content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
+      throw new Error("You don't have permission to reject content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -657,9 +689,11 @@ export const requestChanges = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only editors and admins can request changes
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner" && profile.role !== "editor")) {
-      throw new Error("Only editors, admins, or the owner can request changes");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
+      throw new Error("You don't have permission to request changes");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -692,9 +726,11 @@ export const unpublishContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only admins or owner can unpublish content
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can unpublish content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.PUBLISH_CONTENT)) {
+      throw new Error("You don't have permission to unpublish content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -724,27 +760,24 @@ export const deleteContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.DELETE_CONTENT)) {
+      throw new Error("You don't have permission to delete content");
+    }
+
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new Error("Content not found");
 
-    // Permission checks
-    if (profile?.role === "admin" || profile?.role === "owner") {
-      // Admins can delete any content
-    } else if (profile?.role === "editor") {
-      // Editors can delete draft and rejected content
-      if (content.status !== "draft" && content.status !== "rejected") {
-        throw new Error("Editors can only delete content in draft or rejected status");
-      }
-    } else if (profile?.role === "contributor") {
-      // Contributors can only delete their own draft or rejected content
+    // Users without VIEW_ALL_CONTENT can only delete their own drafts/rejected content
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
       if (content.createdBy !== userId) {
-        throw new Error("Contributors can only delete their own content");
+        throw new Error("You can only delete your own content");
       }
       if (content.status !== "draft" && content.status !== "rejected") {
-        throw new Error("Contributors can only delete content in draft or rejected status");
+        throw new Error("You can only delete content in draft or rejected status");
       }
-    } else {
-      throw new Error("You don't have permission to delete content");
     }
 
     // Delete related records
@@ -850,8 +883,11 @@ export const createDemoContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
-      throw new Error("Only admins, editors, contributors, or the owner can create content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
+      throw new Error("You don't have permission to create content");
     }
 
     const demoContents = [
@@ -1247,8 +1283,11 @@ export const archiveContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can archive content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.ARCHIVE_CONTENT)) {
+      throw new Error("You don't have permission to archive content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -1266,7 +1305,7 @@ export const archiveContent = mutation({
   },
 });
 
-// Unarchive content (admin only)
+// Unarchive content (requires RESTORE_ARCHIVED_CONTENT permission)
 export const unarchiveContent = mutation({
   args: {
     contentId: v.id("content"),
@@ -1280,8 +1319,11 @@ export const unarchiveContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can unarchive content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.RESTORE_ARCHIVED_CONTENT)) {
+      throw new Error("You don't have permission to unarchive content");
     }
 
     const content = await ctx.db.get(args.contentId);
@@ -1311,8 +1353,11 @@ export const listArchivedContent = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can view archived content");
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ARCHIVED_CONTENT)) {
+      throw new Error("You don't have permission to view archived content");
     }
 
     const archivedContent = await ctx.db

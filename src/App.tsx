@@ -12,6 +12,7 @@ import { SiteSetup } from "./components/SiteSetup";
 import { Logo } from "./components/Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
 
 export default function App() {
   const navigate = useNavigate();
@@ -186,7 +187,13 @@ export default function App() {
       </nav>
 
       <main className="mx-auto py-6 sm:px-6 lg:px-8">
-        {userProfile?.role === "owner" || userProfile?.role === "admin" || userProfile?.role === "editor" || userProfile?.role === "contributor" ? (
+        {hasAnyPermission(userProfile?.effectivePermissions, [
+          PERMISSIONS.CREATE_CONTENT,
+          PERMISSIONS.EDIT_CONTENT,
+          PERMISSIONS.VIEW_ALL_CONTENT,
+          PERMISSIONS.VIEW_USERS,
+          PERMISSIONS.MANAGE_SITE_SETTINGS,
+        ]) ? (
           <AdminDashboard />
         ) : (
           <ClientDashboard />

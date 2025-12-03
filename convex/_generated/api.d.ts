@@ -22,6 +22,7 @@ import type * as generateThumbnail from "../generateThumbnail.js";
 import type * as http from "../http.js";
 import type * as inviteCodes from "../inviteCodes.js";
 import type * as orders from "../orders.js";
+import type * as permissions from "../permissions.js";
 import type * as pricing from "../pricing.js";
 import type * as publicContent from "../publicContent.js";
 import type * as purchaseRequests from "../purchaseRequests.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inviteCodes: typeof inviteCodes;
   orders: typeof orders;
+  permissions: typeof permissions;
   pricing: typeof pricing;
   publicContent: typeof publicContent;
   purchaseRequests: typeof purchaseRequests;

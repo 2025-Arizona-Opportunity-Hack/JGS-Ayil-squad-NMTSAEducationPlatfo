@@ -30,6 +30,9 @@ const applicationTables = {
       v.literal("parent"),
       v.literal("professional")
     ),
+    // Permission-based access control - array of permission strings
+    // If not set, defaults are derived from role
+    permissions: v.optional(v.array(v.string())),
     firstName: v.string(),
     lastName: v.string(),
     profilePictureId: v.optional(v.id("_storage")),
@@ -46,14 +49,14 @@ const applicationTables = {
   content: defineTable({
     title: v.string(),
     description: v.optional(v.string()), // Short description
-    // Main attachment - one of these types
-    attachmentType: v.union(
+    // Main attachment - one of these types (optional for legacy content migration)
+    attachmentType: v.optional(v.union(
       v.literal("video"),
       v.literal("image"),
       v.literal("pdf"),
       v.literal("audio"),
       v.literal("richtext")
-    ),
+    )),
     // For file-based attachments (video, image, pdf, audio)
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()), // For external video/audio URLs

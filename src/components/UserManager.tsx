@@ -11,12 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export function UserManager() {
   const users = useQuery(api.users.listUsers);
   const currentProfile = useQuery(api.users.getCurrentUserProfile);
   const updateUserRole = useMutation(api.users.updateUserRole);
   const promoteToAdmin = useMutation(api.users.promoteToAdmin);
+
+  // Permission-based checks
+  const canUpdateRoles = hasPermission(currentProfile?.effectivePermissions, PERMISSIONS.UPDATE_USER_ROLES);
+  const canPromoteToAdmin = hasPermission(currentProfile?.effectivePermissions, PERMISSIONS.PROMOTE_TO_ADMIN);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -75,21 +80,25 @@ export function UserManager() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {/* Owner cannot be changed; Admin cannot be changed */}
+                    {/* Owner cannot be changed; Admin can only be changed by owner */}
                     {user.role === "owner" ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Owner</span>
-                    ) : user.role === "admin" ? (
+                    ) : user.role === "admin" && !canPromoteToAdmin ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Admin</span>
-                    ) : currentProfile?.role === "owner" ? (
+                    ) : canUpdateRoles ? (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void promoteToAdmin({ userId: user.userId as any })}
-                        >
-                          Promote to Admin
-                        </Button>
-                        <span className="text-muted-foreground text-xs">or set another role:</span>
+                        {canPromoteToAdmin && user.role !== "admin" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void promoteToAdmin({ userId: user.userId as any })}
+                          >
+                            Promote to Admin
+                          </Button>
+                        )}
+                        {canPromoteToAdmin && user.role !== "admin" && (
+                          <span className="text-muted-foreground text-xs">or set another role:</span>
+                        )}
                         <Select
                           value={user.role}
                           onValueChange={(newRole) => void handleRoleChange(user.userId, newRole)}
@@ -107,21 +116,7 @@ export function UserManager() {
                         </Select>
                       </>
                     ) : (
-                      <Select
-                        value={user.role}
-                        onValueChange={(newRole) => void handleRoleChange(user.userId, newRole)}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="parent">Parent</SelectItem>
-                          <SelectItem value="professional">Professional</SelectItem>
-                          <SelectItem value="editor">Editor</SelectItem>
-                          <SelectItem value="contributor">Contributor</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <span className="text-sm text-muted-foreground px-3 py-2">{user.role}</span>
                     )}
                   </div>
                 </CardContent>
