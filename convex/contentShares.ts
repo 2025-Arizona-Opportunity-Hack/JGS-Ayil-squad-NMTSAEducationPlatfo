@@ -2,6 +2,67 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+// Check if user can share a specific content item
+export const canShareContent = query({
+  args: {
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { canShare: false, reason: "Not authenticated" };
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) return { canShare: false, reason: "Content not found" };
+
+    const userProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!userProfile) return { canShare: false, reason: "User profile not found" };
+
+    // Check permissions
+    const isAdminEditorContributor = 
+      userProfile.role === "admin" || 
+      userProfile.role === "owner" ||
+      userProfile.role === "editor" ||
+      userProfile.role === "contributor";
+    
+    const isContentCreator = content.createdBy === userId;
+    const isPublicContent = content.isPublic && content.status === "published";
+
+    // Check if content has active pricing (purchaseable content)
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    
+    const isPurchaseable = !!activePricing;
+
+    // Check content access
+    const hasContentAccess = await checkUserContentAccess(ctx, args.contentId, userId, userProfile.role);
+
+    // Normal users can only share public, non-purchaseable content
+    const canShareAsNormalUser = isPublicContent && !isPurchaseable;
+    const canShareAsPrivilegedUser = isAdminEditorContributor || isContentCreator || hasContentAccess;
+    
+    const canShare = canShareAsPrivilegedUser || canShareAsNormalUser;
+
+    if (!canShare) {
+      if (isPurchaseable && !canShareAsPrivilegedUser) {
+        return { canShare: false, reason: "Cannot share purchaseable content" };
+      }
+      if (!isPublicContent && !canShareAsPrivilegedUser) {
+        return { canShare: false, reason: "Cannot share private content" };
+      }
+      return { canShare: false, reason: "No permission to share" };
+    }
+
+    return { canShare: true, reason: null };
+  },
+});
+
 // Generate a random access token
 function generateAccessToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -84,6 +145,7 @@ export const createThirdPartyShare = mutation({
     // Check permissions - admins, editors, contributors, content creators, or users with access can share
     const isAdminEditorContributor = 
       userProfile.role === "admin" || 
+      userProfile.role === "owner" ||
       userProfile.role === "editor" ||
       userProfile.role === "contributor";
     
@@ -92,10 +154,24 @@ export const createThirdPartyShare = mutation({
     // Check if content is public and published (anyone can share public content)
     const isPublicContent = content.isPublic && content.status === "published";
 
+    // Check if content has active pricing (purchaseable content)
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    
+    const isPurchaseable = !!activePricing;
+
     // Use the comprehensive access check function
     const hasContentAccess = await checkUserContentAccess(ctx, args.contentId, userId, userProfile.role);
 
-    const canShare = isAdminEditorContributor || isContentCreator || isPublicContent || hasContentAccess;
+    // Normal users can only share public, non-purchaseable content
+    // Admins/editors/contributors/creators can share any content they have access to
+    const canShareAsNormalUser = isPublicContent && !isPurchaseable;
+    const canShareAsPrivilegedUser = isAdminEditorContributor || isContentCreator || hasContentAccess;
+    
+    const canShare = canShareAsPrivilegedUser || canShareAsNormalUser;
 
     // Debug logging
     console.log("Share permission check:", {
@@ -105,7 +181,10 @@ export const createThirdPartyShare = mutation({
       isAdminEditorContributor,
       isContentCreator,
       isPublicContent,
+      isPurchaseable,
       hasContentAccess,
+      canShareAsNormalUser,
+      canShareAsPrivilegedUser,
       canShare,
       contentStatus: content.status,
       contentIsPublic: content.isPublic,

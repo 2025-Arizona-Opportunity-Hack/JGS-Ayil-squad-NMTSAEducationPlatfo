@@ -6,8 +6,10 @@ import { api } from "../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { RecommendContentModal } from "./RecommendContentModal";
+import { Id } from "../../convex/_generated/dataModel";
 
 interface ContentViewerProps {
   content: Array<{
@@ -19,10 +21,71 @@ interface ContentViewerProps {
     authorName?: string;
     tags?: string[];
     _creationTime: number;
+    isPublic?: boolean;
   }>;
 }
 
 const DEFAULT_AUTHOR = "Neurological Music Therapy Services of Arizona";
+
+// Component to check if sharing is allowed and render share button
+function ShareButton({ contentId, onShare }: { contentId: string; onShare: () => void }) {
+  const canShareResult = useQuery(api.contentShares.canShareContent, { 
+    contentId: contentId as Id<"content"> 
+  });
+
+  if (!canShareResult) {
+    // Loading state - show disabled button
+    return (
+      <Button 
+        variant="ghost" 
+        size="icon"
+        className="h-8 w-8"
+        disabled
+        title="Checking share permissions..."
+      >
+        <UserPlus className="w-4 h-4" />
+      </Button>
+    );
+  }
+
+  if (!canShareResult.canShare) {
+    // Can't share - show disabled button with tooltip
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-8 w-8 opacity-50 cursor-not-allowed"
+                disabled
+              >
+                <UserPlus className="w-4 h-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{canShareResult.reason || "Cannot share this content"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  // Can share - show enabled button
+  return (
+    <Button 
+      variant="ghost" 
+      size="icon"
+      className="h-8 w-8"
+      onClick={onShare}
+      title="Share with 3rd Party"
+    >
+      <UserPlus className="w-4 h-4" />
+    </Button>
+  );
+}
 
 export function ContentViewer({ content }: ContentViewerProps) {
   const navigate = useNavigate();
@@ -147,15 +210,10 @@ export function ContentViewer({ content }: ContentViewerProps) {
                     <Send className="w-4 h-4" />
                   </Button>
                 )}
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => handleThirdPartyShare(item)}
-                  title="Share with 3rd Party"
-                >
-                  <UserPlus className="w-4 h-4" />
-                </Button>
+                <ShareButton 
+                  contentId={item._id} 
+                  onShare={() => handleThirdPartyShare(item)} 
+                />
               </div>
             </div>
           </CardContent>

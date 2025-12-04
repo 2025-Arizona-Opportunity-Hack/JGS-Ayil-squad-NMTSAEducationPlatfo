@@ -118,13 +118,17 @@ const applicationTables = {
       filterFields: ["type", "isPublic", "status", "active"],
     }),
 
-  // Content groups
+  // Content groups (bundles)
   contentGroups: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")), // Bundle thumbnail
     createdBy: v.id("users"),
     isActive: v.boolean(),
-  }).index("by_creator", ["createdBy"]),
+    isPublic: v.optional(v.boolean()), // Whether bundle is publicly visible
+  })
+    .index("by_creator", ["createdBy"])
+    .index("by_public", ["isPublic"]),
 
   // Content group items (many-to-many)
   contentGroupItems: defineTable({
@@ -260,11 +264,27 @@ const applicationTables = {
     .index("by_content", ["contentId"])
     .index("by_active", ["isActive"]),
 
-  // Orders (purchases made by users)
+  // Bundle pricing (for content bundles/groups available for purchase)
+  bundlePricing: defineTable({
+    bundleId: v.id("contentGroups"),
+    price: v.number(), // Price in cents (e.g., 4999 = $49.99)
+    currency: v.string(), // e.g., "USD"
+    accessDuration: v.optional(v.number()), // Duration in milliseconds, undefined = indefinite
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_bundle", ["bundleId"])
+    .index("by_active", ["isActive"]),
+
+  // Orders (purchases made by users - supports both content and bundles)
   orders: defineTable({
     userId: v.id("users"),
-    contentId: v.id("content"),
-    pricingId: v.id("contentPricing"),
+    contentId: v.optional(v.id("content")), // For individual content purchases
+    bundleId: v.optional(v.id("contentGroups")), // For bundle purchases
+    pricingId: v.optional(v.id("contentPricing")), // For content pricing
+    bundlePricingId: v.optional(v.id("bundlePricing")), // For bundle pricing
+    orderType: v.optional(v.union(v.literal("content"), v.literal("bundle"))), // Type of purchase
     amount: v.number(), // Amount paid in cents
     currency: v.string(),
     status: v.union(
@@ -280,6 +300,7 @@ const applicationTables = {
   })
     .index("by_user", ["userId"])
     .index("by_content", ["contentId"])
+    .index("by_bundle", ["bundleId"])
     .index("by_status", ["status"])
     .index("by_created_at", ["createdAt"]),
 

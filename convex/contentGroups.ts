@@ -2,11 +2,13 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Create content group
+// Create content group (bundle)
 export const createContentGroup = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")),
+    isPublic: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -26,11 +28,85 @@ export const createContentGroup = mutation({
       ...args,
       createdBy: userId,
       isActive: true,
+      isPublic: args.isPublic ?? false,
     });
   },
 });
 
-// List content groups
+// Update content group (bundle)
+export const updateContentGroup = mutation({
+  args: {
+    groupId: v.id("contentGroups"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")),
+    isPublic: v.optional(v.boolean()),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is admin
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can update content groups");
+    }
+
+    const { groupId, ...updateData } = args;
+    await ctx.db.patch(groupId, updateData);
+  },
+});
+
+// Delete content group
+export const deleteContentGroup = mutation({
+  args: {
+    groupId: v.id("contentGroups"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is admin
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can delete content groups");
+    }
+
+    // Delete all items in the group
+    const groupItems = await ctx.db
+      .query("contentGroupItems")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+
+    for (const item of groupItems) {
+      await ctx.db.delete(item._id);
+    }
+
+    // Delete bundle pricing
+    const bundlePricing = await ctx.db
+      .query("bundlePricing")
+      .withIndex("by_bundle", (q) => q.eq("bundleId", args.groupId))
+      .collect();
+
+    for (const pricing of bundlePricing) {
+      await ctx.db.delete(pricing._id);
+    }
+
+    // Delete the group
+    await ctx.db.delete(args.groupId);
+  },
+});
+
+// List content groups (with thumbnail URLs and pricing)
 export const listContentGroups = query({
   args: {},
   handler: async (ctx) => {
@@ -46,7 +122,44 @@ export const listContentGroups = query({
       return [];
     }
 
-    return await ctx.db.query("contentGroups").collect();
+    const groups = await ctx.db.query("contentGroups").collect();
+
+    // Enrich with thumbnail URLs, item counts, and pricing
+    const enrichedGroups = await Promise.all(
+      groups.map(async (group) => {
+        // Get thumbnail URL
+        const thumbnailUrl = group.thumbnailId 
+          ? await ctx.storage.getUrl(group.thumbnailId) 
+          : null;
+
+        // Get item count
+        const items = await ctx.db
+          .query("contentGroupItems")
+          .withIndex("by_group", (q) => q.eq("groupId", group._id))
+          .collect();
+
+        // Get active pricing
+        const pricing = await ctx.db
+          .query("bundlePricing")
+          .withIndex("by_bundle", (q) => q.eq("bundleId", group._id))
+          .filter((q) => q.eq(q.field("isActive"), true))
+          .first();
+
+        return {
+          ...group,
+          thumbnailUrl,
+          itemCount: items.length,
+          pricing: pricing ? {
+            _id: pricing._id,
+            price: pricing.price,
+            currency: pricing.currency,
+            accessDuration: pricing.accessDuration,
+          } : null,
+        };
+      })
+    );
+
+    return enrichedGroups;
   },
 });
 
@@ -246,5 +359,159 @@ export const listAllContentGroupItems = query({
     }
 
     return await ctx.db.query("contentGroupItems").collect();
+  },
+});
+
+// ============ Bundle Pricing Functions ============
+
+// Set bundle pricing
+export const setBundlePricing = mutation({
+  args: {
+    bundleId: v.id("contentGroups"),
+    price: v.number(), // Price in cents
+    currency: v.string(),
+    accessDuration: v.optional(v.number()), // Duration in milliseconds
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is admin
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can set bundle pricing");
+    }
+
+    // Check if bundle exists
+    const bundle = await ctx.db.get(args.bundleId);
+    if (!bundle) throw new Error("Bundle not found");
+
+    // Deactivate any existing pricing
+    const existingPricing = await ctx.db
+      .query("bundlePricing")
+      .withIndex("by_bundle", (q) => q.eq("bundleId", args.bundleId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    for (const pricing of existingPricing) {
+      await ctx.db.patch(pricing._id, { isActive: false });
+    }
+
+    // Create new pricing
+    return await ctx.db.insert("bundlePricing", {
+      bundleId: args.bundleId,
+      price: args.price,
+      currency: args.currency,
+      accessDuration: args.accessDuration,
+      isActive: true,
+      createdBy: userId,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// Remove bundle pricing
+export const removeBundlePricing = mutation({
+  args: {
+    bundleId: v.id("contentGroups"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is admin
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can remove bundle pricing");
+    }
+
+    // Deactivate all pricing for this bundle
+    const existingPricing = await ctx.db
+      .query("bundlePricing")
+      .withIndex("by_bundle", (q) => q.eq("bundleId", args.bundleId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    for (const pricing of existingPricing) {
+      await ctx.db.patch(pricing._id, { isActive: false });
+    }
+  },
+});
+
+// Get bundle pricing
+export const getBundlePricing = query({
+  args: {
+    bundleId: v.id("contentGroups"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("bundlePricing")
+      .withIndex("by_bundle", (q) => q.eq("bundleId", args.bundleId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+  },
+});
+
+// List all bundle pricing (for admin)
+export const listAllBundlePricing = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      return [];
+    }
+
+    const allPricing = await ctx.db
+      .query("bundlePricing")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    // Enrich with bundle info
+    const enrichedPricing = await Promise.all(
+      allPricing.map(async (pricing) => {
+        const bundle = await ctx.db.get(pricing.bundleId);
+        return {
+          ...pricing,
+          bundleName: bundle?.name || "Unknown Bundle",
+        };
+      })
+    );
+
+    return enrichedPricing;
+  },
+});
+
+// Generate upload URL for bundle thumbnails
+export const generateBundleThumbnailUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can upload bundle thumbnails");
+    }
+
+    return await ctx.storage.generateUploadUrl();
   },
 });
