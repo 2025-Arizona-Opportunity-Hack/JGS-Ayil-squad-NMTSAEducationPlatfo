@@ -515,3 +515,110 @@ export const generateBundleThumbnailUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+// Bulk add content to a group
+export const bulkAddContentToGroup = mutation({
+  args: {
+    groupId: v.id("contentGroups"),
+    contentIds: v.array(v.id("content")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can manage content groups");
+    }
+
+    // Check if group exists
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Content group not found");
+
+    // Get existing items in the group
+    const existingItems = await ctx.db
+      .query("contentGroupItems")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+
+    const existingContentIds = new Set(existingItems.map(item => item.contentId));
+
+    // Get max order
+    const maxOrder = existingItems.reduce((max, item) => Math.max(max, item.order || 0), 0);
+
+    let added = 0;
+    let order = maxOrder;
+    for (const contentId of args.contentIds) {
+      // Skip if already in group
+      if (existingContentIds.has(contentId)) continue;
+
+      // Check if content exists
+      const content = await ctx.db.get(contentId);
+      if (!content) continue;
+
+      order++;
+      await ctx.db.insert("contentGroupItems", {
+        groupId: args.groupId,
+        contentId,
+        addedBy: userId,
+        order,
+      });
+      added++;
+    }
+
+    return { added, groupName: group.name };
+  },
+});
+
+// Create a new group and add content to it
+export const createGroupWithContent = mutation({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    contentIds: v.array(v.id("content")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+      throw new Error("Only admins or the owner can create content groups");
+    }
+
+    // Create the group
+    const groupId = await ctx.db.insert("contentGroups", {
+      name: args.name,
+      description: args.description,
+      createdBy: userId,
+      isActive: true,
+      isPublic: false,
+    });
+
+    // Add content to the group
+    let added = 0;
+    for (let i = 0; i < args.contentIds.length; i++) {
+      const contentId = args.contentIds[i];
+      const content = await ctx.db.get(contentId);
+      if (!content) continue;
+
+      await ctx.db.insert("contentGroupItems", {
+        groupId,
+        contentId,
+        addedBy: userId,
+        order: i + 1,
+      });
+      added++;
+    }
+
+    return { groupId, added, groupName: args.name };
+  },
+});

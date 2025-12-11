@@ -1411,3 +1411,175 @@ export const listArchivedContent = query({
     return contentWithDetails;
   },
 });
+
+// ============ Bulk Actions ============
+
+// Bulk update content visibility (public/private)
+export const bulkUpdateVisibility = mutation({
+  args: {
+    contentIds: v.array(v.id("content")),
+    isPublic: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
+      throw new Error("You don't have permission to update content visibility");
+    }
+
+    let updated = 0;
+    for (const contentId of args.contentIds) {
+      const content = await ctx.db.get(contentId);
+      if (content) {
+        await ctx.db.patch(contentId, { isPublic: args.isPublic });
+        updated++;
+      }
+    }
+
+    return { updated };
+  },
+});
+
+// Bulk update content active status
+export const bulkUpdateActiveStatus = mutation({
+  args: {
+    contentIds: v.array(v.id("content")),
+    active: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)) {
+      throw new Error("You don't have permission to update content");
+    }
+
+    let updated = 0;
+    for (const contentId of args.contentIds) {
+      const content = await ctx.db.get(contentId);
+      if (content) {
+        await ctx.db.patch(contentId, { active: args.active });
+        updated++;
+      }
+    }
+
+    return { updated };
+  },
+});
+
+// Bulk archive content
+export const bulkArchiveContent = mutation({
+  args: {
+    contentIds: v.array(v.id("content")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.ARCHIVE_CONTENT)) {
+      throw new Error("You don't have permission to archive content");
+    }
+
+    let archived = 0;
+    for (const contentId of args.contentIds) {
+      const content = await ctx.db.get(contentId);
+      if (content && !content.isArchived) {
+        await ctx.db.patch(contentId, {
+          isArchived: true,
+          archivedAt: Date.now(),
+          archivedBy: userId,
+        });
+        archived++;
+      }
+    }
+
+    return { archived };
+  },
+});
+
+// Bulk delete content
+export const bulkDeleteContent = mutation({
+  args: {
+    contentIds: v.array(v.id("content")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found");
+    
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.DELETE_CONTENT)) {
+      throw new Error("You don't have permission to delete content");
+    }
+
+    let deleted = 0;
+    for (const contentId of args.contentIds) {
+      const content = await ctx.db.get(contentId);
+      if (!content) continue;
+
+      // Delete related records
+      const accessRecords = await ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect();
+      
+      for (const access of accessRecords) {
+        await ctx.db.delete(access._id);
+      }
+
+      const groupItems = await ctx.db
+        .query("contentGroupItems")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect();
+      
+      for (const item of groupItems) {
+        await ctx.db.delete(item._id);
+      }
+
+      const shares = await ctx.db
+        .query("contentShares")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect();
+      
+      for (const share of shares) {
+        await ctx.db.delete(share._id);
+      }
+
+      await ctx.db.delete(contentId);
+      deleted++;
+    }
+
+    return { deleted };
+  },
+});

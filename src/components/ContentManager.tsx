@@ -38,7 +38,11 @@ import {
   ChevronRight,
   DollarSign,
   BarChart3,
-  MoreVertical
+  MoreVertical,
+  Globe,
+  GlobeLock,
+  Package,
+  FolderPlus
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
@@ -162,6 +166,20 @@ export function ContentManager() {
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const archiveContentMutation = useMutation(api.content.archiveContent);
   const submitForReview = useMutation(api.content.submitForReview);
+  
+  // Bulk action mutations
+  const bulkUpdateVisibility = useMutation(api.content.bulkUpdateVisibility);
+  const bulkUpdateActiveStatus = useMutation(api.content.bulkUpdateActiveStatus);
+  const bulkArchiveContent = useMutation(api.content.bulkArchiveContent);
+  const bulkDeleteContent = useMutation(api.content.bulkDeleteContent);
+  const bulkAddToGroup = useMutation(api.contentGroups.bulkAddContentToGroup);
+  const createGroupWithContent = useMutation(api.contentGroups.createGroupWithContent);
+  
+  // Bulk action modal states
+  const [showBulkAddToGroupModal, setShowBulkAddToGroupModal] = useState(false);
+  const [showBulkRecommendModal, setShowBulkRecommendModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDescription, setNewGroupDescription] = useState("");
 
   // Filter content client-side for better UX
   const filteredContent = allContent?.filter(item => {
@@ -294,24 +312,97 @@ export function ContentManager() {
     );
   };
 
+  // Bulk action handlers
+  const handleBulkSetPublic = async (isPublic: boolean) => {
+    if (selectedIds.length === 0) return;
+    const toastId = toast.loading(`Setting ${selectedIds.length} item(s) to ${isPublic ? "public" : "private"}...`);
+    try {
+      const result = await bulkUpdateVisibility({ 
+        contentIds: selectedIds as any[], 
+        isPublic 
+      });
+      toast.success(`Updated ${result.updated} item(s) to ${isPublic ? "public" : "private"}`, { id: toastId });
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update visibility", { id: toastId });
+    }
+  };
+
+  const handleBulkSetActive = async (active: boolean) => {
+    if (selectedIds.length === 0) return;
+    const toastId = toast.loading(`Setting ${selectedIds.length} item(s) to ${active ? "active" : "inactive"}...`);
+    try {
+      const result = await bulkUpdateActiveStatus({ 
+        contentIds: selectedIds as any[], 
+        active 
+      });
+      toast.success(`Updated ${result.updated} item(s) to ${active ? "active" : "inactive"}`, { id: toastId });
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update status", { id: toastId });
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedIds.length === 0) return;
+    const confirm = window.confirm(`Archive ${selectedIds.length} selected item(s)?`);
+    if (!confirm) return;
+    const toastId = toast.loading(`Archiving ${selectedIds.length} item(s)...`);
+    try {
+      const result = await bulkArchiveContent({ contentIds: selectedIds as any[] });
+      toast.success(`Archived ${result.archived} item(s)`, { id: toastId });
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to archive content", { id: toastId });
+    }
+  };
+
   const handleBulkDeleteSelected = async () => {
     if (selectedIds.length === 0) return;
     const confirm = window.confirm(`Delete ${selectedIds.length} selected item(s)? This cannot be undone.`);
     if (!confirm) return;
     const toastId = toast.loading("Deleting selected content...");
     try {
-      const results = await Promise.allSettled(
-        selectedIds.map((id) => deleteContentMutation({ contentId: id as any }))
-      );
-      const failed = results.filter(r => r.status === "rejected").length;
-      if (failed === 0) {
-        toast.success(`Deleted ${selectedIds.length} item(s)`, { id: toastId });
-      } else {
-        toast.error(`Deleted ${selectedIds.length - failed} item(s), ${failed} failed`, { id: toastId });
-      }
+      const result = await bulkDeleteContent({ contentIds: selectedIds as any[] });
+      toast.success(`Deleted ${result.deleted} item(s)`, { id: toastId });
       setSelectedIds([]);
-    } catch (err) {
-      toast.error("Bulk delete failed", { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || "Bulk delete failed", { id: toastId });
+    }
+  };
+
+  const handleBulkAddToExistingGroup = async (groupId: string) => {
+    if (selectedIds.length === 0) return;
+    const toastId = toast.loading("Adding content to bundle...");
+    try {
+      const result = await bulkAddToGroup({ 
+        groupId: groupId as any, 
+        contentIds: selectedIds as any[] 
+      });
+      toast.success(`Added ${result.added} item(s) to "${result.groupName}"`, { id: toastId });
+      setSelectedIds([]);
+      setShowBulkAddToGroupModal(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add to bundle", { id: toastId });
+    }
+  };
+
+  const handleBulkCreateNewGroup = async () => {
+    if (selectedIds.length === 0 || !newGroupName.trim()) return;
+    const toastId = toast.loading("Creating bundle and adding content...");
+    try {
+      const result = await createGroupWithContent({ 
+        name: newGroupName.trim(),
+        description: newGroupDescription.trim() || undefined,
+        contentIds: selectedIds as any[] 
+      });
+      toast.success(`Created "${result.groupName}" with ${result.added} item(s)`, { id: toastId });
+      setSelectedIds([]);
+      setShowBulkAddToGroupModal(false);
+      setNewGroupName("");
+      setNewGroupDescription("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create bundle", { id: toastId });
     }
   };
 
@@ -1119,6 +1210,121 @@ export function ContentManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="sticky top-0 z-20 bg-primary text-primary-foreground rounded-lg shadow-lg p-3 mb-4"
+        >
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={paginatedContent.every(c => selectedIds.includes(c._id))}
+                  onCheckedChange={toggleSelectAllOnPage}
+                  className="border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
+                />
+                <span className="text-sm font-medium">
+                  {selectedIds.length} selected
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds([])}
+                className="text-primary-foreground hover:bg-primary-foreground/20"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Set Public/Private */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="sm">
+                    <Globe className="w-4 h-4 mr-1" />
+                    Visibility
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => void handleBulkSetPublic(true)}>
+                    <Globe className="w-4 h-4 mr-2" />
+                    Set Public
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void handleBulkSetPublic(false)}>
+                    <GlobeLock className="w-4 h-4 mr-2" />
+                    Set Private
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Set Active/Inactive */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="sm">
+                    <CheckCheck className="w-4 h-4 mr-1" />
+                    Status
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => void handleBulkSetActive(true)}>
+                    <CheckCheck className="w-4 h-4 mr-2" />
+                    Set Active
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void handleBulkSetActive(false)}>
+                    <Ban className="w-4 h-4 mr-2" />
+                    Set Inactive
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Add to Bundle */}
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setShowBulkAddToGroupModal(true)}
+              >
+                <Package className="w-4 h-4 mr-1" />
+                Add to Bundle
+              </Button>
+
+              {/* Recommend */}
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setShowBulkRecommendModal(true)}
+              >
+                <Send className="w-4 h-4 mr-1" />
+                Recommend
+              </Button>
+
+              {/* Archive */}
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={() => void handleBulkArchive()}
+              >
+                <Archive className="w-4 h-4 mr-1" />
+                Archive
+              </Button>
+
+              {/* Delete */}
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={() => void handleBulkDeleteSelected()}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Content List */}
       <div className="space-y-4">
@@ -1932,6 +2138,106 @@ export function ContentManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Add to Bundle Modal */}
+      <Dialog open={showBulkAddToGroupModal} onOpenChange={setShowBulkAddToGroupModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to Content Bundle</DialogTitle>
+            <DialogDescription>
+              Add {selectedIds.length} selected item(s) to an existing bundle or create a new one.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Existing Bundles */}
+            {contentGroups && contentGroups.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Add to Existing Bundle</Label>
+                <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2">
+                  {contentGroups.map((group) => (
+                    <Button
+                      key={group._id}
+                      variant="ghost"
+                      className="w-full justify-start h-auto py-2"
+                      onClick={() => void handleBulkAddToExistingGroup(group._id)}
+                    >
+                      <Package className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <div className="text-left">
+                        <div className="font-medium">{group.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {group.itemCount} items
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Create New Bundle */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <FolderPlus className="w-4 h-4" />
+                Create New Bundle
+              </Label>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Bundle name"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                />
+                <Textarea
+                  placeholder="Description (optional)"
+                  value={newGroupDescription}
+                  onChange={(e) => setNewGroupDescription(e.target.value)}
+                  rows={2}
+                />
+                <Button 
+                  onClick={() => void handleBulkCreateNewGroup()}
+                  disabled={!newGroupName.trim()}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Create Bundle with {selectedIds.length} Item(s)
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Recommend Modal */}
+      <Dialog open={showBulkRecommendModal} onOpenChange={setShowBulkRecommendModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recommend Content</DialogTitle>
+            <DialogDescription>
+              Recommend {selectedIds.length} selected item(s) to users.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Select a user to recommend the selected content to. They will receive a notification about the recommended content.
+            </p>
+            <div className="bg-muted/50 rounded-lg p-4 text-center">
+              <Send className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Bulk recommendations coming soon. For now, please recommend content individually.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setShowBulkRecommendModal(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
