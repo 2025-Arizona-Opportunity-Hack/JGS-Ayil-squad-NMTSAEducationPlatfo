@@ -3,8 +3,8 @@
  * Setup script for Convex Auth environment variables.
  * Generates a matching RSA key pair and sets JWT_PRIVATE_KEY and JWKS.
  */
-const crypto = require('crypto');
-const { execSync } = require('child_process');
+import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 console.log('🔐 Generating RSA key pair for Convex Auth...\n');
 

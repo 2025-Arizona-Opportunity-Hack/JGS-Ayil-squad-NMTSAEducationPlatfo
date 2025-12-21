@@ -31,21 +31,27 @@ export const createOrder = mutation({
       )
       .first();
 
-    if (existingOrder && (!existingOrder.accessExpiresAt || existingOrder.accessExpiresAt > Date.now())) {
+    if (
+      existingOrder &&
+      (!existingOrder.accessExpiresAt ||
+        existingOrder.accessExpiresAt > Date.now())
+    ) {
       throw new Error("You already have access to this content");
     }
 
     // Check for approved purchase request
     const approvedRequest = await ctx.db
       .query("purchaseRequests")
-      .withIndex("by_user_content", (q) => 
+      .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
       )
       .filter((q) => q.eq(q.field("status"), "approved"))
       .first();
 
     if (!approvedRequest) {
-      throw new Error("You need an approved purchase request to buy this content. Please request permission first.");
+      throw new Error(
+        "You need an approved purchase request to buy this content. Please request permission first."
+      );
     }
 
     // Check if the approved request has already been used
@@ -98,16 +104,18 @@ export const completeOrder = mutation({
     });
 
     // Grant access to content
-    const content = await ctx.db.get(order.contentId);
-    if (content) {
-      // Create content access entry
-      await ctx.db.insert("contentAccess", {
-        contentId: order.contentId,
-        userId: order.userId,
-        grantedBy: order.userId,
-        expiresAt: order.accessExpiresAt,
-        canShare: false,
-      });
+    if (order.contentId) {
+      const content = await ctx.db.get(order.contentId);
+      if (content) {
+        // Create content access entry
+        await ctx.db.insert("contentAccess", {
+          contentId: order.contentId,
+          userId: order.userId,
+          grantedBy: order.userId,
+          expiresAt: order.accessExpiresAt,
+          canShare: false,
+        });
+      }
     }
 
     // Mark the purchase request as completed
@@ -115,12 +123,13 @@ export const completeOrder = mutation({
       await ctx.db.patch(args.purchaseRequestId, {
         purchaseCompletedAt: Date.now(),
       });
-    } else {
+    } else if (order.contentId) {
       // Find and mark the approved request as completed
+      const contentId = order.contentId; // TypeScript narrowing
       const approvedRequest = await ctx.db
         .query("purchaseRequests")
-        .withIndex("by_user_content", (q) => 
-          q.eq("userId", userId).eq("contentId", order.contentId)
+        .withIndex("by_user_content", (q) =>
+          q.eq("userId", userId).eq("contentId", contentId)
         )
         .filter((q) => q.eq(q.field("status"), "approved"))
         .first();
@@ -151,8 +160,12 @@ export const getUserOrders = query({
     // Enrich with content and pricing details
     const enrichedOrders = await Promise.all(
       orders.map(async (order) => {
-        const content = await ctx.db.get(order.contentId);
-        const pricing = await ctx.db.get(order.pricingId);
+        const content = order.contentId
+          ? await ctx.db.get(order.contentId)
+          : null;
+        const pricing = order.pricingId
+          ? await ctx.db.get(order.pricingId)
+          : null;
 
         // Get thumbnail URL if exists
         let thumbnailUrl = null;
@@ -186,7 +199,10 @@ export const getAllOrders = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+    if (
+      !userProfile ||
+      (userProfile.role !== "admin" && userProfile.role !== "owner")
+    ) {
       throw new Error("Only admins or the owner can view all orders");
     }
 
@@ -199,8 +215,12 @@ export const getAllOrders = query({
     // Enrich with user, content, and pricing details
     const enrichedOrders = await Promise.all(
       orders.map(async (order) => {
-        const content = await ctx.db.get(order.contentId);
-        const pricing = await ctx.db.get(order.pricingId);
+        const content = order.contentId
+          ? await ctx.db.get(order.contentId)
+          : null;
+        const pricing = order.pricingId
+          ? await ctx.db.get(order.pricingId)
+          : null;
         const userProfile = await ctx.db
           .query("userProfiles")
           .withIndex("by_user_id", (q) => q.eq("userId", order.userId))
@@ -241,7 +261,10 @@ export const getSalesAnalytics = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
+    if (
+      !userProfile ||
+      (userProfile.role !== "admin" && userProfile.role !== "owner")
+    ) {
       throw new Error("Only admins or the owner can view analytics");
     }
 
@@ -276,17 +299,23 @@ export const getSalesAnalytics = query({
       .reduce((sum, order) => sum + order.amount, 0);
 
     // Get top selling content
-    const contentSales = new Map<string, { count: number; revenue: number; title: string }>();
-    
+    const contentSales = new Map<
+      string,
+      { count: number; revenue: number; title: string }
+    >();
+
     for (const order of completedOrders) {
-      const existing = contentSales.get(order.contentId);
-      const content = await ctx.db.get(order.contentId);
-      
+      if (!order.contentId) continue; // Skip bundle orders
+
+      const contentId = order.contentId; // TypeScript narrowing
+      const existing = contentSales.get(contentId);
+      const content = await ctx.db.get(contentId);
+
       if (existing) {
         existing.count += 1;
         existing.revenue += order.amount;
       } else {
-        contentSales.set(order.contentId, {
+        contentSales.set(contentId, {
           count: 1,
           revenue: order.amount,
           title: content?.title || "Unknown",

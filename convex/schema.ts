@@ -106,6 +106,7 @@ const applicationTables = {
     )),
     body: v.optional(v.string()),
     organizationId: v.optional(v.string()),
+    currentVersion: v.optional(v.number()), // Legacy field from contentVersions feature
   })
     .index("by_creator", ["createdBy"])
     .index("by_attachment_type", ["attachmentType"])
@@ -247,6 +248,7 @@ const applicationTables = {
     createdAt: v.number(),
     expiresAt: v.optional(v.number()),
     isActive: v.boolean(),
+    currentUses: v.optional(v.number()), // Legacy field for tracking usage
   })
     .index("by_code", ["code"])
     .index("by_creator", ["createdBy"]),
