@@ -139,3 +139,16 @@ export function hasAnyPermission(userPermissions: Permission[] | undefined, perm
   if (!userPermissions) return false;
   return permissions.some(p => userPermissions.includes(p));
 }
+
+/**
+ * Get effective permissions for a user profile
+ * If custom permissions are set, use those; otherwise use default permissions for the role
+ */
+export function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
+  // If custom permissions are set, use those
+  if (profile.permissions && profile.permissions.length > 0) {
+    return profile.permissions as Permission[];
+  }
+  // Otherwise, use default permissions for the role
+  return getDefaultPermissions(profile.role);
+}

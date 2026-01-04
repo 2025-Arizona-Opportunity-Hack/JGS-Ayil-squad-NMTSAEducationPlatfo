@@ -86,13 +86,13 @@ export default function App() {
     );
   }
 
-  // Not authenticated - show sign in form
+  // Not authenticated - show sign in form or join request
   if (!user) {
     const siteName = siteSettings?.organizationName || "Content Platform";
     const siteTagline = siteSettings?.tagline || "Access your resources";
     
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-4">
