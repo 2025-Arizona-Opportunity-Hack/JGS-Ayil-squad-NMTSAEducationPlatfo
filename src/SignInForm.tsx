@@ -287,54 +287,47 @@ export function SignInForm() {
                   .catch((error) => {
                     console.error("Authentication error:", error);
                     const errorMessage = error.message || "";
-                    let toastTitle = "";
-                    let toastDescription = "";
 
-                    if (
+                    // Check for "already exists" FIRST (most specific)
+                    if (errorMessage.includes("already exists")) {
+                      toast.error("Account already exists", {
+                        description: "An account with this email already exists. Try signing in instead.",
+                      });
+                      setError("accountExists");
+                    } else if (
                       errorMessage.includes("InvalidSecret") ||
-                      errorMessage.includes("Invalid password") ||
-                      errorMessage.includes("password")
+                      errorMessage.includes("Invalid password")
                     ) {
-                      toastTitle = "Password requirements not met";
-                      toastDescription = "Password must be at least 8 characters long and contain letters and numbers.";
+                      toast.error("Password requirements not met", {
+                        description: "Password must be at least 8 characters with letters and numbers.",
+                      });
                       setError("password");
                     } else if (
-                      errorMessage.includes("User not found") ||
-                      errorMessage.includes("InvalidAccountId") ||
-                      errorMessage.includes("email") ||
-                      errorMessage.includes("account")
-                    ) {
-                      if (errorMessage.includes("already exists")) {
-                        toastTitle = "Account already exists";
-                        toastDescription = "An account with this email already exists. Try signing in instead.";
-                      } else {
-                        toastTitle = "Account creation failed";
-                        toastDescription = errorMessage;
-                      }
-                      setError("email");
-                    } else if (
                       errorMessage.includes("approved join request") ||
-                      errorMessage.includes("request access")
+                      errorMessage.includes("request access") ||
+                      errorMessage.includes("not approved")
                     ) {
-                      toastTitle = "Join request required";
-                      toastDescription = "You need an approved join request to create an account.";
-                      setError("general");
+                      toast.error("Access not approved yet", {
+                        description: "You need an approved join request before creating an account.",
+                      });
+                      setError("notApproved");
                     } else if (
                       errorMessage.includes("network") ||
-                      errorMessage.includes("connection")
+                      errorMessage.includes("connection") ||
+                      errorMessage.includes("fetch failed")
                     ) {
-                      toastTitle = "Connection error";
-                      toastDescription = "Please check your internet connection and try again.";
+                      toast.error("Connection issue", {
+                        description: "Please check your internet and try again.",
+                      });
                       setError("network");
                     } else {
-                      toastTitle = "Sign up failed";
-                      toastDescription = errorMessage || "Something went wrong. Please try again.";
+                      // Generic fallback - NEVER show raw error to user
+                      toast.error("Sign up failed", {
+                        description: "Something went wrong. Please try again or contact support.",
+                      });
                       setError("general");
                     }
 
-                    toast.error(toastTitle, {
-                      description: toastDescription,
-                    });
                     setSubmitting(false);
                   });
               }}
@@ -347,17 +340,33 @@ export function SignInForm() {
                   name="email"
                   placeholder="you@example.com"
                   required
-                  className={
-                    error === "email" ? "border-red-500 focus:border-red-500" : ""
-                  }
-                  onChange={() => error === "email" && setError(null)}
+                  onChange={() => error === "notApproved" && setError(null)}
                 />
-                {error === "email" && (
-                  <p className="text-sm text-red-600">
-                    {error === "email" && error !== "general" ? "Please check your email address" : ""}
-                  </p>
-                )}
               </div>
+
+              {/* Not Approved Yet - Friendly Info Box */}
+              {error === "notApproved" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900 mb-1">
+                    ⏳ Access not approved yet
+                  </p>
+                  <p className="text-xs text-blue-700 mb-3">
+                    You need an approved join request before you can create an account.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                    onClick={() => {
+                      setFlow("joinRequest");
+                      setError(null);
+                    }}
+                  >
+                    Request Access
+                  </Button>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="signup-password">Password</Label>
                 <Input
@@ -374,9 +383,14 @@ export function SignInForm() {
                   onChange={() => error === "password" && setError(null)}
                 />
                 {error === "password" && (
-                  <p className="text-sm text-red-600">
-                    Password must be at least 8 characters long and contain letters and numbers.
-                  </p>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-red-800">
+                      🔐 Password doesn't meet requirements
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Must be at least 8 characters with letters and numbers.
+                    </p>
+                  </div>
                 )}
                 {!error && (
                   <p className="text-xs text-muted-foreground">
