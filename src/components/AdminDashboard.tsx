@@ -1,7 +1,21 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive, Settings, ClipboardList, Menu, UserPlus } from "lucide-react";
+import {
+  Folder,
+  FolderTree,
+  Users,
+  UsersRound,
+  ExternalLink,
+  Mail,
+  TrendingUp,
+  ShoppingCart,
+  Archive,
+  Settings,
+  ClipboardList,
+  Menu,
+  UserPlus,
+} from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
@@ -14,9 +28,16 @@ import { AdminOrders } from "./admin/AdminOrders";
 import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
 import { PurchaseRequests } from "./admin/PurchaseRequests";
+import { JoinRequests } from "./admin/JoinRequests";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Logo } from "./Logo";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
@@ -27,13 +48,13 @@ export function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     // Load saved tab from localStorage or default to 'content'
-    return localStorage.getItem('adminDashboardTab') || 'content';
+    return localStorage.getItem("adminDashboardTab") || "content";
   });
 
   // Save active tab to localStorage whenever it changes
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    localStorage.setItem('adminDashboardTab', value);
+    localStorage.setItem("adminDashboardTab", value);
   };
 
   // Wait for profile to load to avoid race conditions
@@ -49,18 +70,40 @@ export function AdminDashboard() {
 
   // Permission-based access checks
   const permissions = userProfile.effectivePermissions;
-  const canManageContentGroups = hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+  const canManageContentGroups = hasPermission(
+    permissions,
+    PERMISSIONS.MANAGE_CONTENT_GROUPS
+  );
   const canViewUsers = hasPermission(permissions, PERMISSIONS.VIEW_USERS);
-  const canManageUserGroups = hasPermission(permissions, PERMISSIONS.MANAGE_USER_GROUPS);
-  const canViewAnalytics = hasPermission(permissions, PERMISSIONS.VIEW_ANALYTICS);
-  const canViewPurchaseRequests = hasPermission(permissions, PERMISSIONS.VIEW_PURCHASE_REQUESTS);
+  const canManageUserGroups = hasPermission(
+    permissions,
+    PERMISSIONS.MANAGE_USER_GROUPS
+  );
+  const canViewAnalytics = hasPermission(
+    permissions,
+    PERMISSIONS.VIEW_ANALYTICS
+  );
+  const canViewPurchaseRequests = hasPermission(
+    permissions,
+    PERMISSIONS.VIEW_PURCHASE_REQUESTS
+  );
   const canViewOrders = hasPermission(permissions, PERMISSIONS.VIEW_ORDERS);
-  const canViewArchivedContent = hasPermission(permissions, PERMISSIONS.VIEW_ARCHIVED_CONTENT);
-  const canManageSiteSettings = hasPermission(permissions, PERMISSIONS.MANAGE_SITE_SETTINGS);
-  const canGenerateInviteCodes = hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES);
-  
+  const canViewArchivedContent = hasPermission(
+    permissions,
+    PERMISSIONS.VIEW_ARCHIVED_CONTENT
+  );
+  const canManageSiteSettings = hasPermission(
+    permissions,
+    PERMISSIONS.MANAGE_SITE_SETTINGS
+  );
+  const canGenerateInviteCodes = hasPermission(
+    permissions,
+    PERMISSIONS.GENERATE_INVITE_CODES
+  );
+
   // Check if user has any admin-level permissions (for dashboard title)
-  const hasAdminPermissions = canViewUsers || canManageSiteSettings || canViewAnalytics;
+  const hasAdminPermissions =
+    canViewUsers || canManageSiteSettings || canViewAnalytics;
 
   // Handle tab change and close mobile menu
   const handleMobileTabChange = (value: string) => {
@@ -69,28 +112,32 @@ export function AdminDashboard() {
   };
 
   // Navigation items component to avoid duplication
-  const NavigationItems = ({ onTabChange }: { onTabChange: (value: string) => void }) => (
+  const NavigationItems = ({
+    onTabChange,
+  }: {
+    onTabChange: (value: string) => void;
+  }) => (
     <TabsList className="flex flex-col h-auto bg-transparent p-0 space-y-1">
-      <TabsTrigger 
-        value="content" 
-        onClick={() => onTabChange('content')}
+      <TabsTrigger
+        value="content"
+        onClick={() => onTabChange("content")}
         className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
       >
         <Folder className="w-4 h-4" />
         Content
       </TabsTrigger>
-      <TabsTrigger 
-        value="shareLinks" 
-        onClick={() => onTabChange('shareLinks')}
+      <TabsTrigger
+        value="shareLinks"
+        onClick={() => onTabChange("shareLinks")}
         className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
       >
         <ExternalLink className="w-4 h-4" />
         Share Links
       </TabsTrigger>
       {canManageContentGroups && (
-        <TabsTrigger 
-          value="contentGroups" 
-          onClick={() => onTabChange('contentGroups')}
+        <TabsTrigger
+          value="contentGroups"
+          onClick={() => onTabChange("contentGroups")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <FolderTree className="w-4 h-4" />
@@ -98,19 +145,29 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canViewUsers && (
-        <TabsTrigger 
-          value="users" 
-          onClick={() => onTabChange('users')}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
-        >
-          <Users className="w-4 h-4" />
-          Users
-        </TabsTrigger>
+        <>
+          <TabsTrigger
+            value="joinRequests"
+            onClick={() => onTabChange("joinRequests")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+          >
+            <UserPlus className="w-4 h-4" />
+            Join Requests
+          </TabsTrigger>
+          <TabsTrigger
+            value="users"
+            onClick={() => onTabChange("users")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+          >
+            <Users className="w-4 h-4" />
+            Users
+          </TabsTrigger>
+        </>
       )}
       {canManageUserGroups && (
-        <TabsTrigger 
-          value="userGroups" 
-          onClick={() => onTabChange('userGroups')}
+        <TabsTrigger
+          value="userGroups"
+          onClick={() => onTabChange("userGroups")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <UsersRound className="w-4 h-4" />
@@ -118,9 +175,9 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canViewAnalytics && (
-        <TabsTrigger 
-          value="analytics" 
-          onClick={() => onTabChange('analytics')}
+        <TabsTrigger
+          value="analytics"
+          onClick={() => onTabChange("analytics")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <TrendingUp className="w-4 h-4" />
@@ -128,9 +185,9 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canViewPurchaseRequests && (
-        <TabsTrigger 
-          value="purchaseRequests" 
-          onClick={() => onTabChange('purchaseRequests')}
+        <TabsTrigger
+          value="purchaseRequests"
+          onClick={() => onTabChange("purchaseRequests")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <ClipboardList className="w-4 h-4" />
@@ -138,9 +195,9 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canViewOrders && (
-        <TabsTrigger 
-          value="orders" 
-          onClick={() => onTabChange('orders')}
+        <TabsTrigger
+          value="orders"
+          onClick={() => onTabChange("orders")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <ShoppingCart className="w-4 h-4" />
@@ -148,9 +205,9 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canViewArchivedContent && (
-        <TabsTrigger 
-          value="archived" 
-          onClick={() => onTabChange('archived')}
+        <TabsTrigger
+          value="archived"
+          onClick={() => onTabChange("archived")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <Archive className="w-4 h-4" />
@@ -158,9 +215,9 @@ export function AdminDashboard() {
         </TabsTrigger>
       )}
       {canManageSiteSettings && (
-        <TabsTrigger 
-          value="settings" 
-          onClick={() => onTabChange('settings')}
+        <TabsTrigger
+          value="settings"
+          onClick={() => onTabChange("settings")}
           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
         >
           <Settings className="w-4 h-4" />
@@ -184,9 +241,13 @@ export function AdminDashboard() {
           />
         </>
       )}
-      
+
       <div className="w-full h-full flex flex-col md:flex-row">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex flex-col md:flex-row">
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="w-full flex flex-col md:flex-row"
+        >
           {/* Mobile Header with Menu Button */}
           <div className="md:hidden flex items-center justify-between p-4 border-b bg-muted/30">
             <div className="flex items-center gap-3">
@@ -213,8 +274,8 @@ export function AdminDashboard() {
                         {hasAdminPermissions ? "Admin Dashboard" : "Dashboard"}
                       </SheetTitle>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {hasAdminPermissions 
-                          ? "Manage your platform" 
+                        {hasAdminPermissions
+                          ? "Manage your platform"
                           : "Manage content"}
                       </p>
                     </div>
@@ -261,13 +322,13 @@ export function AdminDashboard() {
                   {hasAdminPermissions ? "Admin Dashboard" : "Dashboard"}
                 </h1>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {hasAdminPermissions 
-                    ? "Manage your platform" 
+                  {hasAdminPermissions
+                    ? "Manage your platform"
                     : "Manage content"}
                 </p>
               </div>
             </div>
-            
+
             <div className="p-4 space-y-4">
               <NavigationItems onTabChange={handleTabChange} />
 
@@ -304,15 +365,26 @@ export function AdminDashboard() {
             </TabsContent>
 
             {canManageContentGroups && (
-              <TabsContent value="contentGroups" className="m-0 p-4 md:p-6 h-full">
+              <TabsContent
+                value="contentGroups"
+                className="m-0 p-4 md:p-6 h-full"
+              >
                 <ContentGroupManager />
               </TabsContent>
             )}
 
             {canViewUsers && (
-              <TabsContent value="users" className="m-0 p-4 md:p-6 h-full">
-                <UserManager />
-              </TabsContent>
+              <>
+                <TabsContent
+                  value="joinRequests"
+                  className="m-0 p-4 md:p-6 h-full"
+                >
+                  <JoinRequests />
+                </TabsContent>
+                <TabsContent value="users" className="m-0 p-4 md:p-6 h-full">
+                  <UserManager />
+                </TabsContent>
+              </>
             )}
 
             {canManageUserGroups && (
@@ -328,7 +400,10 @@ export function AdminDashboard() {
             )}
 
             {canViewPurchaseRequests && (
-              <TabsContent value="purchaseRequests" className="m-0 p-4 md:p-6 h-full">
+              <TabsContent
+                value="purchaseRequests"
+                className="m-0 p-4 md:p-6 h-full"
+              >
                 <PurchaseRequests />
               </TabsContent>
             )}

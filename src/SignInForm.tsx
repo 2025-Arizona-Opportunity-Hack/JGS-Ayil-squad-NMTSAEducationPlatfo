@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   Card,
   CardContent,
@@ -14,21 +13,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "../convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2 } from "lucide-react";
 import { Logo } from "./components/Logo";
+import { JoinRequestForm } from "./components/JoinRequestForm";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
-  const [flow, setFlow] = useState<"signIn" | "signUp" | "forgotPassword" | "resetSent">("signIn");
+  const [flow, setFlow] = useState<"signIn" | "signUp" | "joinRequest">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-
   // Check for invite code in URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,437 +53,409 @@ export function SignInForm() {
   // If no profiles exist, guide user to create the owner account
   useEffect(() => {
     if (bootstrapNeeded) {
-      setFlow("signUp");
+      setFlow("signIn"); // Owner can sign up directly
       setShowInviteCode(false);
     }
   }, [bootstrapNeeded]);
 
-  // Handle forgot password submission
-  const handleForgotPassword = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
 
-    // Simulate sending reset email
-    setTimeout(() => {
-      toast.success("Password reset email sent", {
-        description: `If an account exists for ${resetEmail}, you will receive a password reset link shortly.`,
-      });
-      setFlow("resetSent");
-      setSubmitting(false);
-    }, 1000);
-  };
-
-  // Forgot Password Flow
-  if (flow === "forgotPassword") {
+  // Join Request Flow
+  if (flow === "joinRequest") {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <div className="flex justify-center mb-4">
-            <Logo size="lg" showText={false} />
-          </div>
-          <CardTitle className="text-center">Reset Password</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email address and we'll send you a link to reset your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">Email</Label>
-              <Input
-                id="reset-email"
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? "Sending..." : "Send Reset Link"}
-            </Button>
-
-            <div className="text-center text-sm">
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto"
-                onClick={() => setFlow("signIn")}
-              >
-                Back to sign in
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Reset Email Sent Confirmation
-  if (flow === "resetSent") {
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <div className="flex justify-center mb-4">
-            <Logo size="lg" showText={false} />
-          </div>
-          <CardTitle className="text-center">Check Your Email</CardTitle>
-          <CardDescription className="text-center">
-            We've sent a password reset link to {resetEmail}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-muted p-4 rounded-lg text-sm text-center space-y-2">
-            <p>Click the link in the email to reset your password.</p>
-            <p className="text-muted-foreground text-xs">
-              Didn't receive the email? Check your spam folder or try again.
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setFlow("forgotPassword")}
-          >
-            Resend Email
-          </Button>
-
-          <div className="text-center text-sm">
-            <Button
-              type="button"
-              variant="link"
-              className="p-0 h-auto"
-              onClick={() => {
-                setFlow("signIn");
-                setResetEmail("");
-              }}
-            >
-              Back to sign in
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <JoinRequestForm
+        onBack={() => {
+          setFlow("signIn");
+        }}
+        onSuccess={() => {
+          setFlow("signIn");
+        }}
+      />
     );
   }
 
   // Normal Sign In / Sign Up Flow
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <div className="flex justify-center mb-4">
-          <Logo size="lg" showText={false} />
-        </div>
-        <CardTitle className="text-center">{flow === "signIn" ? "Sign In" : "Sign Up"}</CardTitle>
-        <CardDescription className="text-center">
-          {flow === "signIn"
-            ? "Welcome back! Please sign in to continue."
-            : "Create a new account to get started."}
-        </CardDescription>
+    <Card className="w-full max-w-md mx-auto shadow-lg border-0">
+      <CardHeader className="space-y-4 pb-6">
         {bootstrapNeeded && (
-          <div className="mt-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded">
-            This is the first time setup. Create your owner account. You will be able to promote other users to admin later.
+          <div className="text-sm bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-lg">
+            <p className="font-medium">First Time Setup</p>
+            <p className="text-xs mt-1">Create your owner account to get started.</p>
           </div>
         )}
       </CardHeader>
-      <CardContent>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmitting(true);
-            setError(null); // Clear any previous errors
-            const formData = new FormData(e.target as HTMLFormElement);
-            formData.set("flow", flow);
-
-            // Store invite code in localStorage for use in RoleSelection
-            if (flow === "signUp" && inviteCode) {
-              localStorage.setItem(
-                "signupInviteCode",
-                inviteCode.toUpperCase()
-              );
+      <CardContent className="pt-0">
+        <Tabs 
+          value={flow} 
+          onValueChange={(value) => {
+            if (value === "signIn" || value === "signUp") {
+              setFlow(value);
+              setError(null);
+              setInviteCode("");
+              setShowInviteCode(false);
             }
-
-            void signIn("password", formData)
-              .then(() => {
-                // Owner profile creation is handled in App.tsx after auth state is ready
-                setSubmitting(false);
-              })
-              .catch((error) => {
-                console.error("Authentication error:", error);
-                console.error("Error message:", error.message);
-                console.error("Error type:", typeof error);
-                let toastTitle = "";
-                let toastDescription = "";
-
-                // Handle specific error cases
-                const errorMessage = error.message || "";
-                const errorName = error.name || "";
-                const errorString = String(error);
-
-                if (
-                  errorMessage.includes("InvalidSecret") ||
-                  errorName.includes("InvalidSecret") ||
-                  errorString.includes("InvalidSecret") ||
-                  (errorMessage.includes("Invalid password") &&
-                    flow === "signIn") ||
-                  (errorMessage.includes("password") && flow === "signIn") ||
-                  errorMessage.includes("credentials") ||
-                  errorMessage.includes("authentication failed")
-                ) {
-                  toastTitle = "Incorrect password";
-                  toastDescription =
-                    "Please check your password and try again.";
-                  setError("password");
-                } else if (
-                  errorMessage.includes("Invalid password") &&
-                  flow === "signUp"
-                ) {
-                  toastTitle = "Password requirements not met";
-                  toastDescription =
-                    "Password must be at least 8 characters long and contain letters and numbers.";
-                  setError("password");
-                } else if (
-                  errorMessage.includes("User not found") ||
-                  errorMessage.includes("InvalidAccountId") ||
-                  errorName.includes("InvalidAccountId") ||
-                  errorString.includes("InvalidAccountId") ||
-                  errorMessage.includes("email") ||
-                  errorMessage.includes("account")
-                ) {
-                  if (flow === "signIn") {
-                    toastTitle = "Account not found";
-                    toastDescription =
-                      "No account found with this email. Would you like to sign up instead?";
-                    setError("email");
-                  } else {
-                    toastTitle = "Account already exists";
-                    toastDescription =
-                      "An account with this email already exists. Try signing in instead.";
-                    setError("email");
-                  }
-                } else if (
-                  errorMessage.includes("network") ||
-                  errorMessage.includes("connection")
-                ) {
-                  toastTitle = "Connection error";
-                  toastDescription =
-                    "Please check your internet connection and try again.";
-                  setError("network");
-                } else {
-                  // Generic fallback error
-                  toastTitle =
-                    flow === "signIn" ? "Sign in failed" : "Sign up failed";
-                  toastDescription = "Something went wrong. Please try again.";
-                  setError("general");
-                }
-
-                toast.error(toastTitle, {
-                  description: toastDescription,
-                });
-                setSubmitting(false);
-              });
           }}
+          className="w-full"
         >
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              name="email"
-              placeholder="Enter your email"
-              required
-              className={
-                error === "email" ? "border-red-500 focus:border-red-500" : ""
-              }
-              onChange={() => error === "email" && setError(null)}
-            />
-            {error === "email" && (
-              <p className="text-sm text-red-600">
-                Please check your email address
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              name="password"
-              placeholder="Enter your password"
-              required
-              className={
-                error === "password"
-                  ? "border-red-500 focus:border-red-500"
-                  : ""
-              }
-              onChange={() => error === "password" && setError(null)}
-            />
-            {error === "password" && flow === "signIn" && (
-              <p className="text-sm text-red-600">
-                Incorrect password. Please try again.
-              </p>
-            )}
-            {error === "password" && flow === "signUp" && (
-              <p className="text-sm text-red-600">
-                Password must be at least 8 characters long and contain letters
-                and numbers.
-              </p>
-            )}
-            {flow === "signUp" && !error && (
-              <p className="text-xs text-muted-foreground">
-                Password must be at least 8 characters long and contain at least
-                one letter and one number
-              </p>
-            )}
-            {flow === "signIn" && (
-              <div className="text-right">
-                <Button
-                  type="button"
-                  variant="link"
-                  className="p-0 h-auto text-xs"
-                  onClick={() => setFlow("forgotPassword")}
-                >
-                  Forgot password?
-                </Button>
-              </div>
-            )}
-          </div>
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="signIn">Sign In</TabsTrigger>
+            <TabsTrigger value="signUp">Sign Up</TabsTrigger>
+          </TabsList>
 
-          {/* Invite Code Section for Sign Up */}
-          {flow === "signUp" && (
-            <div className="space-y-2">
-              {!showInviteCode ? (
+          <TabsContent value="signIn" className="space-y-4 mt-0">
+            <div className="space-y-1 text-center mb-6">
+              <p className="text-sm text-muted-foreground">
+                Welcome back! Sign in to continue.
+              </p>
+            </div>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                setError(null);
+                const formData = new FormData(e.target as HTMLFormElement);
+                formData.set("flow", "signIn");
+
+                void signIn("password", formData)
+                  .then(() => {
+                    setSubmitting(false);
+                  })
+                  .catch((error) => {
+                    console.error("Authentication error:", error);
+                    const errorMessage = error.message || "";
+
+                    if (
+                      errorMessage.includes("InvalidSecret") ||
+                      errorMessage.includes("Invalid password") ||
+                      errorMessage.includes("credentials") ||
+                      errorMessage.includes("authentication failed")
+                    ) {
+                      toast.error("Oops! Wrong password", {
+                        description: "Double-check your password and try again.",
+                      });
+                      setError("password");
+                    } else if (
+                      errorMessage.includes("User not found") ||
+                      errorMessage.includes("InvalidAccountId")
+                    ) {
+                      toast.error("No account found", {
+                        description: "We couldn't find an account with this email. Have you signed up yet?",
+                      });
+                      setError("noAccount");
+                    } else if (
+                      errorMessage.includes("network") ||
+                      errorMessage.includes("connection")
+                    ) {
+                      toast.error("Connection issue", {
+                        description: "Please check your internet and try again.",
+                      });
+                      setError("network");
+                    } else {
+                      toast.error("Sign in failed", {
+                        description: errorMessage || "Something went wrong. Please try again.",
+                      });
+                      setError("general");
+                    }
+
+                    setSubmitting(false);
+                  });
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="signin-email">Email</Label>
+                <Input
+                  id="signin-email"
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  required
+                  className={
+                    error === "noAccount" ? "border-amber-500 focus:border-amber-500" : ""
+                  }
+                  onChange={() => (error === "noAccount" || error === "email") && setError(null)}
+                />
+              </div>
+
+              {/* No Account Found - Friendly Info Box */}
+              {error === "noAccount" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900 mb-1">
+                    📧 No account with this email
+                  </p>
+                  <p className="text-xs text-blue-700 mb-3">
+                    If you're new, you'll need to request access first, then sign up once approved.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                    onClick={() => {
+                      setFlow("joinRequest");
+                      setError(null);
+                    }}
+                  >
+                    Request Access
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="signin-password">Password</Label>
+                <Input
+                  id="signin-password"
+                  type="password"
+                  name="password"
+                  placeholder="Enter your password"
+                  required
+                  className={
+                    error === "password"
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }
+                  onChange={() => error === "password" && setError(null)}
+                />
+                {error === "password" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-red-800">
+                      🔐 That password didn't work
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Double-check your password and try again.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Button type="submit" disabled={submitting} className="w-full" size="lg">
+                {submitting ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="signUp" className="space-y-4 mt-0">
+            {!bootstrapNeeded && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-sm font-medium text-blue-900 mb-1">
+                  👋 New here? Request access first!
+                </p>
+                <p className="text-xs text-blue-700 mb-3">
+                  You'll need an approved request before you can create an account.
+                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowInviteCode(true)}
-                  className="w-full"
+                  className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                  onClick={() => {
+                    setFlow("joinRequest");
+                    setError(null);
+                  }}
                 >
-                  Have an invite code?
+                  Request Access
                 </Button>
-              ) : (
-                <>
-                  <Label htmlFor="inviteCode">Invite Code (Optional)</Label>
-                  <Input
-                    id="inviteCode"
-                    type="text"
-                    value={inviteCode}
-                    onChange={(e) =>
-                      setInviteCode(e.target.value.toUpperCase())
+              </div>
+            )}
+            <div className="space-y-1 text-center mb-6">
+              <p className="text-sm text-muted-foreground">
+                {bootstrapNeeded
+                  ? "Create your owner account to get started."
+                  : "Already approved? Complete your sign up below."}
+              </p>
+            </div>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                setError(null);
+                const formData = new FormData(e.target as HTMLFormElement);
+                formData.set("flow", "signUp");
+
+                // Store invite code in localStorage for use in RoleSelection
+                if (inviteCode) {
+                  localStorage.setItem(
+                    "signupInviteCode",
+                    inviteCode.toUpperCase()
+                  );
+                }
+
+                void signIn("password", formData)
+                  .then(() => {
+                    setSubmitting(false);
+                  })
+                  .catch((error) => {
+                    console.error("Authentication error:", error);
+                    const errorMessage = error.message || "";
+
+                    // Check for "already exists" FIRST (most specific)
+                    if (errorMessage.includes("already exists")) {
+                      toast.error("Account already exists", {
+                        description: "An account with this email already exists. Try signing in instead.",
+                      });
+                      setError("accountExists");
+                    } else if (
+                      errorMessage.includes("InvalidSecret") ||
+                      errorMessage.includes("Invalid password")
+                    ) {
+                      toast.error("Password requirements not met", {
+                        description: "Password must be at least 8 characters with letters and numbers.",
+                      });
+                      setError("password");
+                    } else if (
+                      errorMessage.includes("approved join request") ||
+                      errorMessage.includes("request access") ||
+                      errorMessage.includes("not approved")
+                    ) {
+                      toast.error("Access not approved yet", {
+                        description: "You need an approved join request before creating an account.",
+                      });
+                      setError("notApproved");
+                    } else if (
+                      errorMessage.includes("network") ||
+                      errorMessage.includes("connection") ||
+                      errorMessage.includes("fetch failed")
+                    ) {
+                      toast.error("Connection issue", {
+                        description: "Please check your internet and try again.",
+                      });
+                      setError("network");
+                    } else {
+                      // Generic fallback - NEVER show raw error to user
+                      toast.error("Sign up failed", {
+                        description: "Something went wrong. Please try again or contact support.",
+                      });
+                      setError("general");
                     }
-                    placeholder="Enter invite code"
-                    maxLength={8}
-                    className="font-mono"
-                  />
-                  {inviteCode.length >= 6 && inviteCodeValidation && (
-                    <div className="flex items-center gap-2">
-                      {inviteCodeValidation.valid ? (
-                        <div className="flex items-center gap-2 text-green-600">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span className="text-sm">
-                            Valid code for{" "}
-                            <Badge variant="outline" className="ml-1">
-                              {inviteCodeValidation.role}
-                            </Badge>
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-red-600">
-                          {inviteCodeValidation.message}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
 
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting
-              ? "Please wait..."
-              : flow === "signIn"
-                ? "Sign in"
-                : "Sign up"}
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={submitting}
-            onClick={() => {
-              setSubmitting(true);
-              setError(null);
-              void signIn("google")
-                .then(() => {
-                  setSubmitting(false);
-                })
-                .catch((error) => {
-                  console.error("Google sign-in error:", error);
-                  toast.error("Google sign-in failed", {
-                    description: "Please try again or use email/password.",
+                    setSubmitting(false);
                   });
-                  setSubmitting(false);
-                });
-            }}
-          >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                fill="#4285F4"
-              />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="#34A853"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="#EA4335"
-              />
-            </svg>
-            Continue with Google
-          </Button>
-
-          <div className="text-center text-sm text-muted-foreground">
-            <span>
-              {flow === "signIn"
-                ? "Don't have an account? "
-                : "Already have an account? "}
-            </span>
-            <Button
-              type="button"
-              variant="link"
-              className="p-0 h-auto font-medium"
-              onClick={() => {
-                setFlow(flow === "signIn" ? "signUp" : "signIn");
-                setError(null); // Clear errors when switching flows
-                setInviteCode(""); // Clear invite code when switching
-                setShowInviteCode(false); // Hide invite code field
               }}
             >
-              {flow === "signIn" ? "Sign up instead" : "Sign in instead"}
-            </Button>
-          </div>
-        </form>
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Email</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  required
+                  onChange={() => error === "notApproved" && setError(null)}
+                />
+              </div>
+
+              {/* Not Approved Yet - Friendly Info Box */}
+              {error === "notApproved" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900 mb-1">
+                    ⏳ Access not approved yet
+                  </p>
+                  <p className="text-xs text-blue-700 mb-3">
+                    You need an approved join request before you can create an account.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                    onClick={() => {
+                      setFlow("joinRequest");
+                      setError(null);
+                    }}
+                  >
+                    Request Access
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Password</Label>
+                <Input
+                  id="signup-password"
+                  type="password"
+                  name="password"
+                  placeholder="Create a password"
+                  required
+                  className={
+                    error === "password"
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }
+                  onChange={() => error === "password" && setError(null)}
+                />
+                {error === "password" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-red-800">
+                      🔐 Password doesn't meet requirements
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Must be at least 8 characters with letters and numbers.
+                    </p>
+                  </div>
+                )}
+                {!error && (
+                  <p className="text-xs text-muted-foreground">
+                    Must be at least 8 characters with letters and numbers
+                  </p>
+                )}
+              </div>
+
+              {/* Invite Code Section - Only for special roles */}
+              {!bootstrapNeeded && (
+                <div className="space-y-2">
+                  {!showInviteCode ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowInviteCode(true)}
+                      className="w-full"
+                    >
+                      Have an invite code?
+                    </Button>
+                  ) : (
+                    <>
+                      <Label htmlFor="inviteCode">Invite Code (Optional)</Label>
+                      <Input
+                        id="inviteCode"
+                        type="text"
+                        value={inviteCode}
+                        onChange={(e) =>
+                          setInviteCode(e.target.value.toUpperCase())
+                        }
+                        placeholder="Enter invite code"
+                        maxLength={8}
+                        className="font-mono"
+                      />
+                      {inviteCode.length >= 6 && inviteCodeValidation && (
+                        <div className="flex items-center gap-2">
+                          {inviteCodeValidation.valid ? (
+                            <div className="flex items-center gap-2 text-green-600">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span className="text-sm">
+                                Valid code for{" "}
+                                <Badge variant="outline" className="ml-1">
+                                  {inviteCodeValidation.role}
+                                </Badge>
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-red-600">
+                              {inviteCodeValidation.message}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              <Button type="submit" disabled={submitting} className="w-full" size="lg">
+                {submitting ? "Creating account..." : "Sign Up"}
+              </Button>
+            </form>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

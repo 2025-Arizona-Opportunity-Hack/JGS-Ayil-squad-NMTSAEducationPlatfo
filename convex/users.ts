@@ -140,6 +140,29 @@ export const createUserProfile = mutation({
           }
         }
       }
+
+      // Check for approved join request (unless they have an invite code)
+      if (!args.inviteCode) {
+        const joinRequest = await ctx.db
+          .query("joinRequests")
+          .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
+          .order("desc")
+          .first();
+
+        if (!joinRequest || joinRequest.status !== "approved") {
+          throw new Error(
+            "You need an approved join request to create an account. Please request access first or contact support."
+          );
+        }
+
+        // Mark join request as account created
+        if (!joinRequest.accountCreatedAt) {
+          await ctx.db.patch(joinRequest._id, {
+            accountCreatedAt: Date.now(),
+            userId: userId,
+          });
+        }
+      }
     }
 
     // Determine the role based on invite code or provided role

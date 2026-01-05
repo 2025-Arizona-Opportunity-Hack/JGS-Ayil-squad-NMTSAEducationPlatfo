@@ -57,13 +57,15 @@ const applicationTables = {
     title: v.string(),
     description: v.optional(v.string()), // Short description
     // Main attachment - one of these types (optional for legacy content migration)
-    attachmentType: v.optional(v.union(
-      v.literal("video"),
-      v.literal("image"),
-      v.literal("pdf"),
-      v.literal("audio"),
-      v.literal("richtext")
-    )),
+    attachmentType: v.optional(
+      v.union(
+        v.literal("video"),
+        v.literal("image"),
+        v.literal("pdf"),
+        v.literal("audio"),
+        v.literal("richtext")
+      )
+    ),
     // For file-based attachments (video, image, pdf, audio)
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()), // For external video/audio URLs
@@ -105,14 +107,17 @@ const applicationTables = {
     // Password protection
     password: v.optional(v.string()),
     // Legacy fields for migration (can be removed after migration)
-    type: v.optional(v.union(
-      v.literal("video"),
-      v.literal("article"),
-      v.literal("document"),
-      v.literal("audio")
-    )),
+    type: v.optional(
+      v.union(
+        v.literal("video"),
+        v.literal("article"),
+        v.literal("document"),
+        v.literal("audio")
+      )
+    ),
     body: v.optional(v.string()),
     organizationId: v.optional(v.string()),
+    currentVersion: v.optional(v.number()), // Legacy field from contentVersions feature
   })
     .index("by_creator", ["createdBy"])
     .index("by_attachment_type", ["attachmentType"])
@@ -242,6 +247,35 @@ const applicationTables = {
     .index("by_email", ["email"])
     .index("by_token", ["token"]),
 
+  // Join requests (users request to join the platform)
+  joinRequests: defineTable({
+    email: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    message: v.optional(v.string()), // Optional reason for joining
+    status: v.union(
+      v.literal("pending_verification"), // Waiting for email verification
+      v.literal("pending"), // Verified, waiting for admin review
+      v.literal("approved"),
+      v.literal("denied")
+    ),
+    emailVerified: v.optional(v.boolean()), // Has email been verified? (optional for backward compatibility)
+    verificationToken: v.optional(v.string()), // Token for email verification
+    verificationTokenExpiresAt: v.optional(v.number()), // Token expiry timestamp
+    verifiedAt: v.optional(v.number()), // When was email verified?
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.id("users")),
+    adminNotes: v.optional(v.string()), // Notes from admin
+    createdAt: v.number(),
+    // Once approved, track if they've created an account
+    accountCreatedAt: v.optional(v.number()),
+    userId: v.optional(v.id("users")), // Set when user creates account
+  })
+    .index("by_email", ["email"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"])
+    .index("by_verification_token", ["verificationToken"]),
+
   // Invite codes (for role-based invites without specific emails)
   inviteCodes: defineTable({
     code: v.string(),
@@ -254,6 +288,7 @@ const applicationTables = {
     createdAt: v.number(),
     expiresAt: v.optional(v.number()),
     isActive: v.boolean(),
+    currentUses: v.optional(v.number()), // Legacy field for tracking usage
   })
     .index("by_code", ["code"])
     .index("by_creator", ["createdBy"]),
