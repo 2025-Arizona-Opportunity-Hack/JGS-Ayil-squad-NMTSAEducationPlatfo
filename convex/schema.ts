@@ -39,11 +39,18 @@ const applicationTables = {
     isActive: v.boolean(),
     invitedBy: v.optional(v.id("users")),
     inviteAcceptedAt: v.optional(v.number()),
+    // Phone number fields for SMS notifications
+    phoneNumber: v.optional(v.string()), // E.164 format, e.g., +14155551234
+    phoneVerified: v.optional(v.boolean()),
+    phoneVerificationCode: v.optional(v.string()),
+    phoneVerificationExpires: v.optional(v.number()),
+    smsNotificationsEnabled: v.optional(v.boolean()),
     // Temporary field for migration
     organizationId: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
-    .index("by_role", ["role"]),
+    .index("by_role", ["role"])
+    .index("by_phone", ["phoneNumber"]),
 
   // Content items
   content: defineTable({
@@ -249,6 +256,38 @@ const applicationTables = {
     isActive: v.boolean(),
   })
     .index("by_code", ["code"])
+    .index("by_creator", ["createdBy"]),
+
+  // Client invites (for inviting users to the client portal)
+  clientInvites: defineTable({
+    code: v.string(),
+    role: v.union(
+      v.literal("client"),
+      v.literal("parent"),
+      v.literal("professional")
+    ),
+    // Contact info - at least one required
+    email: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    // Invite details
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    message: v.optional(v.string()),
+    // Tracking
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    isActive: v.boolean(),
+    // Usage tracking
+    usedBy: v.optional(v.id("users")),
+    usedAt: v.optional(v.number()),
+    // Notification tracking
+    emailSent: v.optional(v.boolean()),
+    smsSent: v.optional(v.boolean()),
+  })
+    .index("by_code", ["code"])
+    .index("by_email", ["email"])
+    .index("by_phone", ["phoneNumber"])
     .index("by_creator", ["createdBy"]),
 
   // Content pricing (for content items available for purchase)

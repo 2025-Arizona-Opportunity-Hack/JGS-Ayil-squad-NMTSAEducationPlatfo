@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
+import { internal } from "./_generated/api";
 
 // Helper to get effective permissions for a user profile
 function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
@@ -357,10 +358,30 @@ export const grantContentAccess = mutation({
       throw new Error("You don't have permission to grant content access");
     }
 
-    return await ctx.db.insert("contentAccess", {
+    const accessId = await ctx.db.insert("contentAccess", {
       ...args,
       grantedBy: currentUserId,
     });
+
+    // Send email and SMS notifications to user if individual access was granted
+    if (args.userId) {
+      const granterName = `${profile.firstName} ${profile.lastName}`;
+      // Email notification
+      await ctx.scheduler.runAfter(0, internal.emails.sendContentAccessGrantedEmail, {
+        userId: args.userId,
+        contentId: args.contentId,
+        granterName,
+        expiresAt: args.expiresAt,
+      });
+      // SMS notification
+      await ctx.scheduler.runAfter(0, internal.sms.sendContentAccessSms, {
+        userId: args.userId,
+        contentId: args.contentId,
+        granterName,
+      });
+    }
+
+    return accessId;
   },
 });
 
@@ -633,6 +654,22 @@ export const approveContent = mutation({
       reviewNotes: args.reviewNotes,
       publishedAt: Date.now(),
     });
+
+    // Send email notification to content author
+    const reviewerName = `${profile.firstName} ${profile.lastName}`;
+    await ctx.scheduler.runAfter(0, internal.emails.sendContentStatusEmail, {
+      contentId: args.contentId,
+      authorId: content.createdBy,
+      newStatus: "published",
+      reviewerName,
+      reviewNotes: args.reviewNotes,
+    });
+    // Send SMS notification
+    await ctx.scheduler.runAfter(0, internal.sms.sendContentStatusSms, {
+      authorId: content.createdBy,
+      contentTitle: content.title,
+      newStatus: "published",
+    });
   },
 });
 
@@ -671,6 +708,16 @@ export const rejectContent = mutation({
       reviewedBy: userId,
       reviewNotes: args.reviewNotes,
     });
+
+    // Send email notification to content author
+    const reviewerName = `${profile.firstName} ${profile.lastName}`;
+    await ctx.scheduler.runAfter(0, internal.emails.sendContentStatusEmail, {
+      contentId: args.contentId,
+      authorId: content.createdBy,
+      newStatus: "rejected",
+      reviewerName,
+      reviewNotes: args.reviewNotes,
+    });
   },
 });
 
@@ -707,6 +754,16 @@ export const requestChanges = mutation({
       status: "changes_requested",
       reviewedAt: Date.now(),
       reviewedBy: userId,
+      reviewNotes: args.reviewNotes,
+    });
+
+    // Send email notification to content author
+    const reviewerName = `${profile.firstName} ${profile.lastName}`;
+    await ctx.scheduler.runAfter(0, internal.emails.sendContentStatusEmail, {
+      contentId: args.contentId,
+      authorId: content.createdBy,
+      newStatus: "changes_requested",
+      reviewerName,
       reviewNotes: args.reviewNotes,
     });
   },
@@ -1301,6 +1358,14 @@ export const archiveContent = mutation({
       isArchived: true,
       archivedAt: Date.now(),
       archivedBy: userId,
+    });
+
+    // Send email notification to content author
+    const archiverName = `${profile.firstName} ${profile.lastName}`;
+    await ctx.scheduler.runAfter(0, internal.emails.sendContentArchivedEmail, {
+      contentId: args.contentId,
+      authorId: content.createdBy,
+      archiverName,
     });
   },
 });

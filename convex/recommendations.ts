@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 // Create a content recommendation
 export const createRecommendation = mutation({
@@ -41,6 +42,15 @@ export const createRecommendation = mutation({
       message: args.message,
       createdAt: Date.now(),
       isActive: true,
+    });
+
+    // Send email notification to recipient
+    const recommenderName = `${profile.firstName} ${profile.lastName}`;
+    await ctx.scheduler.runAfter(0, internal.emails.sendRecommendationEmail, {
+      recipientEmail: args.recipientEmail,
+      contentId: args.contentId,
+      recommenderName,
+      message: args.message,
     });
 
     return { success: true, recommendationId };

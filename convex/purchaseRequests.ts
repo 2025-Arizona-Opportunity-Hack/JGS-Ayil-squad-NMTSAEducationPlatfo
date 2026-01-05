@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 // Create a purchase request
 export const createPurchaseRequest = mutation({
@@ -320,6 +321,18 @@ export const approveRequest = mutation({
       reviewedBy: userId,
     });
 
+    // Send email notification to user
+    await ctx.scheduler.runAfter(0, internal.emails.sendPurchaseApprovedEmail, {
+      userId: request.userId,
+      contentId: request.contentId,
+      adminNotes: args.adminNotes,
+    });
+    // Send SMS notification
+    await ctx.scheduler.runAfter(0, internal.sms.sendPurchaseApprovedSms, {
+      userId: request.userId,
+      contentId: request.contentId,
+    });
+
     return { success: true };
   },
 });
@@ -355,6 +368,13 @@ export const denyRequest = mutation({
       adminNotes: args.adminNotes,
       reviewedAt: Date.now(),
       reviewedBy: userId,
+    });
+
+    // Send email notification to user
+    await ctx.scheduler.runAfter(0, internal.emails.sendPurchaseDeniedEmail, {
+      userId: request.userId,
+      contentId: request.contentId,
+      adminNotes: args.adminNotes,
     });
 
     return { success: true };

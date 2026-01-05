@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive, Settings, ClipboardList, Menu } from "lucide-react";
+import { Folder, FolderTree, Users, UsersRound, ExternalLink, Mail, TrendingUp, ShoppingCart, Archive, Settings, ClipboardList, Menu, UserPlus } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
 import { ContentManager } from "./ContentManager";
 import { ContentGroupManager } from "./ContentGroupManager";
 import { ShareLinksManager } from "./ShareLinksManager";
 import { InviteCodeModal } from "./InviteCodeModal";
+import { ClientInviteModal } from "./ClientInviteModal";
 import { SalesAnalytics } from "./admin/SalesAnalytics";
 import { AdminOrders } from "./admin/AdminOrders";
 import { ArchivedContent } from "./admin/ArchivedContent";
@@ -22,6 +23,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 export function AdminDashboard() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [clientInviteModalOpen, setClientInviteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     // Load saved tab from localStorage or default to 'content'
@@ -171,10 +173,16 @@ export function AdminDashboard() {
   return (
     <>
       {canGenerateInviteCodes && (
-        <InviteCodeModal
-          open={inviteModalOpen}
-          onOpenChange={setInviteModalOpen}
-        />
+        <>
+          <InviteCodeModal
+            open={inviteModalOpen}
+            onOpenChange={setInviteModalOpen}
+          />
+          <ClientInviteModal
+            open={clientInviteModalOpen}
+            onOpenChange={setClientInviteModalOpen}
+          />
+        </>
       )}
       
       <div className="w-full h-full flex flex-col md:flex-row">
@@ -215,17 +223,29 @@ export function AdminDashboard() {
                 <div className="p-4 space-y-4">
                   <NavigationItems onTabChange={handleMobileTabChange} />
                   {canGenerateInviteCodes && (
-                    <Button
-                      onClick={() => {
-                        setInviteModalOpen(true);
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2"
-                      variant="outline"
-                    >
-                      <Mail className="w-4 h-4" />
-                      Generate Invite Code
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          setClientInviteModalOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Invite Client
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setInviteModalOpen(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2"
+                        variant="outline"
+                      >
+                        <Mail className="w-4 h-4" />
+                        Generate Staff Code
+                      </Button>
+                    </div>
                   )}
                 </div>
               </SheetContent>
@@ -252,14 +272,23 @@ export function AdminDashboard() {
               <NavigationItems onTabChange={handleTabChange} />
 
               {canGenerateInviteCodes && (
-                <Button
-                  onClick={() => setInviteModalOpen(true)}
-                  className="w-full flex items-center gap-2"
-                  variant="outline"
-                >
-                  <Mail className="w-4 h-4" />
-                  Generate Invite Code
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => setClientInviteModalOpen(true)}
+                    className="w-full flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Invite Client
+                  </Button>
+                  <Button
+                    onClick={() => setInviteModalOpen(true)}
+                    className="w-full flex items-center gap-2"
+                    variant="outline"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Generate Staff Code
+                  </Button>
+                </div>
               )}
             </div>
           </div>

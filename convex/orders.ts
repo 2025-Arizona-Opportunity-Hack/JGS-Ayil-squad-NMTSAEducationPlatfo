@@ -98,16 +98,18 @@ export const completeOrder = mutation({
     });
 
     // Grant access to content
-    const content = await ctx.db.get(order.contentId);
-    if (content) {
-      // Create content access entry
-      await ctx.db.insert("contentAccess", {
-        contentId: order.contentId,
-        userId: order.userId,
-        grantedBy: order.userId,
-        expiresAt: order.accessExpiresAt,
-        canShare: false,
-      });
+    if (order.contentId) {
+      const content = await ctx.db.get(order.contentId);
+      if (content) {
+        // Create content access entry
+        await ctx.db.insert("contentAccess", {
+          contentId: order.contentId,
+          userId: order.userId,
+          grantedBy: order.userId,
+          expiresAt: order.accessExpiresAt,
+          canShare: false,
+        });
+      }
     }
 
     // Mark the purchase request as completed
@@ -115,12 +117,13 @@ export const completeOrder = mutation({
       await ctx.db.patch(args.purchaseRequestId, {
         purchaseCompletedAt: Date.now(),
       });
-    } else {
+    } else if (order.contentId) {
       // Find and mark the approved request as completed
+      const contentId = order.contentId; // Store in variable for type narrowing
       const approvedRequest = await ctx.db
         .query("purchaseRequests")
         .withIndex("by_user_content", (q) => 
-          q.eq("userId", userId).eq("contentId", order.contentId)
+          q.eq("userId", userId).eq("contentId", contentId)
         )
         .filter((q) => q.eq(q.field("status"), "approved"))
         .first();
@@ -151,8 +154,8 @@ export const getUserOrders = query({
     // Enrich with content and pricing details
     const enrichedOrders = await Promise.all(
       orders.map(async (order) => {
-        const content = await ctx.db.get(order.contentId);
-        const pricing = await ctx.db.get(order.pricingId);
+        const content = order.contentId ? await ctx.db.get(order.contentId) : null;
+        const pricing = order.pricingId ? await ctx.db.get(order.pricingId) : null;
 
         // Get thumbnail URL if exists
         let thumbnailUrl = null;
@@ -199,8 +202,8 @@ export const getAllOrders = query({
     // Enrich with user, content, and pricing details
     const enrichedOrders = await Promise.all(
       orders.map(async (order) => {
-        const content = await ctx.db.get(order.contentId);
-        const pricing = await ctx.db.get(order.pricingId);
+        const content = order.contentId ? await ctx.db.get(order.contentId) : null;
+        const pricing = order.pricingId ? await ctx.db.get(order.pricingId) : null;
         const userProfile = await ctx.db
           .query("userProfiles")
           .withIndex("by_user_id", (q) => q.eq("userId", order.userId))
@@ -279,6 +282,8 @@ export const getSalesAnalytics = query({
     const contentSales = new Map<string, { count: number; revenue: number; title: string }>();
     
     for (const order of completedOrders) {
+      if (!order.contentId) continue; // Skip orders without contentId (bundle orders)
+      
       const existing = contentSales.get(order.contentId);
       const content = await ctx.db.get(order.contentId);
       
