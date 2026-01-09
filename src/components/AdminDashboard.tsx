@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Menu,
   UserPlus,
+  Bug,
 } from "lucide-react";
 import { UserManager } from "./UserManager";
 import { UserGroupManager } from "./UserGroupManager";
@@ -29,6 +30,7 @@ import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
 import { PurchaseRequests } from "./admin/PurchaseRequests";
 import { JoinRequests } from "./admin/JoinRequests";
+import { DebugTools } from "./admin/DebugTools";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -222,6 +224,16 @@ export function AdminDashboard() {
         >
           <Settings className="w-4 h-4" />
           Site Settings
+        </TabsTrigger>
+      )}
+      {canManageSiteSettings && (
+        <TabsTrigger
+          value="debug"
+          onClick={() => onTabChange("debug")}
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:text-muted-foreground justify-start"
+        >
+          <Bug className="w-4 h-4" />
+          Debug Tools
         </TabsTrigger>
       )}
     </TabsList>
@@ -423,6 +435,12 @@ export function AdminDashboard() {
             {canManageSiteSettings && (
               <TabsContent value="settings" className="m-0 p-4 md:p-6 h-full">
                 <SiteSettings />
+              </TabsContent>
+            )}
+
+            {canManageSiteSettings && (
+              <TabsContent value="debug" className="m-0 p-4 md:p-6 h-full">
+                <DebugTools />
               </TabsContent>
             )}
           </div>
