@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, action } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 // Generate a secure random token
 function generateVerificationToken(): string {
@@ -106,7 +106,7 @@ export const createJoinRequest = mutation({
     // If email fails (e.g., testing mode), the request is still created
     // User can resend verification email later if needed
     try {
-      await ctx.scheduler.runAfter(0, api.email.sendVerificationEmail, {
+      await ctx.scheduler.runAfter(0, internal.emails.sendVerificationEmail, {
         email: args.email.toLowerCase(),
         firstName: args.firstName.trim(),
         verificationToken,
@@ -215,7 +215,7 @@ export const resendVerificationEmail = mutation({
       : "http://localhost:5173"; // Local dev: always use localhost
     
     try {
-      await ctx.scheduler.runAfter(0, api.email.sendVerificationEmail, {
+      await ctx.scheduler.runAfter(0, internal.emails.sendVerificationEmail, {
         email: request.email,
         firstName: request.firstName,
         verificationToken,

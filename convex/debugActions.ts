@@ -25,7 +25,7 @@ export const sendTestEmail = action({
 
     // Configuration based on environment
     const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
-    const TEST_EMAIL = "mattyost00@gmail.com";
+    const TEST_EMAIL = "benbousq@gmail.com";
     const PRODUCTION_DOMAIN = "nmtsa";
 
     const recipientEmail = IS_PRODUCTION ? toEmail.trim().toLowerCase() : TEST_EMAIL;
@@ -176,7 +176,7 @@ export const getDebugConfig = action({
       email: {
         provider: "Resend",
         hasApiKey: hasResendKey,
-        testEmail: IS_PRODUCTION ? null : "mattyost00@gmail.com",
+        testEmail: IS_PRODUCTION ? null : "benbousq@gmail.com",
         fromDomain: IS_PRODUCTION ? "nmtsa.com" : "resend.dev",
       },
       sms: {
