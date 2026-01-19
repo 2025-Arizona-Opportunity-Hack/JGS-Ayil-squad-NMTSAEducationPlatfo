@@ -54,6 +54,7 @@ import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
 import { RecommendContentModal } from "./RecommendContentModal";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
+import { GoogleDrivePicker } from "./GoogleDrivePicker";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -96,6 +97,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showThirdPartyShareModal, setShowThirdPartyShareModal] = useState(false);
@@ -254,21 +256,51 @@ export function ContentManager() {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
+      // Timeout after 30 seconds
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('Thumbnail generation timed out - video may not be playable'));
+      }, 30000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (video.src) {
+          URL.revokeObjectURL(video.src);
+        }
+      };
+
       video.preload = 'metadata';
       video.muted = true;
       video.playsInline = true;
+      video.crossOrigin = 'anonymous';
+
+      video.onloadedmetadata = () => {
+        console.log("[Thumbnail] Video metadata loaded:", {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      };
 
       video.onloadeddata = () => {
+        console.log("[Thumbnail] Video data loaded, seeking...");
         // Seek to 1 second or 10% of video duration, whichever is smaller
         video.currentTime = Math.min(1, video.duration * 0.1);
       };
 
       video.onseeked = () => {
+        console.log("[Thumbnail] Seeked to:", video.currentTime);
         // Set canvas size to video dimensions (max 640px width to keep file size reasonable)
         const maxWidth = 640;
         const scale = Math.min(1, maxWidth / video.videoWidth);
         canvas.width = video.videoWidth * scale;
         canvas.height = video.videoHeight * scale;
+
+        if (canvas.width === 0 || canvas.height === 0) {
+          cleanup();
+          reject(new Error('Video dimensions are zero - format may not be supported'));
+          return;
+        }
 
         // Draw video frame to canvas
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -276,25 +308,26 @@ export function ContentManager() {
         // Convert canvas to blob
         canvas.toBlob(
           (blob) => {
-            if (blob) {
+            cleanup();
+            if (blob && blob.size > 0) {
               resolve(blob);
             } else {
-              reject(new Error('Failed to generate thumbnail'));
+              reject(new Error('Failed to generate thumbnail - blob is empty'));
             }
-            // Cleanup
-            URL.revokeObjectURL(video.src);
           },
           'image/jpeg',
           0.8
         );
       };
 
-      video.onerror = () => {
-        reject(new Error('Failed to load video'));
-        URL.revokeObjectURL(video.src);
+      video.onerror = (e) => {
+        console.error("[Thumbnail] Video error:", e);
+        cleanup();
+        reject(new Error(`Failed to load video: ${video.error?.message || 'unknown error'}`));
       };
 
       video.src = URL.createObjectURL(videoFile);
+      console.log("[Thumbnail] Created object URL for video");
     });
   };
 
@@ -415,6 +448,13 @@ export function ContentManager() {
       
       // Handle file upload for videos, pdfs, images, and audio
       if (selectedFile && (data.attachmentType === "video" || data.attachmentType === "pdf" || data.attachmentType === "audio" || data.attachmentType === "image")) {
+        console.log("[Upload] Starting file upload:", {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          fileType: selectedFile.type,
+          attachmentType: data.attachmentType,
+        });
+
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
@@ -422,17 +462,22 @@ export function ContentManager() {
           body: selectedFile,
         });
         const json = await result.json();
+        console.log("[Upload] Upload response:", json);
+
         if (!result.ok) {
           throw new Error(`Upload failed: ${JSON.stringify(json)}`);
         }
         fileId = json.storageId;
+        console.log("[Upload] File uploaded with storageId:", fileId);
         
         // Generate and upload thumbnail for videos
         if (data.attachmentType === "video") {
           try {
+            console.log("[Thumbnail] Starting thumbnail generation for:", selectedFile.name, selectedFile.type);
             toast.loading("Generating thumbnail...", { id: "thumbnail" });
             const thumbnailBlob = await generateVideoThumbnail(selectedFile);
-            
+            console.log("[Thumbnail] Generated blob:", thumbnailBlob.size, "bytes");
+
             const thumbnailUploadUrl = await generateUploadUrl();
             const thumbnailResult = await fetch(thumbnailUploadUrl, {
               method: "POST",
@@ -440,22 +485,25 @@ export function ContentManager() {
               body: thumbnailBlob,
             });
             const thumbnailJson = await thumbnailResult.json();
-            
+            console.log("[Thumbnail] Upload response:", thumbnailJson);
+
             if (thumbnailResult.ok) {
               thumbnailId = thumbnailJson.storageId;
+              console.log("[Thumbnail] Successfully uploaded with storageId:", thumbnailId);
               toast.success("Thumbnail generated!", { id: "thumbnail" });
             } else {
+              console.error("[Thumbnail] Upload failed:", thumbnailJson);
               toast.dismiss("thumbnail");
             }
           } catch (error) {
-            console.error("Error generating thumbnail:", error);
-            toast.dismiss("thumbnail");
+            console.error("[Thumbnail] Error generating thumbnail:", error);
+            toast.error("Thumbnail generation failed - video format may not be supported", { id: "thumbnail" });
             // Continue without thumbnail if generation fails
           }
         }
       }
 
-      await createContent({
+      const contentData = {
         title: data.title,
         description: data.description || undefined,
         attachmentType: data.attachmentType,
@@ -469,7 +517,11 @@ export function ContentManager() {
         startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
         endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
         password: data.password || undefined,
-      });
+      };
+      console.log("[Create] Creating content with data:", contentData);
+
+      const newContentId = await createContent(contentData);
+      console.log("[Create] Content created successfully with ID:", newContentId);
 
       // Reset form
       reset();
@@ -884,8 +936,26 @@ export function ContentManager() {
           </div>
         </div>
 
-      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={showCreateForm} onOpenChange={(open) => {
+        // Don't close the dialog if the Google Drive picker is open
+        if (!open && isPickerOpen) return;
+        setShowCreateForm(open);
+      }} modal={!isPickerOpen}>
+        <DialogContent
+          className={cn(
+            "max-w-5xl max-h-[90vh] overflow-y-auto",
+            isPickerOpen && "pointer-events-none"
+          )}
+          overlayClassName={isPickerOpen ? "pointer-events-none" : undefined}
+          onPointerDownOutside={(e) => {
+            // Prevent closing when clicking outside if picker is open
+            if (isPickerOpen) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            // Prevent any interaction closing if picker is open
+            if (isPickerOpen) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Create New Content</DialogTitle>
             <DialogDescription>Add a new piece of content to your library</DialogDescription>
@@ -955,70 +1025,122 @@ export function ContentManager() {
               {formAttachmentType === "video" && (
                 <div className="space-y-2">
                   <Label htmlFor="videoFile">Video File</Label>
-                  <Input
-                    id="videoFile"
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileChange}
-                />
-                {selectedFile && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="videoFile"
+                        type="file"
+                        accept="video/*"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                    <GoogleDrivePicker
+                      accept="video/*"
+                      onFileSelected={(file) => {
+                        setSelectedFile(file);
+                        toast.success(`Selected: ${file.name}`);
+                      }}
+                      onPickerOpen={() => setIsPickerOpen(true)}
+                      onPickerClose={() => setIsPickerOpen(false)}
+                    />
+                  </div>
+                  {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
-            )}
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {formAttachmentType === "audio" && (
                 <div className="space-y-2">
                   <Label htmlFor="audioFile">Audio File</Label>
-                  <Input
-                    id="audioFile"
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileChange}
-                />
-                {selectedFile && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="audioFile"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                    <GoogleDrivePicker
+                      accept="audio/*"
+                      onFileSelected={(file) => {
+                        setSelectedFile(file);
+                        toast.success(`Selected: ${file.name}`);
+                      }}
+                      onPickerOpen={() => setIsPickerOpen(true)}
+                      onPickerClose={() => setIsPickerOpen(false)}
+                    />
+                  </div>
+                  {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
-            )}
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {formAttachmentType === "image" && (
                 <div className="space-y-2">
                   <Label htmlFor="imageFile">Image File</Label>
-                  <Input
-                    id="imageFile"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
-                {selectedFile && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="imageFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                    <GoogleDrivePicker
+                      accept="image/*"
+                      onFileSelected={(file) => {
+                        setSelectedFile(file);
+                        toast.success(`Selected: ${file.name}`);
+                      }}
+                      onPickerOpen={() => setIsPickerOpen(true)}
+                      onPickerClose={() => setIsPickerOpen(false)}
+                    />
+                  </div>
+                  {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
-            )}
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {formAttachmentType === "pdf" && (
                 <div className="space-y-2">
                   <Label htmlFor="pdfFile">PDF File</Label>
-                  <Input
-                    id="pdfFile"
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileChange}
-                />
-                {selectedFile && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="pdfFile"
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                    <GoogleDrivePicker
+                      accept="application/pdf"
+                      onFileSelected={(file) => {
+                        setSelectedFile(file);
+                        toast.success(`Selected: ${file.name}`);
+                      }}
+                      onPickerOpen={() => setIsPickerOpen(true)}
+                      onPickerClose={() => setIsPickerOpen(false)}
+                    />
+                  </div>
+                  {selectedFile && (
                     <p className="text-sm text-muted-foreground">
-                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
-            )}
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {formAttachmentType === "richtext" && (
                 <div className="space-y-2">

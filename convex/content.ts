@@ -203,8 +203,22 @@ export const listContent = query({
       const fileUrl = content.fileId ? await ctx.storage.getUrl(content.fileId) : null;
       const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
 
+      // Map attachmentType to legacy type field for frontend compatibility
+      const getTypeFromAttachmentType = (attachmentType?: string): string => {
+        if (!attachmentType) return content.type || "article";
+        switch (attachmentType) {
+          case "video": return "video";
+          case "audio": return "audio";
+          case "pdf": return "document";
+          case "image": return "document";
+          case "richtext": return "article";
+          default: return "article";
+        }
+      };
+
       const contentWithNames = {
         ...content,
+        type: getTypeFromAttachmentType(content.attachmentType),
         fileUrl,
         thumbnailUrl,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
@@ -469,11 +483,27 @@ export const getContent = query({
       reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : "Unknown";
     }
 
+    // Map attachmentType to legacy type field for frontend compatibility
+    const getTypeFromAttachmentType = (attachmentType?: string): string => {
+      if (!attachmentType) return content.type || "article";
+      switch (attachmentType) {
+        case "video": return "video";
+        case "audio": return "audio";
+        case "pdf": return "document";
+        case "image": return "document";
+        case "richtext": return "article";
+        default: return "article";
+      }
+    };
+
+    const contentType = getTypeFromAttachmentType(content.attachmentType);
+
     // Users with VIEW_ALL_CONTENT permission can see all content
     const permissions = getEffectivePermissions(profile);
     if (hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
       return {
         ...content,
+        type: contentType,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
@@ -490,6 +520,7 @@ export const getContent = query({
     if (content.isPublic) {
       return {
         ...content,
+        type: contentType,
         fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
@@ -502,6 +533,7 @@ export const getContent = query({
 
     return {
       ...content,
+      type: contentType,
       fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
       thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
       creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
