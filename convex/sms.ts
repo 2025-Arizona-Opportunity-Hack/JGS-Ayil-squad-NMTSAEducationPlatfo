@@ -5,10 +5,26 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Initialize Twilio component
-export const twilio = new Twilio(components.twilio, {
-  defaultFrom: process.env.TWILIO_PHONE_NUMBER!,
-});
+// Initialize Twilio component lazily to avoid startup errors when credentials are missing
+let _twilio: ReturnType<typeof createTwilio> | null = null;
+
+function createTwilio() {
+  return new Twilio(components.twilio, {
+    defaultFrom: process.env.TWILIO_PHONE_NUMBER || "",
+  });
+}
+
+export function getTwilio() {
+  if (!_twilio) {
+    _twilio = createTwilio();
+  }
+  return _twilio;
+}
+
+// Check if Twilio credentials are configured
+export function isTwilioConfigured(): boolean {
+  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+}
 
 // Helper to get site settings for SMS branding
 export const getSiteSettings = internalQuery({
@@ -114,7 +130,7 @@ export const sendVerificationSms = internalAction({
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: args.phoneNumber,
       body: `Your ${orgName} verification code is: ${args.verificationCode}. This code expires in 10 minutes.`,
     });
@@ -272,7 +288,7 @@ export const sendContentAccessSms = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
       body: `${orgName}: ${args.granterName} has given you access to "${content.title}". View it at ${baseUrl}`,
     });
@@ -294,7 +310,7 @@ export const sendInviteSms = internalAction({
 
     const inviteUrl = `${baseUrl}?invite=${args.inviteCode}`;
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: args.phoneNumber,
       body: `${args.inviterName} invited you to join ${orgName} as a ${args.role}. Use code ${args.inviteCode} or visit: ${inviteUrl}`,
     });
@@ -324,7 +340,7 @@ export const sendClientInviteSms = internalAction({
 
     const roleDesc = roleDescriptions[args.role] || "join our platform";
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: args.phoneNumber,
       body: `${args.inviterName} invited you to ${orgName} to ${roleDesc}. Use code ${args.inviteCode} or visit: ${inviteUrl}`,
     });
@@ -353,7 +369,7 @@ export const sendRecommendationSms = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
       body: `${orgName}: ${args.recommenderName} recommended "${content.title}" for you. Check it out at ${baseUrl}`,
     });
@@ -381,7 +397,7 @@ export const sendPurchaseApprovedSms = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
       body: `${orgName}: Your request to purchase "${content.title}" has been approved! Complete your purchase at ${baseUrl}`,
     });
@@ -413,7 +429,7 @@ export const sendContentStatusSms = internalAction({
 
     const message = statusMessages[args.newStatus] || `Status update for "${args.contentTitle}": ${args.newStatus}`;
 
-    await twilio.sendMessage(ctx, {
+    await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
       body: `${orgName}: ${message}`,
     });

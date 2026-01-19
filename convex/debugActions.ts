@@ -3,7 +3,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
-import { twilio } from "./sms";
+import { getTwilio, isTwilioConfigured } from "./sms";
 
 // Initialize Resend with API key from environment
 const resend = new Resend(
@@ -131,8 +131,15 @@ export const sendTestSms = action({
     console.log(`[Debug SMS] Sending to: ${toPhone}`);
     console.log(`[Debug SMS] Message: ${message}`);
 
+    if (!isTwilioConfigured()) {
+      return {
+        success: false,
+        error: "Twilio is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER environment variables.",
+      };
+    }
+
     try {
-      await twilio.sendMessage(ctx, {
+      await getTwilio().sendMessage(ctx, {
         to: toPhone,
         body: `[DEBUG TEST] ${message}`,
       });

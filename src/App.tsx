@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
@@ -12,10 +13,12 @@ import { SiteSetup } from "./components/SiteSetup";
 import { Logo } from "./components/Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
 
 export default function App() {
   const navigate = useNavigate();
+  const { signOut } = useAuthActions();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const user = useQuery(api.auth.loggedInUser);
@@ -26,6 +29,15 @@ export default function App() {
   const createOwnerProfile = useMutation(api.users.createOwnerProfile);
   const [ownerBootstrapping, setOwnerBootstrapping] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
+
+  // Check if there's an invite code from sign up
+  const inviteCode = localStorage.getItem("signupInviteCode");
+
+  // Check join request status (only if user exists, no profile, and no invite code)
+  const joinRequestStatus = useQuery(
+    api.joinRequests.checkJoinRequestStatus,
+    user && !userProfile && !inviteCode && user.email ? { email: user.email } : "skip"
+  );
 
   const handleProfileUpdated = () => {
     // Force a refresh by incrementing the key
@@ -140,6 +152,55 @@ export default function App() {
         </div>
       );
     }
+
+    // Check if user has an approved join request (unless they have an invite code)
+    if (!inviteCode) {
+      // Still loading join request status
+      if (joinRequestStatus === undefined) {
+        return (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 mt-4">Checking access...</p>
+            </div>
+          </div>
+        );
+      }
+
+      // No approved join request - show error and sign out
+      if (joinRequestStatus?.status !== "approved") {
+        const getMessage = () => {
+          if (joinRequestStatus?.status === "pending_verification") {
+            return "Please verify your email first. Check your inbox for the verification link.";
+          }
+          if (joinRequestStatus?.status === "pending") {
+            return "Your join request is pending admin review. You'll receive an email once approved.";
+          }
+          if (joinRequestStatus?.status === "denied") {
+            return "Your join request was denied. Please contact support.";
+          }
+          return "No approved join request found for this email. Please request access first.";
+        };
+
+        return (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <Logo size="lg" showText={false} className="mx-auto mb-4" />
+                <CardTitle>Access Not Available</CardTitle>
+                <CardDescription>{getMessage()}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => signOut()} variant="outline" className="w-full">
+                  Back to Sign In
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+    }
+
     console.log("Showing role selection for user:", user.email);
     return <RoleSelection />;
   }

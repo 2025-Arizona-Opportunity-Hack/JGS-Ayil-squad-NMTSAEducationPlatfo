@@ -5,11 +5,23 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 // Initialize Resend component
-// Note: testMode defaults to true - set to false in production with verified domain
+// Disable built-in test mode since we handle dev/prod routing ourselves via getRecipient()
 export const resend = new Resend(components.resend, {
-  // Set testMode: false when you have a verified domain in Resend
-  // testMode: false,
+  testMode: false,
 });
+
+// Email configuration for dev vs production
+const isProduction = process.env.ENVIRONMENT === "production";
+const DEV_TEST_EMAIL = "mattyost00@gmail.com";
+
+// Helper to get the actual recipient (redirects to test email in dev mode)
+function getRecipient(email: string): string {
+  if (isProduction) {
+    return email;
+  }
+  console.log(`[DEV MODE] Redirecting email from ${email} to ${DEV_TEST_EMAIL}`);
+  return DEV_TEST_EMAIL;
+}
 
 // Helper to get site settings for email branding
 export const getSiteSettings = internalQuery({
@@ -72,7 +84,7 @@ export const sendVerificationEmail = internalAction({
     try {
       await resend.sendEmail(ctx, {
         from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-        to: email,
+        to: getRecipient(email),
         subject: "Verify your email address",
         html: `
           <!DOCTYPE html>
@@ -129,7 +141,7 @@ export const sendInviteEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: args.recipientEmail,
+      to: getRecipient(args.recipientEmail),
       subject: `You've been invited to join ${orgName}`,
       html: `
         <!DOCTYPE html>
@@ -189,7 +201,7 @@ export const sendClientInviteEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: args.recipientEmail,
+      to: getRecipient(args.recipientEmail),
       subject: `${args.inviterName} invited you to ${orgName}`,
       html: `
         <!DOCTYPE html>
@@ -248,7 +260,7 @@ export const sendPurchaseApprovedEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: userEmail,
+      to: getRecipient(userEmail),
       subject: `Your purchase request has been approved - ${content.title}`,
       html: `
         <!DOCTYPE html>
@@ -297,7 +309,7 @@ export const sendPurchaseDeniedEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: userEmail,
+      to: getRecipient(userEmail),
       subject: `Update on your purchase request - ${content.title}`,
       html: `
         <!DOCTYPE html>
@@ -348,7 +360,7 @@ export const sendContentAccessGrantedEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: userEmail,
+      to: getRecipient(userEmail),
       subject: `You've been given access to "${content.title}"`,
       html: `
         <!DOCTYPE html>
@@ -399,7 +411,7 @@ export const sendRecommendationEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: args.recipientEmail,
+      to: getRecipient(args.recipientEmail),
       subject: `${args.recommenderName} recommended "${content.title}" for you`,
       html: `
         <!DOCTYPE html>
@@ -488,7 +500,7 @@ export const sendContentStatusEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: authorEmail,
+      to: getRecipient(authorEmail),
       subject: `${config.title} - "${content.title}"`,
       html: `
         <!DOCTYPE html>
@@ -540,7 +552,7 @@ export const sendContentArchivedEmail = internalAction({
 
     await resend.sendEmail(ctx, {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-      to: authorEmail,
+      to: getRecipient(authorEmail),
       subject: `Content Archived - "${content.title}"`,
       html: `
         <!DOCTYPE html>
@@ -563,5 +575,63 @@ export const sendContentArchivedEmail = internalAction({
         </html>
       `,
     });
+  },
+});
+
+// Send join request approved email
+export const sendJoinRequestApprovedEmail = internalAction({
+  args: {
+    email: v.string(),
+    firstName: v.string(),
+    adminNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { email, firstName, adminNotes } = args;
+    const settings = await ctx.runQuery(internal.emails.getSiteSettings);
+    const orgName = settings?.organizationName || "NMTSA Education Platform";
+
+    const siteUrl = process.env.SITE_URL || "";
+    const isProd = process.env.ENVIRONMENT === "production";
+    const baseUrl = isProd && siteUrl ? siteUrl : "http://localhost:5173";
+
+    try {
+      await resend.sendEmail(ctx, {
+        from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
+        to: getRecipient(email),
+        subject: `Your request to join ${orgName} has been approved!`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🎉 You're Approved!</h1>
+            </div>
+            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px;">Hi ${firstName},</p>
+              <p style="font-size: 16px;">Great news! Your request to join <strong>${orgName}</strong> has been approved.</p>
+              ${adminNotes ? `<div style="background: #fff; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0;"><p style="margin: 0; font-size: 14px; color: #666;"><strong>Note from admin:</strong> ${adminNotes}</p></div>` : ''}
+              <p style="font-size: 16px;">You can now create your account and start accessing our resources.</p>
+              <p style="text-align: center; margin-top: 25px;">
+                <a href="${baseUrl}" style="display: inline-block; background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Your Account</a>
+              </p>
+              <p style="font-size: 14px; color: #666; margin-top: 30px;">If you have any questions, please don't hesitate to reach out.</p>
+            </div>
+          </body>
+          </html>
+        `,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error sending join request approved email:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   },
 });

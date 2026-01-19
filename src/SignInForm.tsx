@@ -28,6 +28,15 @@ export function SignInForm() {
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
+
+  // Check join request status for sign-up (only if not bootstrap mode and no invite code)
+  const joinRequestStatus = useQuery(
+    api.joinRequests.checkJoinRequestStatus,
+    !bootstrapNeeded && !inviteCode && signupEmail.includes("@")
+      ? { email: signupEmail.toLowerCase() }
+      : "skip"
+  );
   // Check for invite code in URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -267,8 +276,44 @@ export function SignInForm() {
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                setSubmitting(true);
                 setError(null);
+
+                // Check if user has approved join request BEFORE attempting auth
+                // Skip check if: bootstrap mode (first user), or has valid invite code
+                if (!bootstrapNeeded && !inviteCode) {
+                  if (joinRequestStatus === undefined) {
+                    // Still loading - wait
+                    toast.error("Please wait", {
+                      description: "Checking your access status...",
+                    });
+                    return;
+                  }
+
+                  if (joinRequestStatus?.status !== "approved") {
+                    // Not approved - show toast and don't proceed
+                    if (joinRequestStatus?.status === "pending_verification") {
+                      toast.error("Email verification required", {
+                        description: "Please check your inbox and verify your email first.",
+                      });
+                    } else if (joinRequestStatus?.status === "pending") {
+                      toast.error("Request pending review", {
+                        description: "Your join request is still pending admin approval.",
+                      });
+                    } else if (joinRequestStatus?.status === "denied") {
+                      toast.error("Access denied", {
+                        description: "Your join request was denied. Please contact support.",
+                      });
+                    } else {
+                      toast.error("Access required", {
+                        description: "No approved join request found. Please request access first.",
+                      });
+                    }
+                    setError("notApproved");
+                    return;
+                  }
+                }
+
+                setSubmitting(true);
                 const formData = new FormData(e.target as HTMLFormElement);
                 formData.set("flow", "signUp");
 
@@ -340,33 +385,14 @@ export function SignInForm() {
                   name="email"
                   placeholder="you@example.com"
                   required
-                  onChange={() => error === "notApproved" && setError(null)}
+                  value={signupEmail}
+                  onChange={(e) => {
+                    setSignupEmail(e.target.value);
+                    if (error === "notApproved") setError(null);
+                  }}
                 />
               </div>
 
-              {/* Not Approved Yet - Friendly Info Box */}
-              {error === "notApproved" && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-blue-900 mb-1">
-                    ⏳ Access not approved yet
-                  </p>
-                  <p className="text-xs text-blue-700 mb-3">
-                    You need an approved join request before you can create an account.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
-                    onClick={() => {
-                      setFlow("joinRequest");
-                      setError(null);
-                    }}
-                  >
-                    Request Access
-                  </Button>
-                </div>
-              )}
               <div className="space-y-2">
                 <Label htmlFor="signup-password">Password</Label>
                 <Input

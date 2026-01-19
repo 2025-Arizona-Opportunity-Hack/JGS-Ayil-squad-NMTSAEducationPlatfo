@@ -282,11 +282,18 @@ export const listJoinRequests = query({
     // By default, only show verified pending requests (not pending_verification)
     let requests;
     if (args.status) {
-      requests = await ctx.db
+      const statusRequests = await ctx.db
         .query("joinRequests")
         .withIndex("by_status", (q) => q.eq("status", args.status!))
         .order("desc")
         .collect();
+
+      // For "pending" status, only show verified requests
+      if (args.status === "pending") {
+        requests = statusRequests.filter(r => r.emailVerified === true);
+      } else {
+        requests = statusRequests;
+      }
     } else {
       // Default: show all except pending_verification (only show verified requests)
       const allRequests = await ctx.db
@@ -294,11 +301,10 @@ export const listJoinRequests = query({
         .withIndex("by_created_at")
         .order("desc")
         .collect();
-      // Filter out unverified requests - include legacy records (emailVerified undefined/null) with status "pending" 
-      // as they were created before verification was required
-      requests = allRequests.filter(r => 
-        r.status !== "pending_verification" && 
-        (r.status === "pending" ? (r.emailVerified ?? true) : true) // Legacy records are considered verified
+      // Filter out unverified requests - only show requests with emailVerified === true for pending status
+      requests = allRequests.filter(r =>
+        r.status !== "pending_verification" &&
+        (r.status === "pending" ? r.emailVerified === true : true)
       );
     }
 
@@ -363,6 +369,13 @@ export const approveJoinRequest = mutation({
       status: "approved",
       reviewedAt: Date.now(),
       reviewedBy: userId,
+      adminNotes: args.adminNotes,
+    });
+
+    // Send approval notification email
+    await ctx.scheduler.runAfter(0, internal.emails.sendJoinRequestApprovedEmail, {
+      email: request.email,
+      firstName: request.firstName,
       adminNotes: args.adminNotes,
     });
 
