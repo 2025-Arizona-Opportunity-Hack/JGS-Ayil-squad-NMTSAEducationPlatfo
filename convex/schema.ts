@@ -368,6 +368,7 @@ const applicationTables = {
       v.literal("refunded")
     ),
     paymentMethod: v.string(), // e.g., "mock_payment", "stripe", etc.
+    stripeSessionId: v.optional(v.string()), // Stripe Checkout Session ID
     accessExpiresAt: v.optional(v.number()), // When access expires
     createdAt: v.number(),
     completedAt: v.optional(v.number()),

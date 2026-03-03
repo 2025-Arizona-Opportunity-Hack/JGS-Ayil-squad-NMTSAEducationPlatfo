@@ -30,6 +30,8 @@ import type * as recommendations from "../recommendations.js";
 import type * as router from "../router.js";
 import type * as siteSettings from "../siteSettings.js";
 import type * as sms from "../sms.js";
+import type * as stripe from "../stripe.js";
+import type * as stripe_helpers from "../stripe_helpers.js";
 import type * as userGroups from "../userGroups.js";
 import type * as users from "../users.js";
 
@@ -70,6 +72,8 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   siteSettings: typeof siteSettings;
   sms: typeof sms;
+  stripe: typeof stripe;
+  stripe_helpers: typeof stripe_helpers;
   userGroups: typeof userGroups;
   users: typeof users;
 }>;

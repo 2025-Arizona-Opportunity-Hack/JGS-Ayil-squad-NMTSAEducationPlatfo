@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
-import { MockPaymentModal } from "./MockPaymentModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,15 +27,17 @@ import {
   Loader2,
 } from "lucide-react";
 
+const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
+
 export function Shop() {
   const pricedContent = useQuery(api.pricing.listPricedContent);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createPurchaseRequest = useMutation(api.purchaseRequests.createPurchaseRequest);
+  const createOrder = useMutation(api.orders.createOrder);
 
   const getContentIcon = (type: string) => {
     switch (type) {
@@ -66,9 +67,40 @@ export function Shop() {
     return `${Math.floor(days / 365)} Year${days >= 730 ? "s" : ""}`;
   };
 
-  const handleBuyClick = (item: any) => {
-    setSelectedItem(item);
-    setShowPaymentModal(true);
+  const handleBuyClick = async (item: any) => {
+    try {
+      toast.info("Redirecting to checkout...");
+
+      // Create a pending order in the database
+      const { orderId } = await createOrder({
+        contentId: item._id,
+        pricingId: item.pricing._id,
+      });
+
+      // Create a Stripe Checkout Session via Convex HTTP endpoint
+      const response = await fetch(
+        `${CONVEX_URL.replace(".cloud", ".site")}/api/stripe/checkout`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create checkout session");
+      }
+
+      const { url } = await response.json();
+      // Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (error) {
+      console.error("Checkout error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start checkout"
+      );
+    }
   };
 
   const handleRequestClick = (item: any) => {
@@ -264,21 +296,6 @@ export function Shop() {
         </DialogContent>
       </Dialog>
 
-      {/* Payment Modal */}
-      {selectedItem && showPaymentModal && (
-        <MockPaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setSelectedItem(null);
-          }}
-          contentId={selectedItem._id}
-          pricingId={selectedItem.pricing._id}
-          contentTitle={selectedItem.title}
-          price={selectedItem.pricing.price}
-          currency={selectedItem.pricing.currency}
-        />
-      )}
     </div>
   );
 }

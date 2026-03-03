@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Create a new order (purchase content)
@@ -73,7 +73,7 @@ export const createOrder = mutation({
       amount: pricing.price,
       currency: pricing.currency,
       status: "pending",
-      paymentMethod: "mock_payment",
+      paymentMethod: "stripe",
       accessExpiresAt,
       createdAt: Date.now(),
     });
@@ -142,6 +142,55 @@ export const completeOrder = mutation({
     }
 
     return { success: true };
+  },
+});
+
+// Complete an order from Stripe webhook (no auth required - server-to-server)
+export const completeOrderInternal = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    stripeSessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Order not found");
+    if (order.status !== "pending") return; // Already processed, idempotent
+
+    // Update order status
+    await ctx.db.patch(args.orderId, {
+      status: "completed",
+      completedAt: Date.now(),
+      stripeSessionId: args.stripeSessionId,
+    });
+
+    // Grant access to content
+    if (order.contentId) {
+      await ctx.db.insert("contentAccess", {
+        contentId: order.contentId,
+        userId: order.userId,
+        grantedBy: order.userId,
+        expiresAt: order.accessExpiresAt,
+        canShare: false,
+      });
+    }
+
+    // Mark the purchase request as completed
+    if (order.contentId) {
+      const contentId = order.contentId;
+      const approvedRequest = await ctx.db
+        .query("purchaseRequests")
+        .withIndex("by_user_content", (q) =>
+          q.eq("userId", order.userId).eq("contentId", contentId)
+        )
+        .filter((q) => q.eq(q.field("status"), "approved"))
+        .first();
+
+      if (approvedRequest && !approvedRequest.purchaseCompletedAt) {
+        await ctx.db.patch(approvedRequest._id, {
+          purchaseCompletedAt: Date.now(),
+        });
+      }
+    }
   },
 });
 
