@@ -4,15 +4,24 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { getTwilio, isTwilioConfigured } from "./sms";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 // Initialize Resend with API key from environment
-const resend = new Resend(
-  process.env.RESEND_API_KEY || "re_DVi5fiVz_LCbnqa7ZYmmqoEFAhgdfiWnN"
-);
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Helper to verify the caller is an admin/owner
+async function requireAdmin(ctx: any): Promise<void> {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Not authenticated");
+  const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId });
+  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    throw new Error("Only admins can use debug tools");
+  }
+}
 
 /**
- * Send a test email via Resend
- * For debugging email configuration
+ * Send a test email via Resend (admin only)
  */
 export const sendTestEmail = action({
   args: {
@@ -21,16 +30,17 @@ export const sendTestEmail = action({
     body: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { toEmail, subject, body } = args;
 
     // Configuration based on environment
     const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
-    const TEST_EMAIL = "benbousq@gmail.com";
-    const PRODUCTION_DOMAIN = "nmtsa";
+    const TEST_EMAIL = process.env.DEV_TEST_EMAIL || "test@example.com";
+    const PRODUCTION_DOMAIN = process.env.RESEND_DOMAIN || "nmtsa.com";
 
     const recipientEmail = IS_PRODUCTION ? toEmail.trim().toLowerCase() : TEST_EMAIL;
     const fromEmail = IS_PRODUCTION
-      ? `noreply@${PRODUCTION_DOMAIN}.com`
+      ? `noreply@${PRODUCTION_DOMAIN}`
       : "onboarding@resend.dev";
 
     console.log(`[Debug Email] Environment: ${IS_PRODUCTION ? "PRODUCTION" : "TESTING"}`);
@@ -117,6 +127,7 @@ export const sendTestSms = action({
     message: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { toPhone, message } = args;
 
     // Validate phone number format (basic E.164 validation)
@@ -171,7 +182,8 @@ export const sendTestSms = action({
  */
 export const getDebugConfig = action({
   args: {},
-  handler: async () => {
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
     const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
     const hasResendKey = !!process.env.RESEND_API_KEY;
     const hasTwilioPhone = !!process.env.TWILIO_PHONE_NUMBER;
@@ -183,8 +195,8 @@ export const getDebugConfig = action({
       email: {
         provider: "Resend",
         hasApiKey: hasResendKey,
-        testEmail: IS_PRODUCTION ? null : "benbousq@gmail.com",
-        fromDomain: IS_PRODUCTION ? "nmtsa.com" : "resend.dev",
+        testEmail: IS_PRODUCTION ? null : (process.env.DEV_TEST_EMAIL || "test@example.com"),
+        fromDomain: IS_PRODUCTION ? (process.env.RESEND_DOMAIN || "nmtsa.com") : "resend.dev",
       },
       sms: {
         provider: "Twilio",

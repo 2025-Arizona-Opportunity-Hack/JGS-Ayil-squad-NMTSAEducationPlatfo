@@ -1,16 +1,8 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
+import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
-
-// Helper to get effective permissions for a user profile
-function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
-  if (profile.permissions && profile.permissions.length > 0) {
-    return profile.permissions as Permission[];
-  }
-  return getDefaultPermissions(profile.role);
-}
 
 // Create content (as draft)
 export const createContent = mutation({

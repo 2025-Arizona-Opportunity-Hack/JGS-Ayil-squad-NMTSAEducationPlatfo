@@ -56,9 +56,12 @@ export const getContentDetails = internalQuery({
   },
 });
 
-// Generate a 6-digit verification code
+// Generate a cryptographically secure 6-digit verification code
 function generateVerificationCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const array = new Uint8Array(4);
+  crypto.getRandomValues(array);
+  const num = ((array[0] << 24) | (array[1] << 16) | (array[2] << 8) | array[3]) >>> 0;
+  return String(100000 + (num % 900000));
 }
 
 // ============================================

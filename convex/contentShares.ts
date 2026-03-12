@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Id } from "./_generated/dataModel";
 
 // Check if user can share a specific content item
 export const canShareContent = query({
@@ -63,54 +64,58 @@ export const canShareContent = query({
   },
 });
 
-// Generate a random access token
+// Generate a cryptographically secure access token
 function generateAccessToken(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // Helper function to check if a user has access to content
-async function checkUserContentAccess(ctx: any, contentId: any, userId: any, userRole: string): Promise<boolean> {
+async function checkUserContentAccess(
+  ctx: QueryCtx,
+  contentId: Id<"content">,
+  userId: Id<"users">,
+  userRole: string
+): Promise<boolean> {
+  const now = Date.now();
+
   // Check direct user access
   const userAccess = await ctx.db
     .query("contentAccess")
-    .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
-    .filter((q: any) => q.eq(q.field("userId"), userId))
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("contentId"), contentId))
     .first();
 
-  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > Date.now())) {
+  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > now)) {
     return true;
   }
 
   // Check role-based access
   const roleAccess = await ctx.db
     .query("contentAccess")
-    .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
-    .filter((q: any) => q.eq(q.field("role"), userRole))
+    .withIndex("by_content", (q) => q.eq("contentId", contentId))
+    .filter((q) => q.eq(q.field("role"), userRole))
     .first();
 
-  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > Date.now())) {
+  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > now)) {
     return true;
   }
 
   // Check user group access
   const userGroups = await ctx.db
     .query("userGroupMembers")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
 
   for (const membership of userGroups) {
     const groupAccess = await ctx.db
       .query("contentAccess")
-      .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
-      .filter((q: any) => q.eq(q.field("userGroupId"), membership.groupId))
+      .withIndex("by_content", (q) => q.eq("contentId", contentId))
+      .filter((q) => q.eq(q.field("userGroupId"), membership.groupId))
       .first();
 
-    if (groupAccess && (!groupAccess.expiresAt || groupAccess.expiresAt > Date.now())) {
+    if (groupAccess && (!groupAccess.expiresAt || groupAccess.expiresAt > now)) {
       return true;
     }
   }
@@ -172,23 +177,6 @@ export const createThirdPartyShare = mutation({
     const canShareAsPrivilegedUser = isAdminEditorContributor || isContentCreator || hasContentAccess;
     
     const canShare = canShareAsPrivilegedUser || canShareAsNormalUser;
-
-    // Debug logging
-    console.log("Share permission check:", {
-      contentId: args.contentId,
-      userId,
-      userRole: userProfile.role,
-      isAdminEditorContributor,
-      isContentCreator,
-      isPublicContent,
-      isPurchaseable,
-      hasContentAccess,
-      canShareAsNormalUser,
-      canShareAsPrivilegedUser,
-      canShare,
-      contentStatus: content.status,
-      contentIsPublic: content.isPublic,
-    });
 
     if (!canShare) {
       throw new Error("You don't have permission to share this content");
@@ -370,7 +358,7 @@ export const listMyShares = query({
         return {
           ...share,
           contentTitle: content?.title || "Unknown",
-          contentType: content?.type || "unknown",
+          contentType: content?.attachmentType || "unknown",
           isExpired: share.expiresAt ? share.expiresAt < Date.now() : false,
         };
       })
@@ -397,8 +385,8 @@ export const deleteShare = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    // Only the sharer or an admin can delete
-    if (share.sharedBy !== userId && userProfile?.role !== "admin") {
+    // Only the sharer, an admin, or the owner can delete
+    if (share.sharedBy !== userId && userProfile?.role !== "admin" && userProfile?.role !== "owner") {
       throw new Error("You don't have permission to delete this share");
     }
 
@@ -424,8 +412,9 @@ export const listContentShares = query({
       .unique();
 
     // Check permissions
-    const canView = 
-      userProfile?.role === "admin" || 
+    const canView =
+      userProfile?.role === "admin" ||
+      userProfile?.role === "owner" ||
       content.createdBy === userId;
 
     if (!canView) return [];

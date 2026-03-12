@@ -1,17 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
-
-// Helper to get effective permissions for a user profile
-function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
-  // If custom permissions are set, use those
-  if (profile.permissions && profile.permissions.length > 0) {
-    return profile.permissions as Permission[];
-  }
-  // Otherwise, use default permissions for the role
-  return getDefaultPermissions(profile.role);
-}
+import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Get current user profile
 export const getCurrentUserProfile = query({
@@ -120,24 +110,27 @@ export const createUserProfile = mutation({
 
     // Check if another user with the same email already has a profile
     if (user.email) {
-      const allUsers = await ctx.db.query("users").collect();
-      const usersWithSameEmail = allUsers.filter(
-        (u) => u.email === user.email && u._id !== userId
-      );
+      // Look up other auth accounts with the same email (avoids full table scan)
+      const authAccountsWithEmail = await ctx.db
+        .query("authAccounts")
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("providerAccountId"), user.email!.toLowerCase()),
+            q.neq(q.field("userId"), userId)
+          )
+        )
+        .collect();
 
-      if (usersWithSameEmail.length > 0) {
-        // Check if any of these users have profiles
-        for (const existingUser of usersWithSameEmail) {
-          const existingUserProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user_id", (q) => q.eq("userId", existingUser._id))
-            .unique();
+      for (const account of authAccountsWithEmail) {
+        const existingUserProfile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user_id", (q) => q.eq("userId", account.userId))
+          .unique();
 
-          if (existingUserProfile) {
-            throw new Error(
-              `An account with email ${user.email} already exists. Please sign in instead of creating a new account.`
-            );
-          }
+        if (existingUserProfile) {
+          throw new Error(
+            `An account with email ${user.email} already exists. Please sign in instead of creating a new account.`
+          );
         }
       }
 
@@ -469,214 +462,9 @@ export const listUsers = query({
   },
 });
 
-// Get all admin users (no auth required - for CLI access)
-export const getAdminsForCLI = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get all admin profiles
-    const adminProfiles = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_role", (q) => q.eq("role", "admin"))
-      .collect();
+// REMOVED: getAdminsForCLI - was unauthenticated, use listUsers instead
+// REMOVED: promoteToAdminCLI - was unauthenticated, use promoteToAdmin instead
+// REMOVED: deleteDuplicateUsersCLI - was unauthenticated, use Convex dashboard
+// REMOVED: deleteAnonymousUsersCLI - was unauthenticated, use Convex dashboard
+// All admin operations now require authentication via the standard mutations above.
 
-    // Get user details for each admin profile
-    const adminsWithDetails = await Promise.all(
-      adminProfiles.map(async (profile) => {
-        const user = await ctx.db.get(profile.userId);
-        return {
-          userId: profile.userId,
-          email: user?.email,
-          name: user?.name,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          role: profile.role,
-          isActive: profile.isActive,
-          createdAt: profile._creationTime,
-        };
-      })
-    );
-
-    return adminsWithDetails;
-  },
-});
-
-// CLI-only: Promote user to admin (no auth required)
-export const promoteToAdminCLI = mutation({
-  args: {
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
-    const targetProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .unique();
-
-    if (!targetProfile) throw new Error("User profile not found");
-
-    await ctx.db.patch(targetProfile._id, {
-      role: "admin",
-    });
-
-    return { success: true, message: `User ${args.userId} promoted to admin` };
-  },
-});
-
-// CLI-only: Delete duplicate users by email (no auth required)
-export const deleteDuplicateUsersCLI = mutation({
-  args: {
-    email: v.string(),
-    keepRole: v.optional(
-      v.union(
-        v.literal("admin"),
-        v.literal("client"),
-        v.literal("professional"),
-        v.literal("parent")
-      )
-    ),
-  },
-  handler: async (ctx, args) => {
-    // Find all users with this email
-    const allUsers = await ctx.db.query("users").collect();
-    const usersWithEmail = allUsers.filter((user) => user.email === args.email);
-
-    if (usersWithEmail.length <= 1) {
-      return { message: "No duplicates found", email: args.email };
-    }
-
-    // Get profiles for these users
-    const profilesWithUsers = await Promise.all(
-      usersWithEmail.map(async (user) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", user._id))
-          .unique();
-        return { user, profile };
-      })
-    );
-
-    // Keep the user with the specified role, or the first admin, or the first user
-    let userToKeep = profilesWithUsers.find(
-      ({ profile }) => profile?.role === (args.keepRole || "admin")
-    );
-
-    if (!userToKeep) {
-      userToKeep = profilesWithUsers.find(
-        ({ profile }) => profile?.role === "admin"
-      );
-    }
-
-    if (!userToKeep) {
-      userToKeep = profilesWithUsers[0];
-    }
-
-    // Delete the duplicates
-    const results = [];
-    for (const { user, profile } of profilesWithUsers) {
-      if (user._id !== userToKeep.user._id) {
-        try {
-          // Delete profile if exists
-          if (profile) {
-            await ctx.db.delete(profile._id);
-          }
-
-          // Delete auth accounts for this user
-          const authAccounts = await ctx.db
-            .query("authAccounts")
-            .filter((q) => q.eq(q.field("userId"), user._id))
-            .collect();
-
-          for (const account of authAccounts) {
-            await ctx.db.delete(account._id);
-          }
-
-          // Delete user
-          await ctx.db.delete(user._id);
-
-          results.push({
-            userId: user._id,
-            email: user.email,
-            role: profile?.role,
-            status: "deleted",
-          });
-        } catch (error) {
-          results.push({
-            userId: user._id,
-            email: user.email,
-            role: profile?.role,
-            status: "error",
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      } else {
-        results.push({
-          userId: user._id,
-          email: user.email,
-          role: profile?.role,
-          status: "kept",
-        });
-      }
-    }
-
-    return {
-      message: `Processed ${usersWithEmail.length} accounts for ${args.email}`,
-      results,
-    };
-  },
-});
-
-// CLI-only: Delete all anonymous users (no auth required)
-export const deleteAnonymousUsersCLI = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // Find all anonymous auth accounts
-    const anonymousAccounts = await ctx.db
-      .query("authAccounts")
-      .filter((q) => q.eq(q.field("provider"), "anonymous"))
-      .collect();
-
-    let deletedCount = 0;
-    const results = [];
-
-    for (const account of anonymousAccounts) {
-      try {
-        // Get user profile
-        const userProfile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", account.userId))
-          .unique();
-
-        // Delete user profile if exists
-        if (userProfile) {
-          await ctx.db.delete(userProfile._id);
-        }
-
-        // Delete auth account
-        await ctx.db.delete(account._id);
-
-        // Delete user record
-        await ctx.db.delete(account.userId);
-
-        deletedCount++;
-        results.push({
-          userId: account.userId,
-          status: "deleted",
-          hadProfile: !!userProfile,
-        });
-      } catch (error) {
-        results.push({
-          userId: account.userId,
-          status: "error",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return {
-      success: true,
-      message: `Deleted ${deletedCount} anonymous users`,
-      totalFound: anonymousAccounts.length,
-      deletedCount,
-      details: results,
-    };
-  },
-});

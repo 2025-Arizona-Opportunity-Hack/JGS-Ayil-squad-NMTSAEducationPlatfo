@@ -4,14 +4,11 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
 
-// Generate a secure random token
+// Generate a cryptographically secure verification token
 function generateVerificationToken(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "";
-  for (let i = 0; i < 64; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
+  const array = new Uint8Array(48);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // Create a join request (public - no auth required)
@@ -51,23 +48,21 @@ export const createJoinRequest = mutation({
     }
 
     // Check if a user with this email already exists and has a profile
-    const allUsers = await ctx.db.query("users").collect();
-    const existingUser = allUsers.find(
-      (u) => u.email?.toLowerCase() === args.email.toLowerCase()
-    );
+    // Use authAccounts to avoid full table scan of users
+    const authAccountsWithEmail = await ctx.db
+      .query("authAccounts")
+      .filter((q) => q.eq(q.field("providerAccountId"), args.email.toLowerCase()))
+      .collect();
 
-    if (existingUser) {
-      // Check if they have a profile
+    for (const account of authAccountsWithEmail) {
       const profile = await ctx.db
         .query("userProfiles")
-        .withIndex("by_user_id", (q) => q.eq("userId", existingUser._id))
+        .withIndex("by_user_id", (q) => q.eq("userId", account.userId))
         .first();
 
       if (profile) {
-        // User has a complete account - they should sign in
         throw new Error("An account with this email already exists. Please sign in instead. If you're having trouble signing in, try resetting your password.");
       }
-      // If user exists but no profile, allow join request (they might have signed up but never completed profile creation)
     }
 
     // Generate verification token
@@ -98,8 +93,6 @@ export const createJoinRequest = mutation({
     const baseUrl = isProduction && siteUrl
       ? siteUrl  // Production: use SITE_URL from env
       : "http://localhost:5173"; // Local dev: always use localhost
-    
-    console.log(`[Join Request] Base URL: ${baseUrl} (isProduction: ${isProduction}, SITE_URL: ${siteUrl || "not set"})`);
     
     // Schedule email to be sent (runs asynchronously)
     // Note: runAfter schedules the action but doesn't wait for its result
@@ -251,8 +244,8 @@ export const checkJoinRequestStatus = query({
       emailVerified: request.emailVerified,
       createdAt: request.createdAt,
       reviewedAt: request.reviewedAt,
-      adminNotes: request.adminNotes,
       verifiedAt: request.verifiedAt,
+      // adminNotes intentionally excluded - internal admin data should not be exposed publicly
     };
   },
 });
@@ -351,7 +344,7 @@ export const approveJoinRequest = mutation({
     if (!profile) throw new Error("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
-    if (!hasPermission(permissions, PERMISSIONS.VIEW_USERS)) {
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
       throw new Error("You don't have permission to approve join requests");
     }
 
@@ -401,7 +394,7 @@ export const denyJoinRequest = mutation({
     if (!profile) throw new Error("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
-    if (!hasPermission(permissions, PERMISSIONS.VIEW_USERS)) {
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
       throw new Error("You don't have permission to deny join requests");
     }
 

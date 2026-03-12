@@ -1,11 +1,14 @@
-import { query } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+
+// SECURITY: All debug functions use internalQuery to prevent public access.
+// They can only be called from the Convex dashboard or via `npx convex run`.
 
 /**
  * Debug query to check if a user exists by email
  * Usage: npx convex run debug:checkUserByEmail '{"email": "user@example.com"}'
  */
-export const checkUserByEmail = query({
+export const checkUserByEmail = internalQuery({
   args: {
     email: v.string(),
   },
@@ -72,7 +75,7 @@ export const checkUserByEmail = query({
  * Debug query to list all users
  * Usage: npx convex run debug:listAllUsers
  */
-export const listAllUsers = query({
+export const listAllUsers = internalQuery({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
@@ -106,7 +109,7 @@ export const listAllUsers = query({
  * Debug query to list all admin/owner users
  * Usage: npx convex run debug:listAdmins
  */
-export const listAdmins = query({
+export const listAdmins = internalQuery({
   args: {},
   handler: async (ctx) => {
     // Get all admin and owner profiles
@@ -145,7 +148,7 @@ export const listAdmins = query({
  * Debug query to check join requests by email
  * Usage: npx convex run debug:checkJoinRequestByEmail '{"email": "user@example.com"}'
  */
-export const checkJoinRequestByEmail = query({
+export const checkJoinRequestByEmail = internalQuery({
   args: {
     email: v.string(),
   },
@@ -183,7 +186,7 @@ export const checkJoinRequestByEmail = query({
  * Debug query to list all join requests (for testing)
  * Usage: npx convex run debug:listAllJoinRequests
  */
-export const listAllJoinRequests = query({
+export const listAllJoinRequests = internalQuery({
   args: {},
   handler: async (ctx) => {
     const requests = await ctx.db.query("joinRequests").order("desc").collect();

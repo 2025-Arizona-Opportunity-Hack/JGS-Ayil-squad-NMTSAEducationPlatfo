@@ -12,7 +12,7 @@ export const resend = new Resend(components.resend, {
 
 // Email configuration for dev vs production
 const isProduction = process.env.ENVIRONMENT === "production";
-const DEV_TEST_EMAIL = "mattyost00@gmail.com";
+const DEV_TEST_EMAIL = process.env.DEV_TEST_EMAIL || "test@example.com";
 
 // Helper to get the actual recipient (redirects to test email in dev mode)
 function getRecipient(email: string): string {

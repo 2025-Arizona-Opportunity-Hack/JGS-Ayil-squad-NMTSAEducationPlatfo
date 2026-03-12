@@ -123,9 +123,10 @@ http.route({
 });
 
 function corsHeaders() {
+  const allowedOrigin = process.env.SITE_URL || "http://localhost:5173";
   return {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };

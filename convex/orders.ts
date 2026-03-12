@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Create a new order (purchase content)
 export const createOrder = mutation({
@@ -225,7 +226,7 @@ export const getUserOrders = query({
         return {
           ...order,
           contentTitle: content?.title || "Unknown",
-          contentType: content?.type || "unknown",
+          contentType: content?.attachmentType || "unknown",
           thumbnailUrl,
           pricingDetails: pricing,
         };
@@ -236,23 +237,22 @@ export const getUserOrders = query({
   },
 });
 
-// Get all orders (admin/owner only)
+// Get all orders (requires VIEW_ORDERS permission)
 export const getAllOrders = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if user is admin
     const userProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (
-      !userProfile ||
-      (userProfile.role !== "admin" && userProfile.role !== "owner")
-    ) {
-      throw new Error("Only admins or the owner can view all orders");
+    if (!userProfile) throw new Error("Profile not found");
+
+    const permissions = getEffectivePermissions(userProfile);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ORDERS)) {
+      throw new Error("You don't have permission to view all orders");
     }
 
     const orders = await ctx.db
@@ -284,7 +284,7 @@ export const getAllOrders = query({
         return {
           ...order,
           contentTitle: content?.title || "Unknown",
-          contentType: content?.type || "unknown",
+          contentType: content?.attachmentType || "unknown",
           thumbnailUrl,
           pricingDetails: pricing,
           userName: userProfile
@@ -298,23 +298,22 @@ export const getAllOrders = query({
   },
 });
 
-// Get sales analytics (admin/owner only)
+// Get sales analytics (requires VIEW_ANALYTICS permission)
 export const getSalesAnalytics = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Check if user is admin
     const userProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (
-      !userProfile ||
-      (userProfile.role !== "admin" && userProfile.role !== "owner")
-    ) {
-      throw new Error("Only admins or the owner can view analytics");
+    if (!userProfile) throw new Error("Profile not found");
+
+    const permissions = getEffectivePermissions(userProfile);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_ANALYTICS)) {
+      throw new Error("You don't have permission to view analytics");
     }
 
     // Get all completed orders

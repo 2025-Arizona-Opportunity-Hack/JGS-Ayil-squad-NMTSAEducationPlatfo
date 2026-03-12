@@ -65,13 +65,11 @@ export const verifyWebhookAction = internalAction({
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      // Dev mode: parse without verification
-      const event = JSON.parse(args.body);
-      return {
-        type: event.type as string,
-        orderId: event.data?.object?.metadata?.orderId as string | undefined,
-        sessionId: event.data?.object?.id as string | undefined,
-      };
+      throw new Error(
+        "STRIPE_WEBHOOK_SECRET is not configured. " +
+        "Webhook signature verification is required for security. " +
+        "Set STRIPE_WEBHOOK_SECRET in your Convex environment variables."
+      );
     }
 
     const event = stripe.webhooks.constructEvent(

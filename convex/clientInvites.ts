@@ -1,25 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getDefaultPermissions, hasPermission, PERMISSIONS, Permission } from "./permissions";
+import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
 
-// Helper to get effective permissions for a user profile
-function getEffectivePermissions(profile: { role: string; permissions?: string[] }): Permission[] {
-  if (profile.permissions && profile.permissions.length > 0) {
-    return profile.permissions as Permission[];
-  }
-  return getDefaultPermissions(profile.role);
-}
-
-// Generate a random invite code
+// Generate a cryptographically secure invite code
 function generateCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  const array = new Uint8Array(8);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => chars[byte % chars.length]).join("");
 }
 
 // Create a client invite and send via email
