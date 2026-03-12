@@ -210,21 +210,101 @@ Sidebar width: ~200px. Collapsible to icon-only is a nice-to-have, not required.
 
 ## Accessibility
 
-### Required
+Accessibility is a core tenet of the organization this platform serves. The platform must be fully usable by people with disabilities — including screen reader users, keyboard-only users, users with motor impairments, users with cognitive disabilities, and users with low vision. Accessibility is not a final polish step; it is built into every component from the start. Target: **WCAG 2.2 Level AA** compliance across both client and admin sides.
 
-- All interactive elements: minimum 44px touch target on client side
-- Focus-visible ring on all interactive elements (`focus-visible:ring-2 focus-visible:ring-offset-2`)
-- ARIA labels on icon-only buttons (bottom nav, hamburger, search)
-- `aria-current="page"` on active nav items
-- Semantic HTML: `<nav>`, `<main>`, `<header>`, `<aside>` landmarks
-- Skip-to-content link (hidden, visible on focus)
-- Color contrast: WCAG AA minimum (4.5:1 for normal text, 3:1 for large text) — the teal palette is pre-validated
+### Semantic Structure & Landmarks
 
-### Progressive Enhancement
+- Every page uses proper landmark regions: `<header>`, `<nav>`, `<main>`, `<aside>` (admin sidebar), `<footer>` (bottom nav)
+- Only one `<main>` per page
+- Headings follow a logical hierarchy (`h1` → `h2` → `h3`) — no skipped levels
+- Lists of content use `<ul>`/`<ol>` + `<li>`, not bare `<div>` sequences
+- Navigation uses `<nav>` with distinguishing `aria-label` when multiple navs exist (e.g., `aria-label="Main navigation"`, `aria-label="Bottom navigation"`)
+- Skip-to-content link as the first focusable element: visually hidden, visible on focus, jumps to `<main>`
 
-- Bottom nav items: icon + visible label (not icon-only)
-- Content type badges include text, not just color
-- All images require `alt` attributes (enforce in content creation)
+### Keyboard Navigation
+
+- **All** interactive elements reachable via Tab in a logical order matching visual layout
+- Bottom nav, sidebar items, tabs, cards, and buttons all keyboard-operable
+- `Enter` and `Space` activate buttons and links; `Arrow` keys navigate within tab lists, radio groups, and menus
+- Visible focus indicator on every interactive element: `focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary` — never removed or made invisible
+- Focus ring color meets 3:1 contrast against adjacent backgrounds in both light and dark mode
+- **Focus management on route changes**: when the client navigates between pages (bottom nav, tabs), move focus to the page heading or main content area so screen reader users are oriented
+- **Modal/drawer focus trapping**: MoreDrawer, admin mobile drawer, and all modals trap focus inside while open, return focus to trigger element on close (shadcn Sheet/Dialog already handles this — verify it works)
+- No keyboard traps anywhere — users can always Tab or Escape out of any component
+
+### Screen Reader Support
+
+- All icon-only buttons include `aria-label` (bottom nav icons, hamburger menu, search, ThemeToggle, close buttons)
+- Active navigation items use `aria-current="page"`
+- Content cards are announced meaningfully: each card is a link/button with an accessible name derived from its title, not its decorative gradient header
+- Progress bars use `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, and `aria-label` (e.g., "65% complete")
+- Loading states announced with `aria-live="polite"` regions or `aria-busy="true"` on the updating container
+- Error messages and toast notifications use `role="alert"` or `aria-live="assertive"` so they are announced immediately
+- Badges (New, Free, etc.) are part of the accessible name or use `aria-label`, not conveyed by color alone
+- Empty states ("No content found") are announced to screen readers, not just visually displayed
+- Admin sidebar section labels (CONTENT, USERS, etc.) use `role="group"` with `aria-label` or visible headings with `aria-labelledby`
+
+### Touch & Motor Accessibility
+
+- Minimum 44×44px touch targets on all interactive elements (client and admin) per WCAG 2.2 Success Criterion 2.5.8
+- Adequate spacing between touch targets (minimum 8px gap) to prevent mis-taps
+- No interactions that require precise gestures (drag-and-drop, pinch, multi-finger) without an accessible alternative
+- Horizontal scroll areas ("Continue Learning") include visible scroll buttons as an alternative to swipe
+- No time-limited interactions — users have unlimited time to complete any action
+
+### Visual & Color Accessibility
+
+- **Color contrast**: WCAG AA minimum — 4.5:1 for normal text (< 18px), 3:1 for large text (≥ 18px bold or ≥ 24px) and UI components/graphical objects
+- **Never convey information by color alone**: badges include text labels, progress bars have numeric labels available, status indicators use icons + text
+- Content type indicators use both icon shape and text label, not just color
+- **Dark mode contrast**: all dark mode color pairs verified to AA standards (the palette table values are pre-validated)
+- **High contrast mode**: ensure the UI remains usable when Windows High Contrast Mode or `forced-colors` media query is active — borders and focus rings should remain visible
+- **Text resizing**: UI remains functional when text is resized up to 200% (browser zoom). No content clipped or overlapping. Test at 1280px viewport width with 200% zoom.
+- **Text spacing**: content readable when letter-spacing, word-spacing, line-height, and paragraph spacing are increased per WCAG 1.4.12
+
+### Reduced Motion
+
+- All Framer Motion animations respect `prefers-reduced-motion`:
+  ```tsx
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Use instant transitions instead of animated ones
+  ```
+- Page transitions, nav state animations, card hover effects, and gradient animations are disabled or replaced with simple opacity fades when reduced motion is preferred
+- No content that flashes more than 3 times per second (WCAG 2.3.1)
+
+### Cognitive Accessibility
+
+- Clear, consistent navigation — same nav structure on every page within client/admin
+- Plain language in UI labels and error messages (remember: ages 5-17 on client side)
+- Error messages explain what went wrong AND what to do next
+- Confirmation dialogs for destructive actions (delete, archive) with clear cancel option
+- Current location always visible in navigation (active state styling + `aria-current`)
+- No unexpected context changes — navigation only happens on explicit user action
+
+### Forms & Interactive Content (Admin)
+
+- All form inputs have visible labels (not just placeholders)
+- Required fields marked with both visual indicator and `aria-required="true"`
+- Form validation errors associated with their fields via `aria-describedby`
+- Error summary at top of form with links to each invalid field
+- Autocomplete attributes on appropriate fields (`autocomplete="email"`, etc.)
+- Admin tables include `<caption>`, proper `<th scope="col/row">`, and are navigable via screen reader table commands
+
+### Media Accessibility
+
+- Video content: require captions/subtitles (enforce during content creation)
+- Audio content: require transcript availability
+- Images: require meaningful `alt` text (enforced in content creation form — empty `alt=""` only for purely decorative images)
+- PDF downloads: note in metadata whether the PDF is tagged/accessible
+- Auto-playing media: none. All media requires explicit user action to play.
+
+### Testing Requirements
+
+- **Automated**: Run `axe-core` (via `@axe-core/react` in dev mode) on every page — zero violations at "critical" and "serious" levels
+- **Keyboard**: Every page manually tested with keyboard-only navigation (Tab, Shift+Tab, Enter, Space, Escape, Arrow keys)
+- **Screen reader**: Test with VoiceOver (macOS/iOS) on key flows: navigate to content, open content, use bottom nav, switch themes, use admin sidebar
+- **Zoom**: Verify layout at 200% and 400% zoom
+- **Reduced motion**: Verify animations are suppressed with `prefers-reduced-motion: reduce`
 
 ## Component Architecture
 
@@ -277,14 +357,16 @@ All shadcn/ui primitives, modals (ContentEditModal, ContentReviewModal, etc.), t
 
 ## Implementation Priority
 
-1. **Foundation**: CSS variables, ThemeProvider update, IconBadge component, ThemeToggle
-2. **Client layout**: ClientLayout, BottomNav, MoreDrawer, ContentCard
-3. **Client pages**: Refactor ClientDashboard into routed pages using ClientLayout
-4. **Admin layout**: AdminLayout, AdminSidebar, AdminHeader
-5. **Admin pages**: Refactor AdminDashboard to use AdminLayout with sidebar
-6. **ContentManager decomposition**: Break into focused sub-components
-7. **Accessibility pass**: ARIA labels, landmarks, focus management, skip link
-8. **Polish**: Animations (Framer Motion for page transitions, nav state), responsive fine-tuning
+Accessibility is built into every step — not deferred to a late pass. Each step below must meet the accessibility requirements before moving to the next.
+
+1. **Foundation**: CSS variables, BrandColorProvider update, IconBadge component, ThemeToggle, skip-to-content link, `@axe-core/react` integration in dev mode
+2. **Client layout**: ClientLayout, BottomNav, MoreDrawer, ContentCard — with full keyboard nav, ARIA labels, landmarks, focus management on route changes
+3. **Client pages**: Refactor ClientDashboard into routed pages using ClientLayout — screen reader tested per page
+4. **Admin layout**: AdminLayout, AdminSidebar, AdminHeader — with sidebar keyboard navigation, grouped ARIA labels, focus trapping in mobile drawer
+5. **Admin pages**: Refactor AdminDashboard to use AdminLayout with sidebar — table accessibility, form labels
+6. **ContentManager decomposition**: Break into focused sub-components — maintain all existing keyboard/screen reader behavior
+7. **Accessibility audit**: Full manual audit with VoiceOver, keyboard-only testing, zoom testing, reduced motion verification, axe-core zero-violation check
+8. **Polish**: Animations (Framer Motion for page transitions, nav state with `prefers-reduced-motion` support), responsive fine-tuning
 
 ## Out of Scope
 
