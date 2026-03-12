@@ -1,7 +1,59 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { requirePermission, requireAuth, formatUserName, getUserProfile } from "./helpers";
+import { PERMISSIONS } from "./permissions";
+import { Doc, Id } from "./_generated/dataModel";
+
+// ─── Shared Enrichment Helper ───────────────────────────────────────
+
+/**
+ * Enrich a single purchase request with user, content, pricing, and reviewer details.
+ */
+async function enrichPurchaseRequest(
+  ctx: QueryCtx,
+  request: Doc<"purchaseRequests">
+) {
+  const user = await ctx.db.get(request.userId);
+  const userProfile = await getUserProfile(ctx, request.userId);
+
+  const content = await ctx.db.get(request.contentId);
+  const pricing = await ctx.db
+    .query("contentPricing")
+    .withIndex("by_content", (q) => q.eq("contentId", request.contentId))
+    .filter((q) => q.eq(q.field("isActive"), true))
+    .first();
+
+  let reviewerName: string | null = null;
+  if (request.reviewedBy) {
+    const reviewer = await ctx.db.get(request.reviewedBy);
+    if (reviewer) {
+      const reviewerProfile = await getUserProfile(ctx, request.reviewedBy);
+      reviewerName = reviewerProfile
+        ? formatUserName(reviewerProfile)
+        : reviewer.name || "Admin";
+    }
+  }
+
+  return {
+    ...request,
+    userName: userProfile
+      ? formatUserName(userProfile)
+      : user?.name || "Unknown User",
+    userEmail: user?.email || "Unknown",
+    contentTitle: content?.title || "Unknown Content",
+    contentDescription: content?.description,
+    pricing: pricing
+      ? {
+          price: pricing.price,
+          currency: pricing.currency,
+        }
+      : null,
+    reviewerName,
+  };
+}
+
+// ─── Mutations & Queries ────────────────────────────────────────────
 
 // Create a purchase request
 export const createPurchaseRequest = mutation({
@@ -10,8 +62,7 @@ export const createPurchaseRequest = mutation({
     message: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId } = await requireAuth(ctx);
 
     // Check if content exists and has pricing
     const content = await ctx.db.get(args.contentId);
@@ -28,10 +79,10 @@ export const createPurchaseRequest = mutation({
     // Check if user already has a pending or approved request
     const existingRequest = await ctx.db
       .query("purchaseRequests")
-      .withIndex("by_user_content", (q) => 
+      .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
       )
-      .filter((q) => 
+      .filter((q) =>
         q.or(
           q.eq(q.field("status"), "pending"),
           q.eq(q.field("status"), "approved")
@@ -81,49 +132,15 @@ export const createPurchaseRequest = mutation({
 // Get user's purchase requests
 export const getMyPurchaseRequests = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
+    const { userId } = await requireAuth(ctx);
 
     const requests = await ctx.db
       .query("purchaseRequests")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    // Enrich with content details
     const enrichedRequests = await Promise.all(
-      requests.map(async (request) => {
-        const content = await ctx.db.get(request.contentId);
-        const pricing = await ctx.db
-          .query("contentPricing")
-          .withIndex("by_content", (q) => q.eq("contentId", request.contentId))
-          .filter((q) => q.eq(q.field("isActive"), true))
-          .first();
-
-        let reviewerName = null;
-        if (request.reviewedBy) {
-          const reviewer = await ctx.db.get(request.reviewedBy);
-          if (reviewer) {
-            const reviewerProfile = await ctx.db
-              .query("userProfiles")
-              .withIndex("by_user_id", (q) => q.eq("userId", request.reviewedBy!))
-              .first();
-            reviewerName = reviewerProfile 
-              ? `${reviewerProfile.firstName} ${reviewerProfile.lastName}`
-              : reviewer.name || "Admin";
-          }
-        }
-
-        return {
-          ...request,
-          contentTitle: content?.title || "Unknown Content",
-          contentDescription: content?.description,
-          pricing: pricing ? {
-            price: pricing.price,
-            currency: pricing.currency,
-          } : null,
-          reviewerName,
-        };
-      })
+      requests.map((request) => enrichPurchaseRequest(ctx, request))
     );
 
     return enrichedRequests.sort((a, b) => b.createdAt - a.createdAt);
@@ -136,12 +153,11 @@ export const getPurchaseRequestStatus = query({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
+    const { userId } = await requireAuth(ctx);
 
     const request = await ctx.db
       .query("purchaseRequests")
-      .withIndex("by_user_content", (q) => 
+      .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
       )
       .order("desc")
@@ -154,52 +170,15 @@ export const getPurchaseRequestStatus = query({
 // List all pending purchase requests (admin only)
 export const listPendingRequests = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
-      return [];
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const requests = await ctx.db
       .query("purchaseRequests")
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .collect();
 
-    // Enrich with user and content details
     const enrichedRequests = await Promise.all(
-      requests.map(async (request) => {
-        const user = await ctx.db.get(request.userId);
-        const userProfile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", request.userId))
-          .first();
-        
-        const content = await ctx.db.get(request.contentId);
-        const pricing = await ctx.db
-          .query("contentPricing")
-          .withIndex("by_content", (q) => q.eq("contentId", request.contentId))
-          .filter((q) => q.eq(q.field("isActive"), true))
-          .first();
-
-        return {
-          ...request,
-          userName: userProfile 
-            ? `${userProfile.firstName} ${userProfile.lastName}`
-            : user?.name || "Unknown User",
-          userEmail: user?.email || "Unknown",
-          contentTitle: content?.title || "Unknown Content",
-          pricing: pricing ? {
-            price: pricing.price,
-            currency: pricing.currency,
-          } : null,
-        };
-      })
+      requests.map((request) => enrichPurchaseRequest(ctx, request))
     );
 
     return enrichedRequests.sort((a, b) => b.createdAt - a.createdAt);
@@ -216,17 +195,7 @@ export const listAllRequests = query({
     )),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
-      return [];
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     let requests;
     if (args.status) {
@@ -238,50 +207,8 @@ export const listAllRequests = query({
       requests = await ctx.db.query("purchaseRequests").collect();
     }
 
-    // Enrich with user and content details
     const enrichedRequests = await Promise.all(
-      requests.map(async (request) => {
-        const user = await ctx.db.get(request.userId);
-        const userProfile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", request.userId))
-          .first();
-        
-        const content = await ctx.db.get(request.contentId);
-        const pricing = await ctx.db
-          .query("contentPricing")
-          .withIndex("by_content", (q) => q.eq("contentId", request.contentId))
-          .filter((q) => q.eq(q.field("isActive"), true))
-          .first();
-
-        let reviewerName = null;
-        if (request.reviewedBy) {
-          const reviewer = await ctx.db.get(request.reviewedBy);
-          if (reviewer) {
-            const reviewerProfile = await ctx.db
-              .query("userProfiles")
-              .withIndex("by_user_id", (q) => q.eq("userId", request.reviewedBy!))
-              .first();
-            reviewerName = reviewerProfile 
-              ? `${reviewerProfile.firstName} ${reviewerProfile.lastName}`
-              : reviewer.name || "Admin";
-          }
-        }
-
-        return {
-          ...request,
-          userName: userProfile 
-            ? `${userProfile.firstName} ${userProfile.lastName}`
-            : user?.name || "Unknown User",
-          userEmail: user?.email || "Unknown",
-          contentTitle: content?.title || "Unknown Content",
-          pricing: pricing ? {
-            price: pricing.price,
-            currency: pricing.currency,
-          } : null,
-          reviewerName,
-        };
-      })
+      requests.map((request) => enrichPurchaseRequest(ctx, request))
     );
 
     return enrichedRequests.sort((a, b) => b.createdAt - a.createdAt);
@@ -295,17 +222,7 @@ export const approveRequest = mutation({
     adminNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
-      throw new Error("Only admins or the owner can approve purchase requests");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new Error("Request not found");
@@ -344,17 +261,7 @@ export const denyRequest = mutation({
     adminNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
-      throw new Error("Only admins or the owner can deny purchase requests");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new Error("Request not found");
@@ -387,8 +294,7 @@ export const canPurchaseContent = query({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return { canPurchase: false, reason: "Not authenticated" };
+    const { userId } = await requireAuth(ctx);
 
     // Check if content has pricing
     const pricing = await ctx.db
@@ -423,7 +329,7 @@ export const canPurchaseContent = query({
     // Check for approved purchase request
     const approvedRequest = await ctx.db
       .query("purchaseRequests")
-      .withIndex("by_user_content", (q) => 
+      .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
       )
       .filter((q) => q.eq(q.field("status"), "approved"))
@@ -433,23 +339,23 @@ export const canPurchaseContent = query({
       // Check if there's a pending request
       const pendingRequest = await ctx.db
         .query("purchaseRequests")
-        .withIndex("by_user_content", (q) => 
+        .withIndex("by_user_content", (q) =>
           q.eq("userId", userId).eq("contentId", args.contentId)
         )
         .filter((q) => q.eq(q.field("status"), "pending"))
         .first();
 
       if (pendingRequest) {
-        return { 
-          canPurchase: false, 
+        return {
+          canPurchase: false,
           reason: "Your purchase request is pending approval",
           requestStatus: "pending",
           requestId: pendingRequest._id,
         };
       }
 
-      return { 
-        canPurchase: false, 
+      return {
+        canPurchase: false,
         reason: "You need to request permission to purchase this content",
         requestStatus: "none",
       };
@@ -457,15 +363,15 @@ export const canPurchaseContent = query({
 
     // Check if the approved request has already been used
     if (approvedRequest.purchaseCompletedAt) {
-      return { 
-        canPurchase: false, 
+      return {
+        canPurchase: false,
         reason: "You have already completed this purchase",
         requestStatus: "completed",
       };
     }
 
-    return { 
-      canPurchase: true, 
+    return {
+      canPurchase: true,
       reason: "Your request has been approved",
       requestStatus: "approved",
       requestId: approvedRequest._id,
@@ -479,8 +385,7 @@ export const markRequestCompleted = mutation({
     requestId: v.id("purchaseRequests"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId } = await requireAuth(ctx);
 
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new Error("Request not found");
@@ -504,17 +409,7 @@ export const markRequestCompleted = mutation({
 // Get count of pending requests (for admin badge)
 export const getPendingRequestCount = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return 0;
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
-      return 0;
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const pendingRequests = await ctx.db
       .query("purchaseRequests")

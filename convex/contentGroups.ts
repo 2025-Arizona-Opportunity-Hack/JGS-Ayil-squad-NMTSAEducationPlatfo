@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requirePermission, requireAuth, formatUserName, getUserName, getStorageUrls } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 
 // Create content group (bundle)
 export const createContentGroup = mutation({
@@ -11,18 +12,7 @@ export const createContentGroup = mutation({
     isPublic: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can create content groups");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     return await ctx.db.insert("contentGroups", {
       ...args,
@@ -44,18 +34,7 @@ export const updateContentGroup = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can update content groups");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     const { groupId, ...updateData } = args;
     await ctx.db.patch(groupId, updateData);
@@ -68,18 +47,7 @@ export const deleteContentGroup = mutation({
     groupId: v.id("contentGroups"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can delete content groups");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Delete all items in the group
     const groupItems = await ctx.db
@@ -110,15 +78,9 @@ export const deleteContentGroup = mutation({
 export const listContentGroups = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+    } catch {
       return [];
     }
 
@@ -128,9 +90,7 @@ export const listContentGroups = query({
     const enrichedGroups = await Promise.all(
       groups.map(async (group) => {
         // Get thumbnail URL
-        const thumbnailUrl = group.thumbnailId 
-          ? await ctx.storage.getUrl(group.thumbnailId) 
-          : null;
+        const { thumbnailUrl } = await getStorageUrls(ctx, { thumbnailId: group.thumbnailId });
 
         // Get item count
         const items = await ctx.db
@@ -167,15 +127,9 @@ export const listContentGroups = query({
 export const getContentGroupWithItems = query({
   args: { groupId: v.id("contentGroups") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+    } catch {
       return null;
     }
 
@@ -214,18 +168,7 @@ export const addContentToGroup = mutation({
     order: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can manage content groups");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Check if content is already in the group
     const existingItem = await ctx.db
@@ -253,18 +196,7 @@ export const removeContentFromGroup = mutation({
     groupItemId: v.id("contentGroupItems"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Only admins can manage content groups");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     const groupItem = await ctx.db.get(args.groupItemId);
     if (!groupItem) {
@@ -290,18 +222,7 @@ export const grantContentGroupAccess = mutation({
     canShare: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
-
-    // Check if current user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can grant content group access");
-    }
+    const { userId: currentUserId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_ACCESS);
 
     return await ctx.db.insert("contentGroupAccess", {
       ...args,
@@ -314,15 +235,9 @@ export const grantContentGroupAccess = mutation({
 export const getAvailableContent = query({
   args: { groupId: v.id("contentGroups") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+    } catch {
       return [];
     }
 
@@ -346,15 +261,9 @@ export const getAvailableContent = query({
 export const listAllContentGroupItems = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+    } catch {
       return [];
     }
 
@@ -373,18 +282,7 @@ export const setBundlePricing = mutation({
     accessDuration: v.optional(v.number()), // Duration in milliseconds
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can set bundle pricing");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Check if bundle exists
     const bundle = await ctx.db.get(args.bundleId);
@@ -420,18 +318,7 @@ export const removeBundlePricing = mutation({
     bundleId: v.id("contentGroups"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can remove bundle pricing");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Deactivate all pricing for this bundle
     const existingPricing = await ctx.db
@@ -464,15 +351,9 @@ export const getBundlePricing = query({
 export const listAllBundlePricing = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+    } catch {
       return [];
     }
 
@@ -500,17 +381,7 @@ export const listAllBundlePricing = query({
 export const generateBundleThumbnailUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can upload bundle thumbnails");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     return await ctx.storage.generateUploadUrl();
   },
@@ -523,17 +394,7 @@ export const bulkAddContentToGroup = mutation({
     contentIds: v.array(v.id("content")),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can manage content groups");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Check if group exists
     const group = await ctx.db.get(args.groupId);
@@ -582,17 +443,7 @@ export const createGroupWithContent = mutation({
     contentIds: v.array(v.id("content")),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can create content groups");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
 
     // Create the group
     const groupId = await ctx.db.insert("contentGroups", {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Video, FileText, FileAudio, Newspaper, Folder, FileDown } from "lucide-react";
 
 interface Content {

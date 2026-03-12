@@ -4,6 +4,14 @@ import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  test: {
+    globals: true,
+    include: ["src/**/*.test.{ts,tsx}", "convex/**/*.test.ts"],
+    environmentMatchGlobs: [
+      ["src/**/*.test.tsx", "happy-dom"],
+      ["src/lib/sanitize.test.ts", "happy-dom"],
+    ],
+  },
   server: {
     host: "0.0.0.0", // Listen on all network interfaces (localhost, 127.0.0.1, etc.)
     port: 5173,

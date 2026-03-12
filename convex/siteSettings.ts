@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requirePermission, requireAuth } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 
 // Get site settings (public - no auth required for basic info)
 export const getSiteSettings = query({
@@ -49,18 +50,7 @@ export const completeSiteSetup = mutation({
     primaryColor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is owner
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || profile.role !== "owner") {
-      throw new Error("Only the owner can complete site setup");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_SITE_SETTINGS);
 
     // Check if settings already exist
     const existingSettings = await ctx.db.query("siteSettings").first();
@@ -106,18 +96,7 @@ export const updateSiteSettings = mutation({
     primaryColor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin or owner
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can update site settings");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_SITE_SETTINGS);
 
     const existingSettings = await ctx.db.query("siteSettings").first();
 
@@ -156,18 +135,7 @@ export const updateSiteSettings = mutation({
 export const generateLogoUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin or owner
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can upload logos");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_SITE_SETTINGS);
 
     return await ctx.storage.generateUploadUrl();
   },

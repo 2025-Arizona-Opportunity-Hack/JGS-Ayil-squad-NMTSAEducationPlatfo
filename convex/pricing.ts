@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { requirePermission, validatePrice } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Set or update pricing for content
@@ -11,18 +13,8 @@ export const setPricing = mutation({
     accessDuration: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
-      throw new Error("Only admins or the owner can set pricing");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.SET_CONTENT_PRICING);
+    validatePrice(args.price);
 
     // Check if pricing already exists
     const existingPricing = await ctx.db
@@ -60,18 +52,7 @@ export const removePricing = mutation({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
-      throw new Error("Only admins or the owner can remove pricing");
-    }
+    await requirePermission(ctx, PERMISSIONS.SET_CONTENT_PRICING);
 
     const pricing = await ctx.db
       .query("contentPricing")
@@ -155,21 +136,7 @@ export const listPricedContent = query({
 // Get all pricing (admin/owner only)
 export const listAllPricing = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (
-      !userProfile ||
-      !["admin", "owner", "editor", "contributor"].includes(userProfile.role)
-    ) {
-      throw new Error("Only admins, owners, editors, or contributors can view pricing");
-    }
+    await requirePermission(ctx, PERMISSIONS.VIEW_ALL_CONTENT);
 
     const allPricing = await ctx.db
       .query("contentPricing")

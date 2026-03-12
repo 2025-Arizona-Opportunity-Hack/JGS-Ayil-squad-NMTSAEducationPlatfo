@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye, DollarSign } from "lucide-react";
@@ -477,7 +478,7 @@ export function PublicContentViewer() {
               <CardContent className="px-4 sm:px-6">
                 <div
                   className="prose prose-sm md:prose-base max-w-none break-words"
-                  dangerouslySetInnerHTML={{ __html: content.body }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.body) }}
                 />
               </CardContent>
             </Card>

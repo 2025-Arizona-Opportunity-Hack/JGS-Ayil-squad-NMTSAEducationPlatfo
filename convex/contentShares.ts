@@ -2,12 +2,81 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
+import {
+  requireAuth,
+  checkContentAccess,
+  getUserProfile,
+  formatUserName,
+  getStorageUrls,
+} from "./helpers";
+import {
+  getEffectivePermissions,
+  hasPermission,
+  hasAnyPermission,
+  PERMISSIONS,
+} from "./permissions";
 
-// Check if user can share a specific content item
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function generateAccessToken(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  );
+}
+
+/**
+ * Evaluate whether a user can share a specific content item.
+ * Used by both canShareContent (query) and createThirdPartyShare (mutation).
+ */
+async function evaluateSharePermission(
+  ctx: QueryCtx,
+  contentId: Id<"content">,
+  content: { createdBy: Id<"users">; isPublic?: boolean; status?: string },
+  userId: Id<"users">,
+  userProfile: { role: string; permissions?: string[] }
+): Promise<{ canShare: boolean; reason: string | null }> {
+  const perms = getEffectivePermissions(userProfile);
+
+  const hasSharePerm = hasAnyPermission(perms, [
+    PERMISSIONS.SHARE_CONTENT,
+    PERMISSIONS.SHARE_WITH_THIRD_PARTY,
+  ]);
+  const isContentCreator = content.createdBy === userId;
+  const isPublicContent = content.isPublic && content.status === "published";
+
+  const activePricing = await ctx.db
+    .query("contentPricing")
+    .withIndex("by_content", (q) => q.eq("contentId", contentId))
+    .filter((q) => q.eq(q.field("isActive"), true))
+    .first();
+  const isPurchaseable = !!activePricing;
+
+  const hasAccess = await checkContentAccess(
+    ctx,
+    contentId,
+    userId,
+    userProfile.role
+  );
+
+  const canShareAsPrivileged = hasSharePerm || isContentCreator || hasAccess;
+  const canShareAsNormal = isPublicContent && !isPurchaseable;
+
+  if (canShareAsPrivileged || canShareAsNormal) {
+    return { canShare: true, reason: null };
+  }
+  if (isPurchaseable)
+    return { canShare: false, reason: "Cannot share purchaseable content" };
+  if (!isPublicContent)
+    return { canShare: false, reason: "Cannot share private content" };
+  return { canShare: false, reason: "No permission to share" };
+}
+
+// ─── Queries ────────────────────────────────────────────────────────
+
 export const canShareContent = query({
-  args: {
-    contentId: v.id("content"),
-  },
+  args: { contentId: v.id("content") },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return { canShare: false, reason: "Not authenticated" };
@@ -15,180 +84,177 @@ export const canShareContent = query({
     const content = await ctx.db.get(args.contentId);
     if (!content) return { canShare: false, reason: "Content not found" };
 
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
+    const userProfile = await getUserProfile(ctx, userId);
+    if (!userProfile)
+      return { canShare: false, reason: "User profile not found" };
 
-    if (!userProfile) return { canShare: false, reason: "User profile not found" };
-
-    // Check permissions
-    const isAdminEditorContributor = 
-      userProfile.role === "admin" || 
-      userProfile.role === "owner" ||
-      userProfile.role === "editor" ||
-      userProfile.role === "contributor";
-    
-    const isContentCreator = content.createdBy === userId;
-    const isPublicContent = content.isPublic && content.status === "published";
-
-    // Check if content has active pricing (purchaseable content)
-    const activePricing = await ctx.db
-      .query("contentPricing")
-      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .first();
-    
-    const isPurchaseable = !!activePricing;
-
-    // Check content access
-    const hasContentAccess = await checkUserContentAccess(ctx, args.contentId, userId, userProfile.role);
-
-    // Normal users can only share public, non-purchaseable content
-    const canShareAsNormalUser = isPublicContent && !isPurchaseable;
-    const canShareAsPrivilegedUser = isAdminEditorContributor || isContentCreator || hasContentAccess;
-    
-    const canShare = canShareAsPrivilegedUser || canShareAsNormalUser;
-
-    if (!canShare) {
-      if (isPurchaseable && !canShareAsPrivilegedUser) {
-        return { canShare: false, reason: "Cannot share purchaseable content" };
-      }
-      if (!isPublicContent && !canShareAsPrivilegedUser) {
-        return { canShare: false, reason: "Cannot share private content" };
-      }
-      return { canShare: false, reason: "No permission to share" };
-    }
-
-    return { canShare: true, reason: null };
+    return evaluateSharePermission(
+      ctx,
+      args.contentId,
+      content,
+      userId,
+      userProfile
+    );
   },
 });
 
-// Generate a cryptographically secure access token
-function generateAccessToken(): string {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
+export const getContentByShareToken = query({
+  args: { accessToken: v.string() },
+  handler: async (ctx, args) => {
+    const share = await ctx.db
+      .query("contentShares")
+      .withIndex("by_token", (q) => q.eq("accessToken", args.accessToken))
+      .unique();
 
-// Helper function to check if a user has access to content
-async function checkUserContentAccess(
-  ctx: QueryCtx,
-  contentId: Id<"content">,
-  userId: Id<"users">,
-  userRole: string
-): Promise<boolean> {
-  const now = Date.now();
+    if (!share) return { error: "Invalid share link", content: null };
 
-  // Check direct user access
-  const userAccess = await ctx.db
-    .query("contentAccess")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .filter((q) => q.eq(q.field("contentId"), contentId))
-    .first();
-
-  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > now)) {
-    return true;
-  }
-
-  // Check role-based access
-  const roleAccess = await ctx.db
-    .query("contentAccess")
-    .withIndex("by_content", (q) => q.eq("contentId", contentId))
-    .filter((q) => q.eq(q.field("role"), userRole))
-    .first();
-
-  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > now)) {
-    return true;
-  }
-
-  // Check user group access
-  const userGroups = await ctx.db
-    .query("userGroupMembers")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-
-  for (const membership of userGroups) {
-    const groupAccess = await ctx.db
-      .query("contentAccess")
-      .withIndex("by_content", (q) => q.eq("contentId", contentId))
-      .filter((q) => q.eq(q.field("userGroupId"), membership.groupId))
-      .first();
-
-    if (groupAccess && (!groupAccess.expiresAt || groupAccess.expiresAt > now)) {
-      return true;
+    if (share.expiresAt && share.expiresAt < Date.now()) {
+      return { error: "This share link has expired", content: null, expired: true };
     }
-  }
 
-  return false;
-}
+    const content = await ctx.db.get(share.contentId);
+    if (!content) return { error: "Content not found", content: null };
 
-// Create a 3rd party share link
+    if (content.status !== "published")
+      return { error: "This content is not published", content: null };
+    if (!content.active)
+      return { error: "This content is not currently active", content: null };
+
+    const now = Date.now();
+    if (content.startDate && content.startDate > now)
+      return { error: "This content is not yet available", content: null };
+    if (content.endDate && content.endDate < now)
+      return { error: "This content is no longer available", content: null };
+
+    const urls = await getStorageUrls(ctx, {
+      fileId: content.fileId,
+      thumbnailId: content.thumbnailId,
+    });
+
+    const creatorName = await (async () => {
+      const p = await getUserProfile(ctx, content.createdBy);
+      return formatUserName(p);
+    })();
+
+    const sharerName = await (async () => {
+      const p = await getUserProfile(ctx, share.sharedBy);
+      return formatUserName(p);
+    })();
+
+    return {
+      error: null,
+      content: {
+        ...content,
+        ...urls,
+        creatorName,
+        password: undefined,
+      },
+      shareInfo: {
+        sharedBy: sharerName,
+        message: share.message,
+        expiresAt: share.expiresAt,
+      },
+    };
+  },
+});
+
+export const listMyShares = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const shares = await ctx.db
+      .query("contentShares")
+      .withIndex("by_sharer", (q) => q.eq("sharedBy", userId))
+      .collect();
+
+    return Promise.all(
+      shares.map(async (share) => {
+        const content = await ctx.db.get(share.contentId);
+        return {
+          ...share,
+          contentTitle: content?.title || "Unknown",
+          contentType: content?.attachmentType || "unknown",
+          isExpired: share.expiresAt ? share.expiresAt < Date.now() : false,
+        };
+      })
+    );
+  },
+});
+
+export const listContentShares = query({
+  args: { contentId: v.id("content") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const content = await ctx.db.get(args.contentId);
+    if (!content) return [];
+
+    const userProfile = await getUserProfile(ctx, userId);
+    const perms = userProfile ? getEffectivePermissions(userProfile) : [];
+
+    // Permission-based check: MANAGE_CONTENT_ACCESS or content creator
+    const canView =
+      hasPermission(perms, PERMISSIONS.MANAGE_CONTENT_ACCESS) ||
+      content.createdBy === userId;
+    if (!canView) return [];
+
+    const shares = await ctx.db
+      .query("contentShares")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .collect();
+
+    return Promise.all(
+      shares.map(async (share) => {
+        const sharerName = await (async () => {
+          const p = await getUserProfile(ctx, share.sharedBy);
+          return formatUserName(p);
+        })();
+        return {
+          ...share,
+          sharedByName: sharerName,
+          isExpired: share.expiresAt ? share.expiresAt < Date.now() : false,
+        };
+      })
+    );
+  },
+});
+
+// ─── Mutations ──────────────────────────────────────────────────────
+
 export const createThirdPartyShare = mutation({
   args: {
     contentId: v.id("content"),
     recipientEmail: v.optional(v.string()),
     recipientName: v.optional(v.string()),
     message: v.optional(v.string()),
-    expiresInDays: v.number(), // Number of days until expiration
+    expiresInDays: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId } = await requireAuth(ctx);
 
-    // Check if user has permission to share this content
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new Error("Content not found");
 
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
+    const userProfile = await getUserProfile(ctx, userId);
     if (!userProfile) throw new Error("User profile not found");
 
-    // Check permissions - admins, editors, contributors, content creators, or users with access can share
-    const isAdminEditorContributor = 
-      userProfile.role === "admin" || 
-      userProfile.role === "owner" ||
-      userProfile.role === "editor" ||
-      userProfile.role === "contributor";
-    
-    const isContentCreator = content.createdBy === userId;
-
-    // Check if content is public and published (anyone can share public content)
-    const isPublicContent = content.isPublic && content.status === "published";
-
-    // Check if content has active pricing (purchaseable content)
-    const activePricing = await ctx.db
-      .query("contentPricing")
-      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .first();
-    
-    const isPurchaseable = !!activePricing;
-
-    // Use the comprehensive access check function
-    const hasContentAccess = await checkUserContentAccess(ctx, args.contentId, userId, userProfile.role);
-
-    // Normal users can only share public, non-purchaseable content
-    // Admins/editors/contributors/creators can share any content they have access to
-    const canShareAsNormalUser = isPublicContent && !isPurchaseable;
-    const canShareAsPrivilegedUser = isAdminEditorContributor || isContentCreator || hasContentAccess;
-    
-    const canShare = canShareAsPrivilegedUser || canShareAsNormalUser;
-
+    const { canShare } = await evaluateSharePermission(
+      ctx,
+      args.contentId,
+      content,
+      userId,
+      userProfile
+    );
     if (!canShare) {
       throw new Error("You don't have permission to share this content");
     }
 
-    // Generate access token
     const accessToken = generateAccessToken();
+    const expiresAt = Date.now() + args.expiresInDays * 24 * 60 * 60 * 1000;
 
-    // Calculate expiration date
-    const expiresAt = Date.now() + (args.expiresInDays * 24 * 60 * 60 * 1000);
-
-    // Create share record
     const shareId = await ctx.db.insert("contentShares", {
       contentId: args.contentId,
       sharedBy: userId,
@@ -200,130 +266,12 @@ export const createThirdPartyShare = mutation({
       viewCount: 0,
     });
 
-    return {
-      shareId,
-      accessToken,
-      shareUrl: `/share/${accessToken}`,
-      expiresAt,
-    };
+    return { shareId, accessToken, shareUrl: `/share/${accessToken}`, expiresAt };
   },
 });
 
-// Get content by share token
-export const getContentByShareToken = query({
-  args: {
-    accessToken: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Find the share record
-    const share = await ctx.db
-      .query("contentShares")
-      .withIndex("by_token", (q) => q.eq("accessToken", args.accessToken))
-      .unique();
-
-    if (!share) {
-      return {
-        error: "Invalid share link",
-        content: null,
-      };
-    }
-
-    // Check if expired
-    if (share.expiresAt && share.expiresAt < Date.now()) {
-      return {
-        error: "This share link has expired",
-        content: null,
-        expired: true,
-      };
-    }
-
-    // Get the content
-    const content = await ctx.db.get(share.contentId);
-    if (!content) {
-      return {
-        error: "Content not found",
-        content: null,
-      };
-    }
-
-    // Check if content is active and published
-    if (content.status !== "published") {
-      return {
-        error: "This content is not published",
-        content: null,
-      };
-    }
-
-    if (!content.active) {
-      return {
-        error: "This content is not currently active",
-        content: null,
-      };
-    }
-
-    // Check availability dates
-    const now = Date.now();
-    if (content.startDate && content.startDate > now) {
-      return {
-        error: "This content is not yet available",
-        content: null,
-      };
-    }
-    if (content.endDate && content.endDate < now) {
-      return {
-        error: "This content is no longer available",
-        content: null,
-      };
-    }
-
-    // Get file URLs
-    let fileUrl = null;
-    if (content.fileId) {
-      fileUrl = await ctx.storage.getUrl(content.fileId);
-    }
-
-    let thumbnailUrl = null;
-    if (content.thumbnailId) {
-      thumbnailUrl = await ctx.storage.getUrl(content.thumbnailId);
-    }
-
-    // Get creator info
-    const creator = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", content.createdBy))
-      .unique();
-
-    // Get sharer info
-    const sharer = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", share.sharedBy))
-      .unique();
-
-    return {
-      error: null,
-      content: {
-        ...content,
-        fileUrl,
-        thumbnailUrl,
-        creatorName: creator
-          ? `${creator.firstName} ${creator.lastName}`
-          : "Unknown",
-        password: undefined, // Don't expose password
-      },
-      shareInfo: {
-        sharedBy: sharer ? `${sharer.firstName} ${sharer.lastName}` : "Unknown",
-        message: share.message,
-        expiresAt: share.expiresAt,
-      },
-    };
-  },
-});
-
-// Track view of shared content
 export const trackShareView = mutation({
-  args: {
-    accessToken: v.string(),
-  },
+  args: { accessToken: v.string() },
   handler: async (ctx, args) => {
     const share = await ctx.db
       .query("contentShares")
@@ -339,108 +287,22 @@ export const trackShareView = mutation({
   },
 });
 
-// List shares created by current user
-export const listMyShares = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const shares = await ctx.db
-      .query("contentShares")
-      .withIndex("by_sharer", (q) => q.eq("sharedBy", userId))
-      .collect();
-
-    // Get content info for each share
-    const sharesWithContent = await Promise.all(
-      shares.map(async (share) => {
-        const content = await ctx.db.get(share.contentId);
-        return {
-          ...share,
-          contentTitle: content?.title || "Unknown",
-          contentType: content?.attachmentType || "unknown",
-          isExpired: share.expiresAt ? share.expiresAt < Date.now() : false,
-        };
-      })
-    );
-
-    return sharesWithContent;
-  },
-});
-
-// Delete a share
 export const deleteShare = mutation({
-  args: {
-    shareId: v.id("contentShares"),
-  },
+  args: { shareId: v.id("contentShares") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId, permissions } = await requireAuth(ctx);
 
     const share = await ctx.db.get(args.shareId);
     if (!share) throw new Error("Share not found");
 
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    // Only the sharer, an admin, or the owner can delete
-    if (share.sharedBy !== userId && userProfile?.role !== "admin" && userProfile?.role !== "owner") {
+    // Sharer can always delete their own shares; otherwise need MANAGE_CONTENT_ACCESS
+    if (
+      share.sharedBy !== userId &&
+      !hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)
+    ) {
       throw new Error("You don't have permission to delete this share");
     }
 
     await ctx.db.delete(args.shareId);
   },
 });
-
-// List shares for a specific content (admin/creator only)
-export const listContentShares = query({
-  args: {
-    contentId: v.id("content"),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const content = await ctx.db.get(args.contentId);
-    if (!content) return [];
-
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    // Check permissions
-    const canView =
-      userProfile?.role === "admin" ||
-      userProfile?.role === "owner" ||
-      content.createdBy === userId;
-
-    if (!canView) return [];
-
-    const shares = await ctx.db
-      .query("contentShares")
-      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
-      .collect();
-
-    // Get sharer info for each share
-    const sharesWithSharers = await Promise.all(
-      shares.map(async (share) => {
-        const sharer = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", share.sharedBy))
-          .unique();
-
-        return {
-          ...share,
-          sharedByName: sharer ? `${sharer.firstName} ${sharer.lastName}` : "Unknown",
-          isExpired: share.expiresAt ? share.expiresAt < Date.now() : false,
-        };
-      })
-    );
-
-    return sharesWithSharers;
-  },
-});
-

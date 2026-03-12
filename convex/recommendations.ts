@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, validateEmail } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 
 // Create a content recommendation
 export const createRecommendation = mutation({
@@ -11,17 +12,9 @@ export const createRecommendation = mutation({
     message: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    validateEmail(args.recipientEmail);
 
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || profile.role !== "professional") {
-      throw new Error("Only professionals can recommend content");
-    }
+    const { userId, profile } = await requirePermission(ctx, PERMISSIONS.RECOMMEND_CONTENT);
 
     // Check if content exists
     const content = await ctx.db.get(args.contentId);
@@ -45,7 +38,7 @@ export const createRecommendation = mutation({
     });
 
     // Send email notification to recipient
-    const recommenderName = `${profile.firstName} ${profile.lastName}`;
+    const recommenderName = formatUserName(profile);
     await ctx.scheduler.runAfter(0, internal.emails.sendRecommendationEmail, {
       recipientEmail: args.recipientEmail,
       contentId: args.contentId,
@@ -61,8 +54,7 @@ export const createRecommendation = mutation({
 export const getMyRecommendations = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
+    const { userId } = await requireAuth(ctx);
 
     const user = await ctx.db.get(userId);
     if (!user?.email) return [];
@@ -80,16 +72,13 @@ export const getMyRecommendations = query({
         const content = await ctx.db.get(rec.contentId);
         if (!content) return null;
 
-        const recommender = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user_id", (q) => q.eq("userId", rec.recommendedBy))
-          .unique();
+        const recommender = await getUserProfile(ctx, rec.recommendedBy);
 
         // Check if user has purchased this content
         const hasPurchased = await ctx.db
           .query("orders")
           .withIndex("by_user", (q) => q.eq("userId", userId))
-          .filter((q) => 
+          .filter((q) =>
             q.and(
               q.eq(q.field("contentId"), rec.contentId),
               q.eq(q.field("status"), "completed")
@@ -105,8 +94,10 @@ export const getMyRecommendations = query({
           .first();
 
         // Get file URLs
-        const fileUrl = content.fileId ? await ctx.storage.getUrl(content.fileId) : null;
-        const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
+        const { fileUrl, thumbnailUrl } = await getStorageUrls(ctx, {
+          fileId: content.fileId,
+          thumbnailId: content.thumbnailId,
+        });
 
         return {
           ...rec,
@@ -115,9 +106,7 @@ export const getMyRecommendations = query({
             fileUrl,
             thumbnailUrl,
           },
-          recommenderName: recommender
-            ? `${recommender.firstName} ${recommender.lastName}`
-            : "Unknown",
+          recommenderName: formatUserName(recommender),
           hasPurchased: !!hasPurchased,
           pricing: pricing ? {
             _id: pricing._id,
@@ -136,17 +125,7 @@ export const getMyRecommendations = query({
 export const getMyRecommendationsMade = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || profile.role !== "professional") {
-      return [];
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.RECOMMEND_CONTENT);
 
     const recommendations = await ctx.db
       .query("contentRecommendations")
@@ -159,7 +138,9 @@ export const getMyRecommendationsMade = query({
         const content = await ctx.db.get(rec.contentId);
         if (!content) return null;
 
-        const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
+        const { thumbnailUrl } = await getStorageUrls(ctx, {
+          thumbnailId: content.thumbnailId,
+        });
 
         return {
           ...rec,
@@ -181,8 +162,7 @@ export const markRecommendationViewed = mutation({
     recommendationId: v.id("contentRecommendations"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId } = await requireAuth(ctx);
 
     const recommendation = await ctx.db.get(args.recommendationId);
     if (!recommendation) throw new Error("Recommendation not found");
@@ -211,8 +191,7 @@ export const deleteRecommendation = mutation({
     recommendationId: v.id("contentRecommendations"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const { userId } = await requireAuth(ctx);
 
     const recommendation = await ctx.db.get(args.recommendationId);
     if (!recommendation) throw new Error("Recommendation not found");

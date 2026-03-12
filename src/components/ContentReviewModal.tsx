@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useMutation, useQuery } from "convex/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -403,7 +404,7 @@ export function ContentReviewModal({
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Additional Content</h4>
                       <div className="prose prose-sm max-w-none p-6 bg-muted/50 rounded-lg">
-                        <div dangerouslySetInnerHTML={{ __html: content.body }} />
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.body) }} />
                       </div>
                     </div>
                   </>

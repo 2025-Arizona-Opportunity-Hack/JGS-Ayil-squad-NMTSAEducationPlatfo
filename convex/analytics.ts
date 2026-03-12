@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { requirePermission, getUserProfile, formatUserName } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 
 // Track a content view
 export const trackView = mutation({
@@ -26,18 +28,7 @@ export const getContentAnalytics = query({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
-      throw new Error("Only admins or the owner can view analytics");
-    }
+    await requirePermission(ctx, PERMISSIONS.VIEW_ANALYTICS);
 
     // Get all views for this content
     const allViews = await ctx.db
@@ -56,17 +47,12 @@ export const getContentAnalytics = query({
       allViews
         .filter((v) => v.userId)
         .map(async (view) => {
-          const profile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user_id", (q) => q.eq("userId", view.userId!))
-            .first();
+          const profile = await getUserProfile(ctx, view.userId!);
 
           return {
             userId: view.userId,
             viewedAt: view.viewedAt,
-            userName: profile
-              ? `${profile.firstName} ${profile.lastName}`
-              : "Unknown User",
+            userName: profile ? formatUserName(profile) : "Unknown User",
           };
         })
     );
@@ -109,18 +95,7 @@ export const getContentAnalytics = query({
 // Get analytics for all content (admin overview)
 export const getAllContentAnalytics = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
-      throw new Error("Only admins or the owner can view analytics");
-    }
+    await requirePermission(ctx, PERMISSIONS.VIEW_ANALYTICS);
 
     // Get all content
     const allContent = await ctx.db.query("content").collect();
@@ -158,17 +133,7 @@ export const getAllContentAnalytics = query({
 // Get view counts for all content (admin only)
 export const getContentViewCounts = query({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .first();
-
-    if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "owner")) {
-      throw new Error("Only admins or the owner can view analytics");
-    }
+    await requirePermission(ctx, PERMISSIONS.VIEW_ANALYTICS);
 
     // Get all content views
     const allViews = await ctx.db.query("contentViews").collect();

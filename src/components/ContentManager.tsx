@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useMutation, useQuery } from "convex/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -2125,7 +2126,7 @@ export function ContentManager() {
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Additional Content</h4>
                   <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
-                    <div dangerouslySetInnerHTML={{ __html: previewContent.body }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewContent.body) }} />
                   </div>
                 </div>
               )}

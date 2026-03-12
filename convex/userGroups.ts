@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requirePermission, formatUserName, getUserProfile } from "./helpers";
+import { PERMISSIONS } from "./permissions";
 
 // Create user group
 export const createUserGroup = mutation({
@@ -9,18 +10,7 @@ export const createUserGroup = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can create user groups");
-    }
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_USER_GROUPS);
 
     return await ctx.db.insert("userGroups", {
       ...args,
@@ -34,15 +24,9 @@ export const createUserGroup = mutation({
 export const listUserGroups = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_USER_GROUPS);
+    } catch {
       return [];
     }
 
@@ -57,18 +41,7 @@ export const addUserToGroup = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
-
-    // Check if current user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can manage user groups");
-    }
+    const { userId: currentUserId } = await requirePermission(ctx, PERMISSIONS.MANAGE_USER_GROUPS);
 
     // Check if user is already in the group
     const existingMembership = await ctx.db
@@ -95,18 +68,7 @@ export const removeUserFromGroup = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
-
-    // Check if current user is admin
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-      throw new Error("Only admins or the owner can manage user groups");
-    }
+    await requirePermission(ctx, PERMISSIONS.MANAGE_USER_GROUPS);
 
     // Find the membership
     const membership = await ctx.db
@@ -127,15 +89,9 @@ export const removeUserFromGroup = mutation({
 export const getGroupMembers = query({
   args: { groupId: v.id("userGroups") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return [];
-
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+    try {
+      await requirePermission(ctx, PERMISSIONS.MANAGE_USER_GROUPS);
+    } catch {
       return [];
     }
 

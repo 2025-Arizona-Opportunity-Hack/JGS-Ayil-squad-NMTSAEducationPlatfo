@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
+import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 
 // Get current user profile
 export const getCurrentUserProfile = query({
@@ -255,79 +256,37 @@ export const updateUserRole = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
-
-    // Check if current user has permission to update roles
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!currentProfile) throw new Error("Profile not found");
-    
-    const currentPermissions = getEffectivePermissions(currentProfile);
-    
-    // Check for UPDATE_USER_ROLES permission
-    if (!hasPermission(currentPermissions, PERMISSIONS.UPDATE_USER_ROLES)) {
-      throw new Error("You don't have permission to update user roles");
-    }
+    const { permissions } = await requirePermission(ctx, PERMISSIONS.UPDATE_USER_ROLES);
 
     // Promoting to admin requires PROMOTE_TO_ADMIN permission (owner only by default)
     if (args.role === "admin") {
-      if (!hasPermission(currentPermissions, PERMISSIONS.PROMOTE_TO_ADMIN)) {
+      if (!hasPermission(permissions, PERMISSIONS.PROMOTE_TO_ADMIN)) {
         throw new Error("Only owners can promote users to admin");
       }
     }
 
-    const targetProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .unique();
-
+    const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new Error("User profile not found");
 
-    // Reset permissions to defaults when role changes
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
-      permissions: undefined, // Clear custom permissions, will use role defaults
+      permissions: undefined,
     });
   },
 });
 
 // Owner-only: Promote a user to admin
 export const promoteToAdmin = mutation({
-  args: {
-    userId: v.id("users"),
-  },
+  args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
+    await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
 
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!currentProfile) throw new Error("Profile not found");
-    
-    const currentPermissions = getEffectivePermissions(currentProfile);
-    
-    // Check for PROMOTE_TO_ADMIN permission
-    if (!hasPermission(currentPermissions, PERMISSIONS.PROMOTE_TO_ADMIN)) {
-      throw new Error("Only owners can promote users to admin");
-    }
-
-    const targetProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .unique();
-
+    const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new Error("User profile not found");
 
-    await ctx.db.patch(targetProfile._id, { 
+    await ctx.db.patch(targetProfile._id, {
       role: "admin",
-      permissions: undefined, // Use default admin permissions
+      permissions: undefined,
     });
   },
 });
@@ -339,86 +298,39 @@ export const updateUserPermissions = mutation({
     permissions: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
+    const { permissions: callerPerms } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!currentProfile) throw new Error("Profile not found");
-    
-    const currentPermissions = getEffectivePermissions(currentProfile);
-    
-    // Check for MANAGE_USERS permission
-    if (!hasPermission(currentPermissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to manage users");
-    }
-
-    const targetProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .unique();
-
+    const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new Error("User profile not found");
 
-    // Cannot modify owner permissions
     if (targetProfile.role === "owner") {
       throw new Error("Cannot modify owner permissions");
     }
 
-    // Cannot grant PROMOTE_TO_ADMIN unless you have it yourself
     if (args.permissions.includes(PERMISSIONS.PROMOTE_TO_ADMIN)) {
-      if (!hasPermission(currentPermissions, PERMISSIONS.PROMOTE_TO_ADMIN)) {
+      if (!hasPermission(callerPerms, PERMISSIONS.PROMOTE_TO_ADMIN)) {
         throw new Error("Only owners can grant the PROMOTE_TO_ADMIN permission");
       }
     }
 
-    await ctx.db.patch(targetProfile._id, {
-      permissions: args.permissions,
-    });
+    await ctx.db.patch(targetProfile._id, { permissions: args.permissions });
   },
 });
 
 // Reset user permissions to role defaults (requires MANAGE_USERS permission)
 export const resetUserPermissions = mutation({
-  args: {
-    userId: v.id("users"),
-  },
+  args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
+    await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
-      .unique();
-
-    if (!currentProfile) throw new Error("Profile not found");
-    
-    const currentPermissions = getEffectivePermissions(currentProfile);
-    
-    // Check for MANAGE_USERS permission
-    if (!hasPermission(currentPermissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to manage users");
-    }
-
-    const targetProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .unique();
-
+    const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new Error("User profile not found");
 
-    // Cannot modify owner permissions
     if (targetProfile.role === "owner") {
       throw new Error("Cannot modify owner permissions");
     }
 
-    await ctx.db.patch(targetProfile._id, {
-      permissions: undefined, // Reset to role defaults
-    });
+    await ctx.db.patch(targetProfile._id, { permissions: undefined });
   },
 });
 
@@ -426,26 +338,11 @@ export const resetUserPermissions = mutation({
 export const listUsers = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!currentProfile) throw new Error("Profile not found");
-    
-    const currentPermissions = getEffectivePermissions(currentProfile);
-    
-    if (!hasPermission(currentPermissions, PERMISSIONS.VIEW_USERS)) {
-      throw new Error("You don't have permission to view users");
-    }
+    await requirePermission(ctx, PERMISSIONS.VIEW_USERS);
 
     const profiles = await ctx.db.query("userProfiles").collect();
 
-    // Get user details for each profile
-    const usersWithProfiles = await Promise.all(
+    return Promise.all(
       profiles.map(async (profile) => {
         const user = await ctx.db.get(profile.userId);
         const effectivePermissions = getEffectivePermissions(profile);
@@ -457,8 +354,6 @@ export const listUsers = query({
         };
       })
     );
-
-    return usersWithProfiles;
   },
 });
 
