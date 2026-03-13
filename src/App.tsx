@@ -4,18 +4,13 @@ import { useNavigate, Routes, Route } from "react-router-dom";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { RoleSelection } from "./components/RoleSelection";
-import { ProfileEditModal } from "./components/ProfileEditModal";
 import { SiteSetup } from "./components/SiteSetup";
 import { Logo } from "./components/Logo";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
-import { ThemeToggle } from "./components/ThemeToggle";
-import { SkipToContent } from "./components/SkipToContent";
 import { ClientLayout } from "./components/client/ClientLayout";
 import { HomePage } from "./pages/client/HomePage";
 import { BrowsePage } from "./pages/client/BrowsePage";
@@ -29,7 +24,6 @@ import { ForYouPage } from "./pages/client/ForYouPage";
 export default function App() {
   const navigate = useNavigate();
   const { signOut } = useAuthActions();
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
@@ -213,62 +207,7 @@ export default function App() {
   ]);
 
   if (isAdmin) {
-    // Keep existing admin layout until Task 15 builds AdminLayout
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <SkipToContent />
-        <nav className="bg-card shadow-sm border-b border-border">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center gap-3">
-                <Logo size="md" showText={true} />
-              </div>
-              <div className="flex items-center space-x-4">
-                <ThemeToggle />
-                <Button
-                  variant="ghost"
-                  className="flex items-center space-x-3 p-2 hover:bg-accent rounded-lg transition-colors"
-                  onClick={() => setIsProfileModalOpen(true)}
-                >
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage
-                      src={userProfile?.profilePictureUrl || undefined}
-                      alt="Profile picture"
-                    />
-                    <AvatarFallback className="text-xs">
-                      {userProfile?.firstName?.charAt(0)}
-                      {userProfile?.lastName?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-foreground">
-                    {userProfile?.firstName} {userProfile?.lastName}
-                  </span>
-                </Button>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
-                  {userProfile?.role}
-                </span>
-                <SignOutButton />
-              </div>
-            </div>
-          </div>
-        </nav>
-        <main id="main-content" className="mx-auto py-6 sm:px-6 lg:px-8">
-          <AdminDashboard />
-        </main>
-        {userProfile && (
-          <ProfileEditModal
-            isOpen={isProfileModalOpen}
-            onClose={() => setIsProfileModalOpen(false)}
-            currentProfile={{
-              firstName: userProfile.firstName,
-              lastName: userProfile.lastName,
-              profilePictureId: userProfile.profilePictureId,
-              profilePictureUrl: userProfile.profilePictureUrl || undefined,
-            }}
-          />
-        )}
-      </div>
-    );
+    return <AdminDashboard />;
   }
 
   // Client user — use ClientLayout with nested routes
