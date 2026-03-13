@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Routes, Route } from "react-router-dom";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
@@ -17,6 +17,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SkipToContent } from "./components/SkipToContent";
+import { ClientLayout } from "./components/client/ClientLayout";
+import { HomePage } from "./pages/client/HomePage";
+import { BrowsePage } from "./pages/client/BrowsePage";
+import { BundlesPage } from "./pages/client/BundlesPage";
+import { ShopPage } from "./pages/client/ShopPage";
+import { OrdersPage } from "./pages/client/OrdersPage";
+import { SharesPage } from "./pages/client/SharesPage";
+import { RequestsPage } from "./pages/client/RequestsPage";
+import { ForYouPage } from "./pages/client/ForYouPage";
 
 export default function App() {
   const navigate = useNavigate();
@@ -212,73 +221,87 @@ export default function App() {
     return <SiteSetup onComplete={() => setSetupComplete(true)} />;
   }
 
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SkipToContent />
-      <nav className="bg-card shadow-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center gap-3">
-              <Logo size="md" showText={true} />
-            </div>
-            <div className="flex items-center space-x-4">
-              <ThemeToggle />
-              <Button
-                variant="ghost"
-                className="flex items-center space-x-3 p-2 hover:bg-accent rounded-lg transition-colors"
-                onClick={() => setIsProfileModalOpen(true)}
-              >
-                <Avatar className="w-8 h-8">
-                  <AvatarImage
-                    src={userProfile?.profilePictureUrl || undefined}
-                    alt="Profile picture"
-                  />
-                  <AvatarFallback className="text-xs">
-                    {userProfile?.firstName?.charAt(0)}
-                    {userProfile?.lastName?.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-foreground">
-                  {userProfile?.firstName} {userProfile?.lastName}
+  const isAdmin = hasAnyPermission(userProfile?.effectivePermissions, [
+    PERMISSIONS.CREATE_CONTENT,
+    PERMISSIONS.EDIT_CONTENT,
+    PERMISSIONS.VIEW_ALL_CONTENT,
+    PERMISSIONS.VIEW_USERS,
+    PERMISSIONS.MANAGE_SITE_SETTINGS,
+  ]);
+
+  if (isAdmin) {
+    // Keep existing admin layout until Task 15 builds AdminLayout
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <SkipToContent />
+        <nav className="bg-card shadow-sm border-b border-border">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex items-center gap-3">
+                <Logo size="md" showText={true} />
+              </div>
+              <div className="flex items-center space-x-4">
+                <ThemeToggle />
+                <Button
+                  variant="ghost"
+                  className="flex items-center space-x-3 p-2 hover:bg-accent rounded-lg transition-colors"
+                  onClick={() => setIsProfileModalOpen(true)}
+                >
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage
+                      src={userProfile?.profilePictureUrl || undefined}
+                      alt="Profile picture"
+                    />
+                    <AvatarFallback className="text-xs">
+                      {userProfile?.firstName?.charAt(0)}
+                      {userProfile?.lastName?.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm text-foreground">
+                    {userProfile?.firstName} {userProfile?.lastName}
+                  </span>
+                </Button>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
+                  {userProfile?.role}
                 </span>
-              </Button>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
-                {userProfile?.role}
-              </span>
-              <SignOutButton />
+                <SignOutButton />
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
-
-      <main id="main-content" className="mx-auto py-6 sm:px-6 lg:px-8">
-        {hasAnyPermission(userProfile?.effectivePermissions, [
-          PERMISSIONS.CREATE_CONTENT,
-          PERMISSIONS.EDIT_CONTENT,
-          PERMISSIONS.VIEW_ALL_CONTENT,
-          PERMISSIONS.VIEW_USERS,
-          PERMISSIONS.MANAGE_SITE_SETTINGS,
-        ]) ? (
+        </nav>
+        <main id="main-content" className="mx-auto py-6 sm:px-6 lg:px-8">
           <AdminDashboard />
-        ) : (
-          <ClientDashboard />
+        </main>
+        {userProfile && (
+          <ProfileEditModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            onProfileUpdated={handleProfileUpdated}
+            currentProfile={{
+              firstName: userProfile.firstName,
+              lastName: userProfile.lastName,
+              profilePictureId: userProfile.profilePictureId,
+              profilePictureUrl: userProfile.profilePictureUrl || undefined,
+            }}
+          />
         )}
-      </main>
+      </div>
+    );
+  }
 
-      {/* Profile Edit Modal */}
-      {userProfile && (
-        <ProfileEditModal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          onProfileUpdated={handleProfileUpdated}
-          currentProfile={{
-            firstName: userProfile.firstName,
-            lastName: userProfile.lastName,
-            profilePictureId: userProfile.profilePictureId,
-            profilePictureUrl: userProfile.profilePictureUrl || undefined,
-          }}
-        />
-      )}
-    </div>
+  // Client user — use ClientLayout with nested routes
+  return (
+    <Routes>
+      <Route element={<ClientLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="browse" element={<BrowsePage />} />
+        <Route path="bundles" element={<BundlesPage />} />
+        <Route path="shop" element={<ShopPage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="shares" element={<SharesPage />} />
+        <Route path="requests" element={<RequestsPage />} />
+        <Route path="for-you" element={<ForYouPage />} />
+      </Route>
+    </Routes>
   );
 }
