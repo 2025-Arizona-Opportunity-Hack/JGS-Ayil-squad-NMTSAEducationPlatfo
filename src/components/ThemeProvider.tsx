@@ -58,11 +58,11 @@ function lightenHSL(hsl: string, amount: number = 10): string {
   return `${h} ${s} ${newL}%`;
 }
 
-interface ThemeProviderProps {
+interface BrandColorProviderProps {
   children: React.ReactNode;
 }
 
-export function ThemeProvider({ children }: ThemeProviderProps) {
+export function BrandColorProvider({ children }: BrandColorProviderProps) {
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
 
   useEffect(() => {

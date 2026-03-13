@@ -9,13 +9,13 @@ import { PublicContentViewer } from "./components/PublicContentViewer";
 import { SharedContentViewer } from "./components/SharedContentViewer";
 import { VerifyEmail } from "./components/VerifyEmail";
 import { CheckoutSuccess, CheckoutCancel } from "./components/CheckoutResult";
-import { ThemeProvider } from "./components/ThemeProvider";
+import { BrandColorProvider } from "./components/ThemeProvider";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
 
 createRoot(document.getElementById("root")!).render(
   <ConvexAuthProvider client={convex}>
-    <ThemeProvider>
+    <BrandColorProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/view/:contentId" element={<PublicContentViewer />} />
@@ -27,6 +27,6 @@ createRoot(document.getElementById("root")!).render(
         </Routes>
       </BrowserRouter>
       <Toaster position="top-center" />
-    </ThemeProvider>
+    </BrandColorProvider>
   </ConvexAuthProvider>
 );
