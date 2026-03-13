@@ -74,7 +74,7 @@ export function Logo({ className = "", size = "md", showText = true }: LogoProps
         />
       )}
       {showText && (
-        <span className={`font-semibold text-gray-900 ${textSizeMap[size]}`}>
+        <span className={`font-semibold text-foreground ${textSizeMap[size]}`}>
           {orgName}
         </span>
       )}

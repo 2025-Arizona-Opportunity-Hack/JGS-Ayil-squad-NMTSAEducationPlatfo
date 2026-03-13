@@ -94,8 +94,8 @@ export default function App() {
   // userProfile can be null/false, but user should not be undefined
   if (user === undefined) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -106,16 +106,16 @@ export default function App() {
     const siteTagline = siteSettings?.tagline || "Access your resources";
     
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-4">
               <Logo size="xl" showText={false} />
             </div>
-            <h2 className="text-3xl font-extrabold text-gray-900">
+            <h2 className="text-3xl font-extrabold text-foreground">
               {siteName}
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-muted-foreground">
               {siteTagline}
             </p>
           </div>
@@ -128,12 +128,12 @@ export default function App() {
   // If we have a user but userProfile is still loading
   if (user && userProfile === undefined) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <h2 className="text-2xl font-bold text-foreground mb-4">
             Loading your profile...
           </h2>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       </div>
     );
@@ -144,12 +144,12 @@ export default function App() {
   if (user && !userProfile) {
     if (bootstrapNeeded || ownerBootstrapping) {
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            <h2 className="text-2xl font-bold text-foreground mb-4">
               Initializing your owner account...
             </h2>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           </div>
         </div>
       );
@@ -160,10 +160,10 @@ export default function App() {
       // Still loading join request status
       if (joinRequestStatus === undefined) {
         return (
-          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600 mt-4">Checking access...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground mt-4">Checking access...</p>
             </div>
           </div>
         );
@@ -185,7 +185,7 @@ export default function App() {
         };
 
         return (
-          <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <Card className="w-full max-w-md">
               <CardHeader className="text-center">
                 <Logo size="lg" showText={false} className="mx-auto mb-4" />
@@ -215,7 +215,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SkipToContent />
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-3">
@@ -225,7 +225,7 @@ export default function App() {
               <ThemeToggle />
               <Button
                 variant="ghost"
-                className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex items-center space-x-3 p-2 hover:bg-accent rounded-lg transition-colors"
                 onClick={() => setIsProfileModalOpen(true)}
               >
                 <Avatar className="w-8 h-8">
@@ -238,11 +238,11 @@ export default function App() {
                     {userProfile?.lastName?.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-foreground">
                   {userProfile?.firstName} {userProfile?.lastName}
                 </span>
               </Button>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
                 {userProfile?.role}
               </span>
               <SignOutButton />
