@@ -6,7 +6,6 @@ import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { AdminDashboard } from "./components/AdminDashboard";
-import { ClientDashboard } from "./components/ClientDashboard";
 import { RoleSelection } from "./components/RoleSelection";
 import { ProfileEditModal } from "./components/ProfileEditModal";
 import { SiteSetup } from "./components/SiteSetup";
@@ -14,7 +13,7 @@ import { Logo } from "./components/Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
+import { hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SkipToContent } from "./components/SkipToContent";
 import { ClientLayout } from "./components/client/ClientLayout";
@@ -31,7 +30,6 @@ export default function App() {
   const navigate = useNavigate();
   const { signOut } = useAuthActions();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
@@ -49,11 +47,6 @@ export default function App() {
     api.joinRequests.checkJoinRequestStatus,
     user && !userProfile && !inviteCode && user.email ? { email: user.email } : "skip"
   );
-
-  const handleProfileUpdated = () => {
-    // Force a refresh by incrementing the key
-    setProfileRefreshKey((prev) => prev + 1);
-  };
 
   // Update document title based on site settings
   useEffect(() => {
@@ -81,8 +74,6 @@ export default function App() {
       void (async () => {
         try {
           await createOwnerProfile({});
-          // Force refresh of profile
-          setProfileRefreshKey((prev) => prev + 1);
         } catch (err) {
           console.error("Owner bootstrap failed:", err);
         } finally {
@@ -91,13 +82,6 @@ export default function App() {
       })();
     }
   }, [user, userProfile, bootstrapNeeded, ownerBootstrapping, createOwnerProfile]);
-
-  console.log("App state:", {
-    user: !!user,
-    userProfile: !!userProfile,
-    userUndefined: user === undefined,
-    profileUndefined: userProfile === undefined,
-  });
 
   // Loading state - wait for user query to resolve first
   // userProfile can be null/false, but user should not be undefined
@@ -212,7 +196,6 @@ export default function App() {
       }
     }
 
-    console.log("Showing role selection for user:", user.email);
     return <RoleSelection />;
   }
 
@@ -276,7 +259,6 @@ export default function App() {
           <ProfileEditModal
             isOpen={isProfileModalOpen}
             onClose={() => setIsProfileModalOpen(false)}
-            onProfileUpdated={handleProfileUpdated}
             currentProfile={{
               firstName: userProfile.firstName,
               lastName: userProfile.lastName,
