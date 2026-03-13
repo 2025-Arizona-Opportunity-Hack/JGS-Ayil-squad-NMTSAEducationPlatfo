@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 export default function App() {
   const navigate = useNavigate();
@@ -219,6 +220,7 @@ export default function App() {
               <Logo size="md" showText={true} />
             </div>
             <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <Button
                 variant="ghost"
                 className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
