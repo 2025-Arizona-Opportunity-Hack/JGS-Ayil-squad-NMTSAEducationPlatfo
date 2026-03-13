@@ -22,9 +22,7 @@ import {
   Ban,
   Plus,
   Archive,
-  Search,
   X,
-  Filter,
   CalendarDays,
   Trash2,
   Share2,
@@ -95,6 +93,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { ContentFilters, type FilterState } from "./admin/ContentFilters";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -109,12 +108,15 @@ export function ContentManager() {
   const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any>(null);
   const [previewContentId, setPreviewContentId] = useState<string | null>(null);
-  const [contentTypeFilter, setContentTypeFilter] = useState<"all" | "video" | "image" | "pdf" | "audio" | "richtext">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "review" | "published" | "rejected" | "changes_requested">("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "title-asc" | "title-desc" | "status" | "type">("date-desc");
+  const [filterState, setFilterState] = useState<FilterState>({
+    searchQuery: "",
+    contentTypeFilter: "all",
+    statusFilter: "all",
+    selectedTags: [],
+    selectedGroupId: null,
+    sortBy: "date-desc",
+  });
+  const { searchQuery, contentTypeFilter, statusFilter, selectedTags, selectedGroupId, sortBy } = filterState;
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
@@ -678,230 +680,30 @@ export function ContentManager() {
   return (
     <div className="flex gap-6 h-full -m-6 p-6">
       {/* Left Sidebar - Filters */}
-      <div className="w-80 flex-shrink-0">
-        <div className="sticky top-0 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              <h3 className="text-lg font-semibold">Filters</h3>
-      </div>
-            {(searchQuery || selectedTags.length > 0 || statusFilter !== "all" || contentTypeFilter !== "all" || selectedGroupId) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedTags([]);
-                  setStatusFilter("all");
-                  setContentTypeFilter("all");
-                  setSelectedGroupId(null);
-                }}
-              >
-                <X className="w-4 h-4 mr-1" />
-                Clear
-              </Button>
-            )}
-      </div>
-
-          <Card>
-            <CardContent className="p-4 space-y-4">
-          {/* Search Bar */}
-          <div className="space-y-2">
-            <Label htmlFor="search" className="text-sm font-medium">Search Content</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                id="search"
-                type="text"
-                placeholder="Search by title or description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-9"
-              />
-              {searchQuery && (
-        <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-        >
-                  <X className="w-4 h-4" />
-        </button>
-              )}
-            </div>
-            {searchQuery && (
-              <p className="text-xs text-muted-foreground">
-                Found {filteredContent.length} result{filteredContent.length !== 1 ? "s" : ""}
-              </p>
-            )}
-      </div>
-
-          <Separator />
-
-          {/* Status Filter */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Status</Label>
-            <div className="space-y-1">
-              {[
-                { value: "all", label: "All Statuses", count: allContent?.length || 0 },
-                { value: "draft", label: "Drafts", count: allContent?.filter(c => c.status === "draft").length || 0 },
-                { value: "review", label: "In Review", count: allContent?.filter(c => c.status === "review").length || 0 },
-                { value: "changes_requested", label: "Changes Requested", count: allContent?.filter(c => c.status === "changes_requested").length || 0 },
-                { value: "published", label: "Published", count: allContent?.filter(c => c.status === "published").length || 0 },
-                { value: "rejected", label: "Rejected", count: allContent?.filter(c => c.status === "rejected").length || 0 },
-              ].map((status) => (
-                <button
-                  key={status.value}
-                  type="button"
-                  onClick={() => setStatusFilter(status.value as any)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors",
-                    statusFilter === status.value
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted"
-                  )}
-                >
-                  <span>{status.label}</span>
-                  <Badge 
-                    variant={statusFilter === status.value ? "secondary" : "outline"}
-                    className="ml-2"
-                  >
-                    {status.count}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-      {/* Content Type Filter */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Attachment Type</Label>
-            <div className="space-y-1">
-              {[
-                { value: "all", label: "All Types", icon: null, count: allContent?.length || 0 },
-                { value: "video", label: "Video", icon: Video, count: getContentTypeCount("video") },
-                { value: "audio", label: "Audio", icon: FileAudio, count: getContentTypeCount("audio") },
-                { value: "image", label: "Image", icon: Folder, count: getContentTypeCount("image") },
-                { value: "pdf", label: "PDF", icon: FileText, count: getContentTypeCount("pdf") },
-                { value: "richtext", label: "Rich Text", icon: Newspaper, count: getContentTypeCount("richtext") },
-              ].map((type) => {
-                const Icon = type.icon;
-                return (
-            <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => setContentTypeFilter(type.value as any)}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors",
-                      contentTypeFilter === type.value
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      {Icon && <Icon className="w-4 h-4" />}
-                      {type.label}
-              </span>
-                    <Badge 
-                      variant={contentTypeFilter === type.value ? "secondary" : "outline"}
-                      className="ml-2"
-                    >
-                      {type.count}
-                    </Badge>
-            </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tag Filter */}
-          {allTags.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Filter by Tags</Label>
-                <div className="flex flex-wrap gap-2">
-                  {allTags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant={selectedTags.includes(tag) ? "default" : "outline"}
-                      className="cursor-pointer hover:bg-primary/90"
-                      onClick={() => {
-                        if (selectedTags.includes(tag)) {
-                          setSelectedTags(selectedTags.filter(t => t !== tag));
-                        } else {
-                          setSelectedTags([...selectedTags, tag]);
-                        }
-                      }}
-                    >
-                      {tag}
-                      {selectedTags.includes(tag) && (
-                        <X className="w-3 h-3 ml-1" />
-                      )}
-                    </Badge>
-                  ))}
-      </div>
-              </div>
-            </>
-          )}
-
-          {/* Content Bundle Filter */}
-          {contentGroups && contentGroups.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Filter by Content Bundle</Label>
-                <select
-                  value={selectedGroupId || "all"}
-                  onChange={(e) => setSelectedGroupId(e.target.value === "all" ? null : e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="all">All Bundles</option>
-                  {contentGroups.map((group: any) => (
-                    <option key={group._id} value={group._id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-
-          {/* Sort By */}
-          <Separator />
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Sort By</Label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="date-desc">Newest First</option>
-              <option value="date-asc">Oldest First</option>
-              <option value="title-asc">Title (A-Z)</option>
-              <option value="title-desc">Title (Z-A)</option>
-              <option value="status">Status</option>
-              <option value="type">Content Type</option>
-            </select>
-          </div>
-
-          {/* Results Summary */}
-          <Separator />
-          <div className="text-sm">
-            <span className="text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">{filteredContent.length}</span> of {allContent?.length || 0}
-            </span>
-            {filteredContent.length !== allContent?.length && (
-              <Badge variant="secondary" className="ml-2">
-                Filtered
-              </Badge>
-            )}
-          </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <ContentFilters
+        filters={filterState}
+        onFiltersChange={setFilterState}
+        allTags={allTags}
+        contentGroups={contentGroups}
+        totalCount={allContent?.length || 0}
+        filteredCount={filteredContent.length}
+        statusCounts={{
+          all: allContent?.length || 0,
+          draft: allContent?.filter(c => c.status === "draft").length || 0,
+          review: allContent?.filter(c => c.status === "review").length || 0,
+          changes_requested: allContent?.filter(c => c.status === "changes_requested").length || 0,
+          published: allContent?.filter(c => c.status === "published").length || 0,
+          rejected: allContent?.filter(c => c.status === "rejected").length || 0,
+        }}
+        typeCounts={{
+          all: allContent?.length || 0,
+          video: getContentTypeCount("video"),
+          audio: getContentTypeCount("audio"),
+          image: getContentTypeCount("image"),
+          pdf: getContentTypeCount("pdf"),
+          richtext: getContentTypeCount("richtext"),
+        }}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 space-y-6">
