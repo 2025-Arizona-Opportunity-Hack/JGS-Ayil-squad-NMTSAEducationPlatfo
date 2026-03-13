@@ -5,7 +5,6 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import {
   Video,
   FileText,
@@ -17,19 +16,13 @@ import {
   CheckCircle,
   XCircle,
   Calendar as CalendarIcon,
-  CheckCheck,
-  Ban,
   Plus,
   Archive,
-  X,
-  Trash2,
   Check,
   Send,
   AlertCircle,
   ExternalLink,
   DollarSign,
-  Globe,
-  GlobeLock,
   Package,
   FolderPlus
 } from "lucide-react";
@@ -54,7 +47,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -84,6 +76,7 @@ import { cn } from "@/lib/utils";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { ContentFilters, type FilterState } from "./admin/ContentFilters";
 import { ContentList } from "./admin/ContentList";
+import { ContentActions } from "./admin/ContentActions";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -697,37 +690,19 @@ export function ContentManager() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 space-y-6">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h3 className="text-2xl font-bold tracking-tight">Content Management</h3>
-            <p className="text-sm text-muted-foreground">Manage and organize your content library</p>
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <div className="flex items-center gap-2 mr-2">
-              <Checkbox
-                checked={paginatedContent.length > 0 && paginatedContent.every(c => selectedIds.includes(c._id))}
-                onCheckedChange={toggleSelectAllOnPage}
-                id="selectAllPage"
-              />
-              <Label htmlFor="selectAllPage" className="text-sm">Select page</Label>
-              {selectedIds.length > 0 && (
-                <Badge variant="secondary" className="ml-1">{selectedIds.length} selected</Badge>
-              )}
-            </div>
-            <Button onClick={() => setShowCreateForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Content
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={selectedIds.length === 0}
-              onClick={() => { void handleBulkDeleteSelected(); }}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete Selected
-            </Button>
-          </div>
-        </div>
+        <ContentActions
+          selectedIds={selectedIds}
+          allPageSelected={paginatedContent.length > 0 && paginatedContent.every(c => selectedIds.includes(c._id))}
+          onToggleSelectAllOnPage={toggleSelectAllOnPage}
+          onClearSelection={() => setSelectedIds([])}
+          onCreateContent={() => setShowCreateForm(true)}
+          onBulkSetPublic={(isPublic) => void handleBulkSetPublic(isPublic)}
+          onBulkSetActive={(active) => void handleBulkSetActive(active)}
+          onBulkAddToBundle={() => setShowBulkAddToGroupModal(true)}
+          onBulkRecommend={() => setShowBulkRecommendModal(true)}
+          onBulkArchive={() => void handleBulkArchive()}
+          onBulkDelete={() => void handleBulkDeleteSelected()}
+        />
 
       <Dialog open={showCreateForm} onOpenChange={(open) => {
         // Don't close the dialog if the Google Drive picker is open
@@ -1125,121 +1100,6 @@ export function ContentManager() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Bulk Actions Toolbar */}
-      {selectedIds.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="sticky top-0 z-20 bg-primary text-primary-foreground rounded-lg shadow-lg p-3 mb-4"
-        >
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={paginatedContent.every(c => selectedIds.includes(c._id))}
-                  onCheckedChange={toggleSelectAllOnPage}
-                  className="border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
-                />
-                <span className="text-sm font-medium">
-                  {selectedIds.length} selected
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedIds([])}
-                className="text-primary-foreground hover:bg-primary-foreground/20"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Clear
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Set Public/Private */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="sm">
-                    <Globe className="w-4 h-4 mr-1" />
-                    Visibility
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => void handleBulkSetPublic(true)}>
-                    <Globe className="w-4 h-4 mr-2" />
-                    Set Public
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void handleBulkSetPublic(false)}>
-                    <GlobeLock className="w-4 h-4 mr-2" />
-                    Set Private
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Set Active/Inactive */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="sm">
-                    <CheckCheck className="w-4 h-4 mr-1" />
-                    Status
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => void handleBulkSetActive(true)}>
-                    <CheckCheck className="w-4 h-4 mr-2" />
-                    Set Active
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void handleBulkSetActive(false)}>
-                    <Ban className="w-4 h-4 mr-2" />
-                    Set Inactive
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Add to Bundle */}
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => setShowBulkAddToGroupModal(true)}
-              >
-                <Package className="w-4 h-4 mr-1" />
-                Add to Bundle
-              </Button>
-
-              {/* Recommend */}
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => setShowBulkRecommendModal(true)}
-              >
-                <Send className="w-4 h-4 mr-1" />
-                Recommend
-              </Button>
-
-              {/* Archive */}
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => void handleBulkArchive()}
-              >
-                <Archive className="w-4 h-4 mr-1" />
-                Archive
-              </Button>
-
-              {/* Delete */}
-              <Button 
-                variant="destructive" 
-                size="sm"
-                onClick={() => void handleBulkDeleteSelected()}
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                Delete
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Content List */}
       <ContentList
