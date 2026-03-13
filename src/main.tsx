@@ -1,8 +1,10 @@
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 import "./index.css";
 import App from "./App";
 import { PublicContentViewer } from "./components/PublicContentViewer";
@@ -13,20 +15,30 @@ import { BrandColorProvider } from "./components/ThemeProvider";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
 
+if (import.meta.env.DEV) {
+  import("@axe-core/react").then((axe) => {
+    import("react-dom").then((ReactDOM) => {
+      axe.default(React, ReactDOM, 1000);
+    });
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <ConvexAuthProvider client={convex}>
-    <BrandColorProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/view/:contentId" element={<PublicContentViewer />} />
-          <Route path="/share/:accessToken" element={<SharedContentViewer />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/checkout/success" element={<CheckoutSuccess />} />
-          <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-center" />
-    </BrandColorProvider>
+    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
+      <BrandColorProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/view/:contentId" element={<PublicContentViewer />} />
+            <Route path="/share/:accessToken" element={<SharedContentViewer />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+            <Route path="/*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-center" />
+      </BrandColorProvider>
+    </NextThemesProvider>
   </ConvexAuthProvider>
 );
