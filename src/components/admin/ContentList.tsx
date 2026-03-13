@@ -217,8 +217,12 @@ export function ContentList({
                 <div className="flex items-start gap-4">
                   {/* Thumbnail - Clickable with uniform size */}
                   <div
-                    className="flex-shrink-0 cursor-pointer group-hover:ring-2 ring-primary/20 rounded-lg transition-all"
+                    className="flex-shrink-0 cursor-pointer group-hover:ring-2 ring-primary/20 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     onClick={() => actions.onPreview(item)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.onPreview(item); } }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Preview ${item.title}`}
                   >
                     {item.type === "video" && (
                       <VideoThumbnail
@@ -274,8 +278,11 @@ export function ContentList({
                     <div className="flex-1 min-w-0 mb-3">
                       {/* Title - Clickable */}
                       <h4
-                        className="font-semibold text-base leading-snug mb-1.5 cursor-pointer hover:text-primary transition-colors line-clamp-2"
+                        className="font-semibold text-base leading-snug mb-1.5 cursor-pointer hover:text-primary transition-colors line-clamp-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
                         onClick={() => actions.onPreview(item)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.onPreview(item); } }}
+                        role="button"
+                        tabIndex={0}
                         title={item.title}
                       >
                         {item.title}

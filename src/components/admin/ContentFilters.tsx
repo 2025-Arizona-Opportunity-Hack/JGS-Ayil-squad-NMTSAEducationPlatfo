@@ -240,12 +240,25 @@ export function ContentFilters({
                       <Badge
                         key={tag}
                         variant={filters.selectedTags.includes(tag) ? "default" : "outline"}
-                        className="cursor-pointer hover:bg-primary/90 min-h-[44px] flex items-center"
+                        className="cursor-pointer hover:bg-primary/90 min-h-[44px] flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={filters.selectedTags.includes(tag)}
                         onClick={() => {
                           if (filters.selectedTags.includes(tag)) {
                             updateFilter({ selectedTags: filters.selectedTags.filter(t => t !== tag) });
                           } else {
                             updateFilter({ selectedTags: [...filters.selectedTags, tag] });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            if (filters.selectedTags.includes(tag)) {
+                              updateFilter({ selectedTags: filters.selectedTags.filter(t => t !== tag) });
+                            } else {
+                              updateFilter({ selectedTags: [...filters.selectedTags, tag] });
+                            }
                           }
                         }}
                       >
