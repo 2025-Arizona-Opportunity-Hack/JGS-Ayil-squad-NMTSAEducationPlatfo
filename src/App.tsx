@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { SkipToContent } from "./components/SkipToContent";
 
 export default function App() {
   const navigate = useNavigate();
@@ -212,7 +213,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
+      <SkipToContent />
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -249,7 +251,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="mx-auto py-6 sm:px-6 lg:px-8">
+      <main id="main-content" className="mx-auto py-6 sm:px-6 lg:px-8">
         {hasAnyPermission(userProfile?.effectivePermissions, [
           PERMISSIONS.CREATE_CONTENT,
           PERMISSIONS.EDIT_CONTENT,
