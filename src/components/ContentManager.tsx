@@ -6,16 +6,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { 
-  Video, 
-  FileText, 
-  FileAudio, 
+import {
+  Video,
+  FileText,
+  FileAudio,
   Newspaper,
   Folder,
   FileEdit,
   Eye,
   CheckCircle,
-  CheckCircle2,
   XCircle,
   Calendar as CalendarIcon,
   CheckCheck,
@@ -23,21 +22,12 @@ import {
   Plus,
   Archive,
   X,
-  CalendarDays,
   Trash2,
-  Share2,
   Check,
   Send,
   AlertCircle,
   ExternalLink,
-  Play,
-  Lock,
-  UserPlus,
-  ChevronLeft,
-  ChevronRight,
   DollarSign,
-  BarChart3,
-  MoreVertical,
   Globe,
   GlobeLock,
   Package,
@@ -51,7 +41,6 @@ import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { ContentPricingModal } from "./ContentPricingModal";
 import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
 import { RecommendContentModal } from "./RecommendContentModal";
-import { VideoThumbnail } from "./VideoThumbnail";
 import { LexicalEditor } from "./LexicalEditor";
 import { GoogleDrivePicker } from "./GoogleDrivePicker";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
@@ -94,6 +83,7 @@ import {
 import { cn } from "@/lib/utils";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { ContentFilters, type FilterState } from "./admin/ContentFilters";
+import { ContentList } from "./admin/ContentList";
 
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -1252,454 +1242,48 @@ export function ContentManager() {
       )}
 
       {/* Content List */}
-      <div className="space-y-4">
-        {allContent === undefined ? (
-          // Loading state
-                    <Card>
-                      <CardContent className="flex flex-col justify-center items-center py-16 gap-4">
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full border-4 border-muted"></div>
-                          <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-          </div>
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-foreground">Loading content...</p>
-                          <p className="text-xs text-muted-foreground mt-1">Please wait</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-        ) : filteredContent.length === 0 ? (
-          // Empty state
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="text-muted-foreground mb-4 flex justify-center">
-                {contentTypeFilter === "all" ? <Folder className="w-16 h-16" /> : <div className="[&>svg]:w-16 [&>svg]:h-16">{getTypeIcon(contentTypeFilter)}</div>}
-            </div>
-              <h3 className="text-lg font-medium mb-2">
-              {contentTypeFilter === "all" 
-                ? "No content available" 
-                : `No ${contentTypeFilter}${contentTypeFilter === "audio" ? "" : "s"} available`
-              }
-            </h3>
-              <p className="text-muted-foreground">
-              {contentTypeFilter === "all"
-                ? "Create your first piece of content to get started."
-                : `Create your first ${contentTypeFilter} to get started.`
-              }
-            </p>
-            </CardContent>
-          </Card>
-        ) : (
-          // Content list
-          paginatedContent.map((item, index) => (
-            <motion.div
-              key={item._id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-            >
-              <Card className="hover:shadow-lg transition-all duration-200 hover:border-primary/20 relative overflow-hidden group">
-                {/* Status Banner - Positioned at top */}
-                <div className={`absolute top-0 left-0 right-0 flex items-center gap-2 px-4 py-2.5 border-b ${
-                  item.status === "published" ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200/50 dark:border-green-800/50" :
-                  item.status === "review" ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 border-yellow-200/50 dark:border-yellow-800/50" :
-                  item.status === "rejected" ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200/50 dark:border-red-800/50" :
-                  item.status === "changes_requested" ? "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border-orange-200/50 dark:border-orange-800/50" :
-                  "bg-gray-50 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400 border-gray-200/50 dark:border-gray-700/50"
-                }`}>
-                  <div className="w-4 h-4 flex-shrink-0">
-                    {getStatusIcon(item.status)}
-                  </div>
-                  <span className="text-xs font-medium capitalize">
-                    {item.status === "changes_requested" 
-                      ? `Changes Requested${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
-                      : item.status === "rejected"
-                      ? `Rejected${(item as any).reviewerName ? ` by ${(item as any).reviewerName}` : ""}`
-                      : item.status}
-                  </span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <Checkbox
-                      checked={selectedIds.includes(item._id)}
-                      onCheckedChange={() => toggleSelect(item._id)}
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label="Select content"
-                    />
-                  </div>
-                </div>
-
-              <CardContent className="p-4 pt-14">
-                <div className="flex items-start gap-4">
-                  {/* Thumbnail - Clickable with uniform size */}
-                  <div 
-                    className="flex-shrink-0 cursor-pointer group-hover:ring-2 ring-primary/20 rounded-lg transition-all" 
-                    onClick={() => handlePreviewContent(item)}
-                  >
-                    {item.type === "video" && (
-                      <VideoThumbnail
-                        contentId={item._id}
-                        videoUrl={(item as any).fileUrl}
-                        thumbnailUrl={(item as any).thumbnailUrl}
-                        title={item.title}
-                      />
-                    )}
-                    {item.type === "audio" && (
-                      (item as any).thumbnailUrl ? (
-                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-muted to-muted/50 border border-border/50 shadow-sm">
-                          <img 
-                            src={(item as any).thumbnailUrl} 
-                            alt={item.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 border border-purple-200/50 dark:border-purple-800/50 flex items-center justify-center shadow-sm">
-                          <div className="text-purple-500 dark:text-purple-400">
-                            {getTypeIcon(item.type)}
-                          </div>
-                        </div>
-                      )
-                    )}
-                    {(item.type === "article" || item.type === "document") && (
-                      (item as any).thumbnailUrl ? (
-                        <div className="w-36 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-muted to-muted/50 border border-border/50 shadow-sm">
-                          <img 
-                            src={(item as any).thumbnailUrl} 
-                            alt={item.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className={`w-36 h-24 rounded-lg overflow-hidden ${
-                          item.type === "article" 
-                            ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 border-blue-200/50 dark:border-blue-800/50" 
-                            : "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/30 border-amber-200/50 dark:border-amber-800/50"
-                        } border flex items-center justify-center shadow-sm`}>
-                          <div className={item.type === "article" ? "text-blue-500 dark:text-blue-400" : "text-amber-500 dark:text-amber-400"}>
-                            {getTypeIcon(item.type)}
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-
-                  {/* Content Info - Horizontal Layout */}
-                  <div className="flex-1 min-w-0 flex flex-col justify-between">
-                    {/* Title and Description */}
-                    <div className="flex-1 min-w-0 mb-3">
-                      {/* Title - Clickable */}
-                      <h4 
-                        className="font-semibold text-base leading-snug mb-1.5 cursor-pointer hover:text-primary transition-colors line-clamp-2"
-                        onClick={() => handlePreviewContent(item)}
-                        title={item.title}
-                      >
-                        {item.title}
-                      </h4>
-                      
-                      {/* Description */}
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                          {item.description}
-                        </p>
-                      )}
-
-                    </div>
-
-                    {/* Metadata Section - Uniform badges */}
-                    <div className="space-y-2 mt-auto">
-                      {/* Line 1: Type, Visibility, Active Status */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px] capitalize h-5 font-medium px-2">
-                          {item.type}
-                        </Badge>
-                        <Badge variant={item.isPublic ? "default" : "secondary"} className="text-[10px] h-5 font-medium px-2">
-                          {item.isPublic ? "Public" : "Private"}
-                        </Badge>
-                          {item.status === "published" && (
-                            <Badge variant={item.active ? "default" : "outline"} className="gap-1 text-[10px] h-5">
-                              {item.active ? <><CheckCheck className="w-2.5 h-2.5" /> Active</> : <><Ban className="w-2.5 h-2.5" /> Inactive</>}
-                            </Badge>
-                          )}
-                          {/* Total Views */}
-                          {viewCounts && viewCounts[item._id] && (
-                            <Badge 
-                              variant="outline" 
-                              className="gap-1 text-[10px] h-5 border-blue-500 text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedContent(item);
-                                setShowAnalyticsModal(true);
-                              }}
-                            >
-                              <BarChart3 className="w-2.5 h-2.5" />
-                              {viewCounts[item._id]} views
-                            </Badge>
-                          )}
-                          {allPricing && (allPricing as any[]).some((p: any) => p.contentId === item._id) && (
-                            <Badge 
-                              variant="outline" 
-                              className="gap-1 text-[10px] h-5 border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                            >
-                              <DollarSign className="w-2.5 h-2.5" />
-                              {(() => {
-                                const p = (allPricing as any[]).find((x: any) => x.contentId === item._id);
-                                const dollars = p ? (p.price / 100).toFixed(2) : null;
-                                return dollars ? `$${dollars}` : "Priced";
-                              })()}
-                            </Badge>
-                          )}
-                          {item.password && (
-                            <Badge variant="outline" className="gap-1 text-[10px] h-5 border-amber-500 text-amber-600 dark:text-amber-400">
-                              <Lock className="w-2.5 h-2.5" /> Password
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Line 2: Dates */}
-                        {(item.startDate || item.endDate) && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {item.startDate && (
-                              <Badge variant="outline" className="gap-1 text-[10px] h-5">
-                                <CalendarDays className="w-2.5 h-2.5" />
-                                Start: {new Date(item.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                              </Badge>
-                            )}
-                            {item.endDate && (
-                              <Badge variant="outline" className="gap-1 text-[10px] h-5">
-                                <CalendarDays className="w-2.5 h-2.5" />
-                                End: {new Date(item.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Line 3: Tags */}
-                      {item.tags && item.tags.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-medium text-muted-foreground mr-1">Tags:</span>
-                            {item.tags.slice(0, 3).map((tag, index) => (
-                              <Badge key={index} variant="outline" className="text-[10px] h-5">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {item.tags.length > 3 && (
-                              <Badge variant="outline" className="text-[10px] h-5">
-                                +{item.tags.length - 3}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                    </div>
-                  </div>
-
-                  {/* Actions Menu - 3 Dots */}
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 hover:bg-primary/10"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        
-                        {/* Preview - Everyone */}
-                        <DropdownMenuItem onClick={() => handlePreviewContent(item)}>
-                          <Play className="w-4 h-4 mr-2" />
-                          Preview Content
-                        </DropdownMenuItem>
-
-                        {/* Review - requires REVIEW_CONTENT permission, when in review status */}
-                        {item.status === "review" && hasPermission(userProfile?.effectivePermissions, PERMISSIONS.REVIEW_CONTENT) && (
-                          <DropdownMenuItem 
-                            onClick={() => handleReviewContent(item)}
-                            className="text-yellow-600 focus:text-yellow-600"
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Review Content
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Submit for Review - requires SUBMIT_FOR_REVIEW permission, when draft/rejected/changes_requested */}
-                        {(item.status === "draft" || item.status === "rejected" || item.status === "changes_requested") && 
-                         hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SUBMIT_FOR_REVIEW) && (
-                          <DropdownMenuItem 
-                            onClick={() => void handleSubmitForReview(item._id)}
-                            className="text-blue-600 focus:text-blue-600"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Submit for Review
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Edit - requires EDIT_CONTENT permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.EDIT_CONTENT) && (
-                          <DropdownMenuItem onClick={() => handleEditContent(item)}>
-                            <FileEdit className="w-4 h-4 mr-2" />
-                            Edit Content
-                          </DropdownMenuItem>
-                        )}
-
-                        <DropdownMenuSeparator />
-
-                        {/* Share Link - Everyone */}
-                        <DropdownMenuItem onClick={() => void handleShareContent(item._id)}>
-                          {copiedId === item._id ? (
-                            <><Check className="w-4 h-4 mr-2 text-green-600" /><span className="text-green-600">Link Copied!</span></>
-                          ) : (
-                            <><Share2 className="w-4 h-4 mr-2" />Copy Share Link</>
-                          )}
-                        </DropdownMenuItem>
-
-                        {/* Share with 3rd Party - requires SHARE_WITH_THIRD_PARTY permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SHARE_WITH_THIRD_PARTY) && (
-                          <DropdownMenuItem onClick={() => handleThirdPartyShare(item)}>
-                            <UserPlus className="w-4 h-4 mr-2" />
-                            Share with 3rd Party
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Recommend to User - requires RECOMMEND_CONTENT permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.RECOMMEND_CONTENT) && (
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedContent(item);
-                            setShowRecommendModal(true);
-                          }}>
-                            <Send className="w-4 h-4 mr-2" />
-                            Recommend to User
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Manage Access - requires MANAGE_CONTENT_ACCESS permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.MANAGE_CONTENT_ACCESS) && (
-                          <DropdownMenuItem onClick={() => handleManageAccess(item)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            Manage Access
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Set Pricing - requires SET_CONTENT_PRICING permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SET_CONTENT_PRICING) && (
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedContent(item);
-                            setShowPricingModal(true);
-                          }}>
-                            <DollarSign className="w-4 h-4 mr-2" />
-                            Set Pricing
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* View Analytics - If has views */}
-                        {viewCounts && viewCounts[item._id] && (
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedContent(item);
-                            setShowAnalyticsModal(true);
-                          }}>
-                            <BarChart3 className="w-4 h-4 mr-2" />
-                            View Analytics ({viewCounts[item._id]} views)
-                          </DropdownMenuItem>
-                        )}
-
-                        <DropdownMenuSeparator />
-
-                        {/* Archive - requires ARCHIVE_CONTENT permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.ARCHIVE_CONTENT) && (
-                          <DropdownMenuItem 
-                            onClick={() => void handleArchiveContent(item._id)}
-                            className="text-orange-600 focus:text-orange-600 focus:bg-orange-50"
-                          >
-                            <Archive className="w-4 h-4 mr-2" />
-                            Archive Content
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Delete - requires DELETE_CONTENT permission */}
-                        {hasPermission(userProfile?.effectivePermissions, PERMISSIONS.DELETE_CONTENT) && (
-                          <DropdownMenuItem 
-                            onClick={() => setContentToDelete(item)}
-                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete Content
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            </motion.div>
-          ))
-        )}
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t pt-4 mt-6">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} items
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </Button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                  // Show first page, last page, current page, and pages around current
-                  const showPage = 
-                    page === 1 || 
-                    page === totalPages || 
-                    (page >= currentPage - 1 && page <= currentPage + 1);
-                  
-                  const showEllipsis = 
-                    (page === currentPage - 2 && currentPage > 3) ||
-                    (page === currentPage + 2 && currentPage < totalPages - 2);
-
-                  if (showEllipsis) {
-                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                  }
-
-                  if (!showPage) {
-                    return null;
-                  }
-
-                  return (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                      className="min-w-[2.5rem]"
-                    >
-                      {page}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <ContentList
+        items={paginatedContent}
+        isLoading={allContent === undefined}
+        contentTypeFilter={contentTypeFilter}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        copiedId={copiedId}
+        viewCounts={viewCounts}
+        allPricing={allPricing as any[] | undefined}
+        effectivePermissions={userProfile?.effectivePermissions}
+        actions={{
+          onPreview: handlePreviewContent,
+          onReview: handleReviewContent,
+          onSubmitForReview: handleSubmitForReview,
+          onEdit: handleEditContent,
+          onShare: handleShareContent,
+          onThirdPartyShare: handleThirdPartyShare,
+          onRecommend: (item) => {
+            setSelectedContent(item);
+            setShowRecommendModal(true);
+          },
+          onManageAccess: handleManageAccess,
+          onSetPricing: (item) => {
+            setSelectedContent(item);
+            setShowPricingModal(true);
+          },
+          onViewAnalytics: (item) => {
+            setSelectedContent(item);
+            setShowAnalyticsModal(true);
+          },
+          onArchive: handleArchiveContent,
+          onDelete: setContentToDelete,
+        }}
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems,
+          startIndex,
+          endIndex,
+          onPageChange: setCurrentPage,
+        }}
+      />
 
       {/* Access Management Modal */}
       {selectedContent && showAccessModal && (
