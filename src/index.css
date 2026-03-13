@@ -26,6 +26,16 @@
     --radius: 0.5rem;
     --color-light: #ffffff;
     --color-dark: #171717;
+    /* Client palette (Friendly Teal) — fixed, not affected by admin brand color */
+    --client-primary: 170 51% 32%;
+    --client-accent: 239 84% 67%;
+    --client-surface: 166 100% 99%;
+    --client-card: 0 0% 100%;
+    --client-border: 210 40% 90%;
+    --client-text: 222 47% 11%;
+    --client-text-secondary: 215 16% 47%;
+    --client-success: 142 71% 45%;
+    --client-warm: 25 95% 53%;
   }
 
   .dark {
@@ -48,6 +58,16 @@
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 238 70% 56%;
+    /* Client palette dark mode */
+    --client-primary: 166 64% 52%;
+    --client-accent: 232 92% 74%;
+    --client-surface: 222 47% 11%;
+    --client-card: 217 33% 17%;
+    --client-border: 217 19% 27%;
+    --client-text: 210 40% 96%;
+    --client-text-secondary: 215 20% 65%;
+    --client-success: 142 69% 58%;
+    --client-warm: 27 96% 61%;
   }
 
   * {
@@ -77,12 +97,12 @@
 
 @layer components {
   .accent-text {
-    @apply text-slate-600;
+    @apply text-slate-600 dark:text-slate-400;
   }
 
   /* Auth components - only use these for auth forms */
   .auth-input-field {
-    @apply w-full px-4 py-3 rounded-lg bg-white border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow shadow-sm hover:shadow;
+    @apply w-full px-4 py-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-shadow shadow-sm hover:shadow text-foreground;
   }
 
   .auth-button {
@@ -106,16 +126,22 @@
   }
 
   .prose {
-    @apply text-gray-700 leading-relaxed;
+    @apply text-gray-700 dark:text-gray-300 leading-relaxed;
   }
-
-  .prose h1,
-  .prose h2,
-  .prose h3,
-  .prose h4,
-  .prose h5,
-  .prose h6 {
-    @apply font-semibold text-gray-900 mt-6 mb-4;
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    @apply font-semibold text-gray-900 dark:text-gray-100 mt-6 mb-4;
+  }
+  .prose a {
+    @apply text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline;
+  }
+  .prose blockquote {
+    @apply border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-4;
+  }
+  .prose code {
+    @apply bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono;
+  }
+  .prose pre {
+    @apply bg-gray-100 dark:bg-gray-800 p-4 rounded overflow-x-auto;
   }
 
   .prose p {
@@ -131,23 +157,15 @@
     @apply mb-2;
   }
 
-  .prose a {
-    @apply text-blue-600 hover:text-blue-800 underline;
-  }
-
-  .prose blockquote {
-    @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 my-4;
-  }
-
-  .prose code {
-    @apply bg-gray-100 px-2 py-1 rounded text-sm font-mono;
-  }
-
-  .prose pre {
-    @apply bg-gray-100 p-4 rounded overflow-x-auto;
-  }
-
   .prose img {
     @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
