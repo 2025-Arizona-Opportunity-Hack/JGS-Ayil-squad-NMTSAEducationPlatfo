@@ -191,7 +191,7 @@ export function ContentList({
                 item.status === "review" ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 border-yellow-200/50 dark:border-yellow-800/50" :
                 item.status === "rejected" ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200/50 dark:border-red-800/50" :
                 item.status === "changes_requested" ? "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border-orange-200/50 dark:border-orange-800/50" :
-                "bg-gray-50 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400 border-gray-200/50 dark:border-gray-700/50"
+                "bg-muted text-muted-foreground border-border"
               }`}>
                 <div className="w-4 h-4 flex-shrink-0">
                   {getStatusIcon(item.status)}
