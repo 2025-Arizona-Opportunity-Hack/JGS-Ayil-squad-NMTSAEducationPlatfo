@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { NotificationSettings } from "./NotificationSettings";
 
 // Predefined color schemes
 const colorSchemes = [
@@ -449,6 +450,22 @@ export function SiteSettings() {
               Save Changes
             </>
           )}
+        </Button>
+      </div>
+
+      {/* Notification Settings */}
+      <NotificationSettings />
+
+      {/* Onboarding tour restart */}
+      <div className="text-center pt-2">
+        <Button
+          variant="link"
+          onClick={() => {
+            localStorage.removeItem("onboarding-tour-completed");
+            window.location.reload();
+          }}
+        >
+          Restart Onboarding Tour
         </Button>
       </div>
     </div>
