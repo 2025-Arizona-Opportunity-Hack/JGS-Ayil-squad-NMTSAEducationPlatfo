@@ -78,7 +78,7 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={group.label} role="group" aria-labelledby={`sidebar-group-${group.label.toLowerCase()}`}>
+            <div key={group.label} role="group" aria-labelledby={`sidebar-group-${group.label.toLowerCase()}`} data-tour={`sidebar-${group.label.toLowerCase()}`}>
               <h3 id={`sidebar-group-${group.label.toLowerCase()}`} className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                 {group.label}
               </h3>

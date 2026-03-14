@@ -16,6 +16,7 @@ import { PurchaseRequests } from "./admin/PurchaseRequests";
 import { JoinRequests } from "./admin/JoinRequests";
 import { DebugTools } from "./admin/DebugTools";
 import { AdminLayout } from "./admin/AdminLayout";
+import { OnboardingTour } from "./setup/OnboardingTour";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
@@ -56,7 +57,7 @@ export function AdminDashboard() {
       {/* Action buttons */}
       {canGenerateInviteCodes && (
         <div className="flex gap-2 mb-4">
-          <Button onClick={() => setClientInviteModalOpen(true)}>Invite Client</Button>
+          <Button onClick={() => setClientInviteModalOpen(true)} data-tour="invite-client">Invite Client</Button>
           <Button variant="outline" onClick={() => setInviteModalOpen(true)}>Generate Staff Code</Button>
         </div>
       )}
@@ -78,6 +79,9 @@ export function AdminDashboard() {
       {/* Modals */}
       <InviteCodeModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
       <ClientInviteModal open={clientInviteModalOpen} onOpenChange={setClientInviteModalOpen} />
+
+      {/* Onboarding tour — auto-shows on first visit */}
+      <OnboardingTour />
     </AdminLayout>
   );
 }
