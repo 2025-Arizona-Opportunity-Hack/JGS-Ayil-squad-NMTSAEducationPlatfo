@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useEffect } from "react";
+import { useQuery } from "convex/react";
 import { useNavigate, Routes, Route } from "react-router-dom";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { RoleSelection } from "./components/RoleSelection";
-import { SiteSetup } from "./components/SiteSetup";
+import { SetupWizard } from "./components/setup/SetupWizard";
 import { Logo } from "./components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +29,6 @@ export default function App() {
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
   const siteSetupNeeded = useQuery(api.siteSettings.isSetupNeeded);
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
-  const createOwnerProfile = useMutation(api.users.createOwnerProfile);
-  const [ownerBootstrapping, setOwnerBootstrapping] = useState(false);
-  const [setupComplete, setSetupComplete] = useState(false);
 
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");
@@ -61,22 +58,6 @@ export default function App() {
     }
   }, [user, userProfile, navigate]);
 
-  // If this is the very first login (no profiles exist), create owner profile
-  useEffect(() => {
-    if (user && userProfile === null && bootstrapNeeded && !ownerBootstrapping) {
-      setOwnerBootstrapping(true);
-      void (async () => {
-        try {
-          await createOwnerProfile({});
-        } catch (err) {
-          console.error("Owner bootstrap failed:", err);
-        } finally {
-          setOwnerBootstrapping(false);
-        }
-      })();
-    }
-  }, [user, userProfile, bootstrapNeeded, ownerBootstrapping, createOwnerProfile]);
-
   // Loading state - wait for user query to resolve first
   // userProfile can be null/false, but user should not be undefined
   if (user === undefined) {
@@ -87,11 +68,17 @@ export default function App() {
     );
   }
 
-  // Not authenticated - show sign in form or join request
+  // Setup wizard — shown when no profiles exist OR site setup not complete
+  // This handles both first-run bootstrap and site configuration
+  if (bootstrapNeeded || siteSetupNeeded) {
+    return <SetupWizard />;
+  }
+
+  // Not authenticated — show sign in form for returning users
   if (!user) {
     const siteName = siteSettings?.organizationName || "Content Platform";
     const siteTagline = siteSettings?.tagline || "Access your resources";
-    
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-8">
@@ -126,25 +113,10 @@ export default function App() {
     );
   }
 
-  // Authenticated but no profile
-  // If bootstrap needed, we're creating owner profile, so show loading
+  // Authenticated but no profile — check join requests or show role selection
   if (user && !userProfile) {
-    if (bootstrapNeeded || ownerBootstrapping) {
-      return (
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              Initializing your owner account...
-            </h2>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          </div>
-        </div>
-      );
-    }
-
     // Check if user has an approved join request (unless they have an invite code)
     if (!inviteCode) {
-      // Still loading join request status
       if (joinRequestStatus === undefined) {
         return (
           <div className="min-h-screen bg-background flex items-center justify-center">
@@ -156,7 +128,6 @@ export default function App() {
         );
       }
 
-      // No approved join request - show error and sign out
       if (joinRequestStatus?.status !== "approved") {
         const getMessage = () => {
           if (joinRequestStatus?.status === "pending_verification") {
@@ -191,11 +162,6 @@ export default function App() {
     }
 
     return <RoleSelection />;
-  }
-
-  // Owner needs to complete site setup
-  if (userProfile?.role === "owner" && siteSetupNeeded && !setupComplete) {
-    return <SiteSetup onComplete={() => setSetupComplete(true)} />;
   }
 
   const isAdmin = hasAnyPermission(userProfile?.effectivePermissions, [
