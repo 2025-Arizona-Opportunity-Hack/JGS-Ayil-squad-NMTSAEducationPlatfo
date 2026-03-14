@@ -277,6 +277,14 @@ export const sendContentAccessSms = internalAction({
     granterName: v.string(),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "contentAccessGranted" }
+    );
+    if (!eventSettings.sms) {
+      console.log("[Notifications] SMS disabled for contentAccessGranted, skipping");
+      return;
+    }
     const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId: args.userId });
     
     if (!profile?.phoneNumber || !profile.phoneVerified || !profile.smsNotificationsEnabled) {
@@ -358,8 +366,16 @@ export const sendRecommendationSms = internalAction({
     recommenderName: v.string(),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "recommendationSent" }
+    );
+    if (!eventSettings.sms) {
+      console.log("[Notifications] SMS disabled for recommendationSent, skipping");
+      return;
+    }
     const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId: args.userId });
-    
+
     if (!profile?.phoneNumber || !profile.phoneVerified || !profile.smsNotificationsEnabled) {
       return; // User doesn't have SMS notifications enabled
     }
@@ -386,6 +402,14 @@ export const sendPurchaseApprovedSms = internalAction({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "purchaseRequestApproved" }
+    );
+    if (!eventSettings.sms) {
+      console.log("[Notifications] SMS disabled for purchaseRequestApproved, skipping");
+      return;
+    }
     const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId: args.userId });
     
     if (!profile?.phoneNumber || !profile.phoneVerified || !profile.smsNotificationsEnabled) {

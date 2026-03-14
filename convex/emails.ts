@@ -76,6 +76,14 @@ export const sendVerificationEmail = internalAction({
   },
   handler: async (ctx, args) => {
     const { email, firstName, verificationToken, baseUrl } = args;
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "verificationEmail" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for verificationEmail, skipping");
+      return;
+    }
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
 
@@ -247,6 +255,14 @@ export const sendPurchaseApprovedEmail = internalAction({
     adminNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "purchaseRequestApproved" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for purchaseRequestApproved, skipping");
+      return;
+    }
     const userEmail = await ctx.runQuery(internal.emails.getUserEmail, { userId: args.userId });
     const userProfile = await ctx.runQuery(internal.emails.getUserProfile, { userId: args.userId });
     const content = await ctx.runQuery(internal.emails.getContentDetails, { contentId: args.contentId });
@@ -297,6 +313,14 @@ export const sendPurchaseDeniedEmail = internalAction({
     adminNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "purchaseRequestDenied" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for purchaseRequestDenied, skipping");
+      return;
+    }
     const userEmail = await ctx.runQuery(internal.emails.getUserEmail, { userId: args.userId });
     const userProfile = await ctx.runQuery(internal.emails.getUserProfile, { userId: args.userId });
     const content = await ctx.runQuery(internal.emails.getContentDetails, { contentId: args.contentId });
@@ -344,6 +368,14 @@ export const sendContentAccessGrantedEmail = internalAction({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "contentAccessGranted" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for contentAccessGranted, skipping");
+      return;
+    }
     const userEmail = await ctx.runQuery(internal.emails.getUserEmail, { userId: args.userId });
     const userProfile = await ctx.runQuery(internal.emails.getUserProfile, { userId: args.userId });
     const content = await ctx.runQuery(internal.emails.getContentDetails, { contentId: args.contentId });
@@ -401,6 +433,14 @@ export const sendRecommendationEmail = internalAction({
     message: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "recommendationSent" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for recommendationSent, skipping");
+      return;
+    }
     const content = await ctx.runQuery(internal.emails.getContentDetails, { contentId: args.contentId });
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
 
@@ -587,6 +627,14 @@ export const sendJoinRequestApprovedEmail = internalAction({
   },
   handler: async (ctx, args) => {
     const { email, firstName, adminNotes } = args;
+    const eventSettings = await ctx.runQuery(
+      internal.notificationSettings.getEventSettings,
+      { eventName: "joinRequestApproved" }
+    );
+    if (!eventSettings.email) {
+      console.log("[Notifications] Email disabled for joinRequestApproved, skipping");
+      return;
+    }
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
 
