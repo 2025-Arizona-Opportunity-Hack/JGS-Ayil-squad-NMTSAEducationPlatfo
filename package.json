@@ -9,6 +9,7 @@
     "dev:backend": "convex dev",
     "build": "vite build",
     "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build",
+    "setup": "npx tsx scripts/setup.ts",
     "setup:auth": "node setup.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
