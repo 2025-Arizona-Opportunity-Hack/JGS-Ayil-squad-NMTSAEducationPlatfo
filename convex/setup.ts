@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 const LOCK_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -108,5 +109,106 @@ export const cleanupExpiredLocks = internalMutation({
       }
     }
     return { deleted };
+  },
+});
+
+/**
+ * Complete setup wizard — atomic mutation that creates owner profile,
+ * site settings, and notification settings in one transaction.
+ * File uploads (avatar, logo) must happen BEFORE calling this mutation
+ * via generateUploadUrl. This mutation only receives StorageIds.
+ */
+export const completeSetupWizard = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    profilePictureId: v.optional(v.id("_storage")),
+    organizationName: v.string(),
+    tagline: v.optional(v.string()),
+    logoId: v.optional(v.id("_storage")),
+    primaryColor: v.optional(v.string()),
+    defaultEmail: v.boolean(),
+    defaultSms: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Verify this user holds the setup lock
+    const lock = await ctx.db
+      .query("setupLocks")
+      .withIndex("by_locked_by", (q) => q.eq("lockedBy", userId))
+      .first();
+    if (!lock || lock.expiresAt < Date.now()) {
+      throw new Error("Setup lock expired. Please restart setup.");
+    }
+
+    // Ensure no profiles exist (bootstrap guard)
+    const anyProfile = await ctx.db.query("userProfiles").first();
+    if (anyProfile) throw new Error("Setup already completed");
+
+    // 1. Create owner profile
+    await ctx.db.insert("userProfiles", {
+      userId,
+      role: "owner",
+      firstName: args.firstName,
+      lastName: args.lastName,
+      profilePictureId: args.profilePictureId,
+      isActive: true,
+    });
+
+    // 2. Create or update site settings
+    const existingSettings = await ctx.db.query("siteSettings").first();
+    if (existingSettings) {
+      await ctx.db.patch(existingSettings._id, {
+        organizationName: args.organizationName,
+        tagline: args.tagline,
+        logoId: args.logoId,
+        primaryColor: args.primaryColor,
+        setupCompleted: true,
+        setupCompletedAt: Date.now(),
+        setupCompletedBy: userId,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+      });
+    } else {
+      await ctx.db.insert("siteSettings", {
+        organizationName: args.organizationName,
+        tagline: args.tagline,
+        logoId: args.logoId,
+        primaryColor: args.primaryColor,
+        setupCompleted: true,
+        setupCompletedAt: Date.now(),
+        setupCompletedBy: userId,
+      });
+    }
+
+    // 3. Create notification settings with defaults
+    const defaultRouting = { email: args.defaultEmail, sms: args.defaultSms };
+    await ctx.db.insert("notificationSettings", {
+      events: {
+        contentAccessGranted: { ...defaultRouting },
+        joinRequestApproved: { ...defaultRouting },
+        purchaseRequestApproved: { ...defaultRouting },
+        purchaseRequestDenied: { ...defaultRouting },
+        recommendationSent: { ...defaultRouting },
+        verificationEmail: { email: true, sms: false }, // Always email for verification
+      },
+      emailConfigured: false,
+      smsConfigured: false,
+      lastChannelCheck: undefined,
+      updatedAt: Date.now(),
+      updatedBy: userId,
+    });
+
+    // 4. Schedule channel status check
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notificationSettings.refreshChannelStatus,
+      {}
+    );
+
+    // 5. Delete the setup lock
+    await ctx.db.delete(lock._id);
   },
 });
