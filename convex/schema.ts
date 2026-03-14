@@ -429,6 +429,32 @@ const applicationTables = {
     .index("by_recipient_email", ["recipientEmail"])
     .index("by_recipient_user", ["recipientUserId"])
     .index("by_active", ["isActive"]),
+
+  // Setup locks (singleton-like, prevents concurrent setup)
+  setupLocks: defineTable({
+    lockedBy: v.id("users"),
+    lockedAt: v.number(),
+    expiresAt: v.number(), // 10-minute expiry
+  }).index("by_locked_by", ["lockedBy"]),
+
+  // Notification settings (singleton — one document holds all event routing)
+  notificationSettings: defineTable({
+    // Per-event routing: which channels are enabled
+    events: v.object({
+      contentAccessGranted: v.object({ email: v.boolean(), sms: v.boolean() }),
+      joinRequestApproved: v.object({ email: v.boolean(), sms: v.boolean() }),
+      purchaseRequestApproved: v.object({ email: v.boolean(), sms: v.boolean() }),
+      purchaseRequestDenied: v.object({ email: v.boolean(), sms: v.boolean() }),
+      recommendationSent: v.object({ email: v.boolean(), sms: v.boolean() }),
+      verificationEmail: v.object({ email: v.boolean(), sms: v.boolean() }),
+    }),
+    // Cached channel availability (updated by internalAction)
+    emailConfigured: v.boolean(),
+    smsConfigured: v.boolean(),
+    lastChannelCheck: v.optional(v.number()),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  }),
 };
 
 export default defineSchema({
