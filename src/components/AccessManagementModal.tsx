@@ -219,8 +219,8 @@ export function AccessManagementModal({
             
             {/* Selected Users Display */}
             {selectedUsers.length > 0 && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-                <div className="text-sm font-medium text-blue-900">
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+                <div className="text-sm font-medium text-foreground">
                   Selected Users ({selectedUsers.length}):
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -228,14 +228,14 @@ export function AccessManagementModal({
                     const user = nonAdminUsers.find(u => u.userId === userId);
                     if (!user) return null;
                     return (
-                      <Badge key={userId} variant="secondary" className="bg-blue-100 text-blue-800">
+                      <Badge key={userId} variant="secondary" className="bg-primary/10 text-primary">
                         {user.firstName} {user.lastName}
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleUserToggle(userId)}
-                          className="ml-1 h-auto p-0 text-blue-600 hover:text-blue-800 hover:bg-transparent"
+                          className="ml-1 h-auto p-0 text-primary hover:text-primary/80 hover:bg-transparent"
                         >
                           <X className="w-3 h-3" />
                         </Button>
@@ -276,15 +276,15 @@ export function AccessManagementModal({
                           <Badge 
                             variant="outline" 
                             className={`ml-2 ${
-                              user.role === "professional" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                              user.role === "parent" ? "bg-green-100 text-green-800 border-green-200" :
-                              "bg-gray-100 text-gray-800 border-gray-200"
+                              user.role === "professional" ? "bg-primary/10 text-primary border-primary/20" :
+                              user.role === "parent" ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800" :
+                              "bg-muted text-muted-foreground border-border"
                             }`}
                           >
                             {user.role}
                           </Badge>
                           {selectedUsers.includes(user.userId) && (
-                            <Check className="ml-auto text-blue-600 w-5 h-5" />
+                            <Check className="ml-auto text-primary w-5 h-5" />
                           )}
                         </div>
                       </Button>

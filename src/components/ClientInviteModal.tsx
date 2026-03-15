@@ -235,7 +235,7 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
                   <p className="text-xs font-medium text-green-900 dark:text-green-100">
                     Invite Link:
                   </p>
-                  <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border">
+                  <div className="flex items-center gap-2 bg-background p-2 rounded border">
                     <code className="text-xs flex-1 truncate">
                       {window.location.origin}?clientInvite={generatedCode}
                     </code>

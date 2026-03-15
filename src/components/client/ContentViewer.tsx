@@ -49,26 +49,26 @@ export function ContentViewer({ content }: ContentViewerProps) {
 
   if (selectedContent) {
     return (
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="p-6 border-b">
+      <div className="bg-card rounded-lg shadow-md border border-border">
+        <div className="p-6 border-b border-border">
           <button
             onClick={() => setSelectedContent(null)}
-            className="text-blue-600 hover:text-blue-800 mb-4 flex items-center"
+            className="text-primary hover:text-primary/80 mb-4 flex items-center"
           >
             ← Back to content list
           </button>
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-foreground mb-2">
                 {getTypeIcon(selectedContent.type)} {selectedContent.title}
               </h2>
-              <p className="text-sm text-gray-500 italic mb-3">
+              <p className="text-sm text-muted-foreground italic mb-3">
                 By {selectedContent.authorName || DEFAULT_AUTHOR}
               </p>
               {selectedContent.description && (
-                <p className="text-gray-600 mb-4">{selectedContent.description}</p>
+                <p className="text-muted-foreground mb-4">{selectedContent.description}</p>
               )}
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>Added {formatDate(selectedContent._creationTime)}</span>
                 {selectedContent.duration && (
                   <span>Duration: {formatDuration(selectedContent.duration)}</span>
@@ -105,7 +105,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
                 href={selectedContent.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 <FileDown className="w-5 h-5" /> Open Document
               </a>
@@ -113,20 +113,20 @@ export function ContentViewer({ content }: ContentViewerProps) {
           )}
 
           {selectedContent.type === "article" && selectedContent.richTextContent && (
-            <div 
+            <div
               className="prose max-w-none"
               dangerouslySetInnerHTML={{ __html: selectedContent.richTextContent }}
             />
           )}
 
           {selectedContent.tags && selectedContent.tags.length > 0 && (
-            <div className="mt-8 pt-6 border-t">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Tags</h3>
+            <div className="mt-8 pt-6 border-t border-border">
+              <h3 className="text-sm font-medium text-foreground mb-2">Tags</h3>
               <div className="flex flex-wrap gap-2">
                 {selectedContent.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                    className="px-3 py-1 bg-primary/10 text-primary text-sm rounded-full"
                   >
                     {tag}
                   </span>
@@ -144,7 +144,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
       {content.map((item) => (
         <div
           key={item._id}
-          className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1"
+          className="bg-card rounded-lg shadow-md border border-border overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1"
           onClick={() => setSelectedContent(item)}
         >
           {/* Thumbnail - aspect-video for consistent sizing */}
@@ -161,48 +161,48 @@ export function ContentViewer({ content }: ContentViewerProps) {
               </div>
             )}
           </div>
-          
+
           {/* Content Details */}
           <div className="p-4 space-y-3">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 {getTypeIcon(item.type)}
-                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded capitalize">
+                <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded capitalize">
                   {item.type}
                 </span>
               </div>
-              <h3 className="font-semibold text-lg line-clamp-2 text-gray-900">
+              <h3 className="font-semibold text-lg line-clamp-2 text-foreground">
                 {item.title}
               </h3>
-              <p className="text-xs text-gray-500 italic">
+              <p className="text-xs text-muted-foreground italic">
                 By {item.authorName || DEFAULT_AUTHOR}
               </p>
               {item.description && (
-                <p className="text-sm text-gray-600 line-clamp-2">
+                <p className="text-sm text-muted-foreground line-clamp-2">
                   {item.description}
                 </p>
               )}
             </div>
-            
-            <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t">
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
               <span>{formatDate(item._creationTime)}</span>
               {item.duration && (
                 <span>{formatDuration(item.duration)}</span>
               )}
             </div>
-            
+
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {item.tags.slice(0, 3).map((tag, index) => (
                   <span
                     key={index}
-                    className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
+                    className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded"
                   >
                     {tag}
                   </span>
                 ))}
                 {item.tags.length > 3 && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                  <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded">
                     +{item.tags.length - 3}
                   </span>
                 )}

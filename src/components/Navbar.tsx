@@ -33,7 +33,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="sticky top-0 z-30 bg-background border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-14 sm:h-16">
             {/* Left side - Logo and Home button */}
@@ -55,7 +55,7 @@ export function Navbar() {
             <div className="hidden sm:flex items-center space-x-4">
               <Button
                 variant="ghost"
-                className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex items-center space-x-3 p-2 hover:bg-muted rounded-lg transition-colors"
                 onClick={() => setIsProfileModalOpen(true)}
               >
                 <Avatar className="w-8 h-8">
@@ -68,11 +68,11 @@ export function Navbar() {
                     {userProfile?.lastName?.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-muted-foreground">
                   {userProfile?.firstName} {userProfile?.lastName}
                 </span>
               </Button>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
                 {userProfile?.role}
               </span>
               <SignOutButton />
@@ -111,7 +111,7 @@ export function Navbar() {
                         <SheetTitle className="text-left text-base">
                           {userProfile?.firstName} {userProfile?.lastName}
                         </SheetTitle>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize mt-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize mt-1">
                           {userProfile?.role}
                         </span>
                       </div>

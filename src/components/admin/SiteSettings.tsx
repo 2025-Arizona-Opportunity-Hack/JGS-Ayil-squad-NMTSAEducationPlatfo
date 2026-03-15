@@ -253,7 +253,7 @@ export function SiteSettings() {
                     <img
                       src={logoPreview}
                       alt="Logo preview"
-                      className="w-16 h-16 object-contain rounded-lg border bg-white p-1"
+                      className="w-16 h-16 object-contain rounded-lg border bg-background p-1"
                     />
                   ) : (
                     <div
@@ -324,8 +324,8 @@ export function SiteSettings() {
                     }}
                     className={`relative p-2 rounded-lg border-2 transition-all ${
                       selectedScheme === scheme.name || (selectedScheme === null && primaryColor === scheme.primary)
-                        ? "border-gray-900 shadow-sm"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-foreground shadow-sm"
+                        : "border-border hover:border-muted-foreground"
                     }`}
                   >
                     <div className="flex flex-col items-center gap-1">

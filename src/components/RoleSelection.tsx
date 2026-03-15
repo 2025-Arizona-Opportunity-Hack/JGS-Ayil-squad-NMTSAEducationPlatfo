@@ -118,7 +118,7 @@ export function RoleSelection() {
   // Show loading state while processing invite code
   if (inviteCode && inviteCodeValidation === undefined) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md mx-auto">
           <CardHeader>
             <div className="flex justify-center mb-4">
@@ -141,7 +141,7 @@ export function RoleSelection() {
   // Show loading state while creating profile with invite code
   if (inviteCode && inviteCodeValidation?.valid && submitting) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md mx-auto">
           <CardHeader>
             <div className="flex justify-center mb-4">
@@ -162,7 +162,7 @@ export function RoleSelection() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-background flex items-center justify-center">
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
           <div className="flex justify-center mb-4">

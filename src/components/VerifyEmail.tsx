@@ -75,7 +75,7 @@ export function VerifyEmail() {
 
   if (status === "verifying") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md mx-auto shadow-lg border-0">
           <CardHeader className="space-y-4 pb-6">
             <div className="flex justify-center">
@@ -98,7 +98,7 @@ export function VerifyEmail() {
 
   if (status === "success") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md mx-auto shadow-lg border-0">
           <CardHeader className="space-y-4 pb-6">
             <div className="flex justify-center">
@@ -148,7 +148,7 @@ export function VerifyEmail() {
 
   // Error state
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md mx-auto shadow-lg border-0">
         <CardHeader className="space-y-4 pb-6">
           <div className="flex justify-center">

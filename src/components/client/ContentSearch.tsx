@@ -22,10 +22,10 @@ export function ContentSearch({
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-card rounded-lg shadow-md border border-border p-6">
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
-          <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="search" className="block text-sm font-medium text-foreground mb-2">
             Search Content
           </label>
           <input
@@ -34,19 +34,19 @@ export function ContentSearch({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by title or description..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        
+
         <div className="sm:w-48">
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="type" className="block text-sm font-medium text-foreground mb-2">
             Content Type
           </label>
           <select
             id="type"
             value={selectedType || ""}
             onChange={(e) => onTypeChange(e.target.value as any || undefined)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
             {contentTypes.map((type) => (
               <option key={type.label} value={type.value || ""}>

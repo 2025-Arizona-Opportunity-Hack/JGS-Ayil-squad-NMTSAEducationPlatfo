@@ -144,6 +144,14 @@ export function OnboardingTour({ forceShow }: OnboardingTourProps) {
       return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
 
     const gap = 12;
+    const tooltipWidth = 320; // matches w-80
+    const viewportMargin = 16; // matches max-w-[calc(100vw-2rem)]
+
+    const clampLeft = (desiredLeft: number) => {
+      const maxLeft = window.innerWidth - tooltipWidth - viewportMargin;
+      return Math.max(viewportMargin, Math.min(desiredLeft, maxLeft));
+    };
+
     switch (stop.position) {
       case "right":
         return { top: targetRect.top, left: targetRect.right + gap };
@@ -153,11 +161,14 @@ export function OnboardingTour({ forceShow }: OnboardingTourProps) {
           right: window.innerWidth - targetRect.left + gap,
         };
       case "bottom":
-        return { top: targetRect.bottom + gap, left: targetRect.left };
+        return {
+          top: targetRect.bottom + gap,
+          left: clampLeft(targetRect.left),
+        };
       case "top":
         return {
           bottom: window.innerHeight - targetRect.top + gap,
-          left: targetRect.left,
+          left: clampLeft(targetRect.left),
         };
     }
   };

@@ -188,18 +188,18 @@ export function SignInForm() {
 
               {/* No Account Found - Friendly Info Box */}
               {error === "noAccount" && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-blue-900 mb-1">
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                  <p className="text-sm font-medium text-foreground mb-1">
                     📧 No account with this email
                   </p>
-                  <p className="text-xs text-blue-700 mb-3">
+                  <p className="text-xs text-muted-foreground mb-3">
                     If you're new, you'll need to request access first, then sign up once approved.
                   </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                    className="w-full"
                     onClick={() => {
                       setFlow("joinRequest");
                       setError(null);
@@ -244,18 +244,18 @@ export function SignInForm() {
 
           <TabsContent value="signUp" className="space-y-4 mt-0">
             {!bootstrapNeeded && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-sm font-medium text-blue-900 mb-1">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
+                <p className="text-sm font-medium text-foreground mb-1">
                   👋 New here? Request access first!
                 </p>
-                <p className="text-xs text-blue-700 mb-3">
+                <p className="text-xs text-muted-foreground mb-3">
                   You'll need an approved request before you can create an account.
                 </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                  className="w-full"
                   onClick={() => {
                     setFlow("joinRequest");
                     setError(null);
