@@ -26,6 +26,9 @@ declare global {
   }
 }
 
+const isGoogleDriveConfigured =
+  !!GOOGLE_API_KEY && !!GOOGLE_CLIENT_ID;
+
 export function GoogleDrivePicker({
   onFileSelected,
   accept = "video/*",
@@ -37,8 +40,9 @@ export function GoogleDrivePicker({
   const [isApiLoaded, setIsApiLoaded] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  // Load Google API scripts
+  // Load Google API scripts (only when configured)
   useEffect(() => {
+    if (!isGoogleDriveConfigured) return;
     const loadGoogleApis = async () => {
       // Load the Google API client library
       if (!document.getElementById("google-api-script")) {
@@ -158,16 +162,13 @@ export function GoogleDrivePicker({
     return file;
   };
 
+  // Don't render if Google Drive credentials are not set
+  if (!isGoogleDriveConfigured) return null;
+
   // Build and show the picker
   const openPicker = async () => {
     if (!isApiLoaded) {
       toast.error("Google API is still loading. Please try again.");
-      return;
-    }
-
-    if (!GOOGLE_API_KEY || !GOOGLE_CLIENT_ID) {
-      toast.error("Google Drive integration is not configured.");
-      console.error("Missing VITE_GOOGLE_API_KEY or VITE_GOOGLE_CLIENT_ID");
       return;
     }
 
