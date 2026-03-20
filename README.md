@@ -1,229 +1,249 @@
-📖 **[View Full Documentation](https://github.com/2025-Arizona-Opportunity-Hack/JGS-Ayil-squad-NMTSAEducationPlatfo/blob/main/DOCUMENTATION.md)**
+# NMTSA Education Platform
 
-# Learning Management System for Neurological Music Therapy
+A learning management system for Neurological Music Therapy Services of Arizona, built with [React](https://react.dev/), [Convex](https://convex.dev), and [Vite](https://vitejs.dev/).
 
-This is a project built with [Chef](https://chef.convex.dev) using [Convex](https://convex.dev) as its backend.
-You can find docs about Chef with useful information like how to deploy to production [here](https://docs.convex.dev/chef).
+**[View Full Documentation](DOCUMENTATION.md)**
 
-This project is connected to the Convex deployment named [`savory-dalmatian-243`](https://dashboard.convex.dev/d/savory-dalmatian-243).
+## Quick Start
 
-## Project structure
+### Prerequisites
 
-The frontend code is in the `app` directory and is built with [Vite](https://vitejs.dev/).
+- Node.js 18+
+- A [Convex](https://convex.dev) account
 
-The backend code is in the `convex` directory.
+### Interactive Setup
 
-`npm run dev` will start the frontend and backend servers.
-
-## App authentication
-
-This app uses [Convex Auth](https://auth.convex.dev/) with multiple authentication providers:
-
-- **Password authentication** - Email/password sign-in
-- **Google OAuth** - Sign in with Google account
-- **Anonymous auth** - For easy testing
-
-### Setting up Authentication
-
-Before using authentication, you must set up the JWT private key for signing tokens:
+The fastest way to get running. The setup wizard walks you through every integration:
 
 ```bash
-npm run setup:auth
+npm install
+npm run setup
 ```
 
-This generates a secure RSA key pair and sets both required environment variables in your Convex deployment:
-- `JWT_PRIVATE_KEY` - Private key for signing JWTs
-- `JWKS` - Public key in JSON Web Key Set format for verification
+This will prompt you for credentials and configure:
 
-### Setting up Google OAuth
+- Convex backend connection (required)
+- Authentication keys
+- Email notifications (Resend)
+- SMS notifications (Twilio)
+- Stripe payments
+- Google Drive integration
 
-To enable Google sign-in, you need to:
+It writes your `.env.local` file and pushes server-side variables to Convex automatically.
 
-1. **Create a Google Cloud Project**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
+### Manual Setup
 
-2. **Enable APIs**:
-   - Enable the "Google Identity" API or "Google+ API"
+If you prefer to configure manually:
 
-3. **Create OAuth Credentials**:
-   - Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
-   - Choose "Web application"
-   - Add authorized redirect URIs:
-     - Development: `https://savory-dalmatian-243.convex.site/api/auth/callback/google`
-     - Local Development: `http://localhost:5174/api/auth/callback/google`
-     - Production: `https://your-domain.com/api/auth/callback/google`
+1. Copy the example env file:
+   ```bash
+   cp .env.example .env.local
+   ```
 
-4. **Set Environment Variables**:
-   - Create a `.env.local` file in the project root
-   - Add your Google OAuth credentials:
-     ```
-     AUTH_GOOGLE_ID=your_google_client_id_here
-     AUTH_GOOGLE_SECRET=your_google_client_secret_here
-     ```
+2. Fill in the values (see [Environment Variables](#environment-variables) below)
 
-5. **Restart the development server** after adding the environment variables.
+3. Generate auth keys:
+   ```bash
+   npm run setup:auth
+   ```
 
-### ✅ Google OAuth Status
+4. Start development:
+   ```bash
+   npm run dev
+   ```
 
-Google OAuth is now **ENABLED** and ready to use! Make sure your `.env.local` file contains:
+### First Run
+
+When you first open the app, a **setup wizard** guides the owner through:
+
+1. **Sign in** - Create the owner account (first user gets owner role automatically)
+2. **Profile** - Set your name and avatar
+3. **Organization** - Configure org name, logo, brand colors, and default notification preferences
+4. **Complete** - Creates the owner profile, site settings, and notification defaults in one atomic transaction
+
+After setup, an **onboarding tour** highlights key areas of the admin dashboard.
+
+## Project Structure
 
 ```
-AUTH_GOOGLE_ID=your_actual_google_client_id
-AUTH_GOOGLE_SECRET=your_actual_google_client_secret
+src/                  # Frontend (React + Vite)
+  components/         # UI components
+    admin/            # Admin dashboard components
+    client/           # Client-facing components
+    setup/            # Setup wizard and onboarding tour
+    ui/               # Shadcn UI primitives
+convex/               # Backend (Convex functions + schema)
+scripts/              # CLI tools (setup wizard)
 ```
 
-## Developing and deploying your app
+## Environment Variables
 
-Check out the [Convex docs](https://docs.convex.dev/) for more information on how to develop with Convex.
+All integrations are optional except Convex. Features gracefully disable when credentials are absent (e.g., the Google Drive import button won't appear, notification toggles show channels as unconfigured).
 
-- If you're new to Convex, the [Overview](https://docs.convex.dev/understanding/) is a good place to start
-- Check out the [Hosting and Deployment](https://docs.convex.dev/production/) docs for how to deploy your app
-- Read the [Best Practices](https://docs.convex.dev/understanding/best-practices/) guide for tips on how to improve you app further
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CONVEX_DEPLOYMENT` | Yes | Convex deployment identifier |
+| `VITE_CONVEX_URL` | Yes | Convex deployment URL |
+| `AUTH_GOOGLE_ID` | No | Google OAuth client ID (enables "Sign in with Google") |
+| `AUTH_GOOGLE_SECRET` | No | Google OAuth client secret |
+| `VITE_GOOGLE_CLIENT_ID` | No | Google Drive picker client ID |
+| `VITE_GOOGLE_API_KEY` | No | Google Drive picker API key |
+| `VITE_GOOGLE_APP_ID` | No | Google Cloud project number |
+| `RESEND_API_KEY` | No | Resend API key (enables email notifications) |
+| `RESEND_DOMAIN` | No | Verified sending domain for Resend |
+| `TWILIO_ACCOUNT_SID` | No | Twilio Account SID (enables SMS notifications) |
+| `TWILIO_AUTH_TOKEN` | No | Twilio auth token |
+| `TWILIO_PHONE_NUMBER` | No | Twilio sender phone number (E.164 format) |
+| `STRIPE_SECRET_KEY` | No | Stripe secret key (enables paid content) |
+| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret (required if Stripe is enabled) |
+| `SITE_URL` | Production | Frontend URL for email links and CORS |
+
+See `.env.example` for the full template with comments.
+
+## Authentication
+
+The platform supports multiple auth methods via [Convex Auth](https://auth.convex.dev/):
+
+- **Email/password** - Available by default
+- **Google OAuth** - Requires `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
+
+### Setting Up Google OAuth
+
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Go to Credentials > Create Credentials > OAuth 2.0 Client ID
+3. Application type: Web application
+4. Authorized redirect URIs:
+   - Dev: `https://<your-convex-deployment>.convex.site/api/auth/callback/google`
+   - Prod: `https://your-domain.com/api/auth/callback/google`
+5. Set `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` in `.env.local`
+
+### Join Requests
+
+New users who don't have an invite code can submit a **join request**. The flow:
+
+1. User submits email + name via the join request form
+2. A verification email is sent (requires Resend)
+3. User clicks the verification link
+4. Admin reviews and approves/denies the request
+5. Once approved, the user can sign up with that email
+
+## Features
+
+### Content Management
+
+- Upload videos, documents, audio, and articles
+- Rich text editor (Lexical) for articles
+- Import files from Google Drive (when configured)
+- Content versioning with full edit history
+- Publishing workflow: Draft > Review > Published
+- Tags, descriptions, and availability dates
+
+### Access Control
+
+Three methods for granting content access:
+
+- **Individual** - Grant specific users access to specific content
+- **Role-based** - Grant access to all users with a given role
+- **User groups** - Create groups and grant access to the whole group
+
+Content groups let you bundle related materials and manage permissions at the collection level.
+
+### Sharing
+
+- **Share links** - Secure, trackable links with optional password protection and expiration
+- **Recommendations** - Professionals can recommend content to clients with personalized messages
+
+### E-Commerce
+
+- Set prices on content with optional time-limited access
+- Client-facing shop with purchase flow
+- Stripe integration for payment processing
+- Order management and refund handling
+
+### Notifications
+
+Per-event email and SMS routing, configurable in Site Settings:
+
+- Content access granted
+- Purchase approved/denied
+- Recommendations
+- Join request approvals
+- Email verification
+
+Channel availability is auto-detected from your environment variables. Admins can enable/disable notifications per event and per channel.
+
+### Theming
+
+Light and dark mode support via a toggle in the navbar. Uses CSS custom properties with Tailwind, so the entire UI adapts seamlessly. User preference is persisted locally.
+
+### Analytics
+
+- Content views and unique viewers
+- Real-time presence (who's viewing what now)
+- Sales data and revenue tracking
 
 ## Google Drive Integration
 
-The app supports importing files directly from Google Drive. This requires setting up Google Cloud credentials.
+Optional. When `VITE_GOOGLE_API_KEY` and `VITE_GOOGLE_CLIENT_ID` are set, an "Import from Google Drive" button appears in the content manager. When not set, the button is hidden entirely.
 
-### Setting up Google Drive Picker (Full Guide)
+### Setup
 
-Follow these steps to enable Google Drive file imports:
+1. In [Google Cloud Console](https://console.cloud.google.com/), enable **Google Drive API** and **Google Picker API**
+2. Configure the OAuth consent screen with scope `drive.readonly`
+3. Create an OAuth 2.0 Client ID (Web application) with your origins
+4. Create an API key (restrict to Drive API + Picker API)
+5. Get your project number from Project Settings
+6. Set in `.env.local`:
+   ```env
+   VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   VITE_GOOGLE_API_KEY=your-api-key
+   VITE_GOOGLE_APP_ID=your-project-number
+   ```
 
-#### Step 1: Create a Google Cloud Account
+For detailed step-by-step instructions, see [DOCUMENTATION.md](DOCUMENTATION.md).
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. If you don't have a Google account, create one at [accounts.google.com](https://accounts.google.com)
-3. Sign in to Google Cloud Console
-4. Accept the Terms of Service if prompted
+## User Invitation
 
-#### Step 2: Create a New Google Cloud Project
+### Admin/Editor Invite Codes
 
-1. Click the project dropdown at the top of the page (next to "Google Cloud")
-2. Click **"New Project"** in the top right of the modal
-3. Enter a project name (e.g., "NMTSA Education Platform")
-4. Select your organization (or leave as "No organization")
-5. Click **"Create"**
-6. Wait for the project to be created, then select it from the project dropdown
+Admins can generate invite codes that grant specific roles (admin, editor, contributor) on sign-up. Codes can have expiration dates and can be deactivated.
 
-#### Step 3: Enable Required APIs
+### Client Invitations
 
-You need to enable two APIs:
+A dedicated flow for inviting clients, parents, and professionals:
 
-1. **Enable Google Drive API**:
-   - Go to [APIs & Services > Library](https://console.cloud.google.com/apis/library)
-   - Search for "Google Drive API"
-   - Click on it, then click **"Enable"**
+- Send via email, SMS, or both
+- Include a personalized message
+- Track invitation status (sent, used, expired)
+- Resend invitations
 
-2. **Enable Google Picker API**:
-   - Go back to the API Library
-   - Search for "Google Picker API"
-   - Click on it, then click **"Enable"**
+## Deployment
 
-#### Step 4: Configure OAuth Consent Screen
+### Production Setup
 
-Before creating credentials, you must configure the OAuth consent screen:
-
-1. Go to [APIs & Services > OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
-2. Select **"External"** user type (unless you have Google Workspace, then choose "Internal")
-3. Click **"Create"**
-4. Fill in the required fields:
-   - **App name**: Your app name (e.g., "NMTSA Education Platform")
-   - **User support email**: Your email address
-   - **Developer contact information**: Your email address
-5. Click **"Save and Continue"**
-6. On the **Scopes** page:
-   - Click **"Add or Remove Scopes"**
-   - Find and select `https://www.googleapis.com/auth/drive.readonly`
-   - Click **"Update"**
-   - Click **"Save and Continue"**
-7. On the **Test users** page (for External apps in testing mode):
-   - Click **"Add Users"**
-   - Add email addresses of users who will test the app
-   - Click **"Save and Continue"**
-8. Review and click **"Back to Dashboard"**
-
-> **Note**: For production, you'll need to submit your app for verification by Google. Until then, only test users can use Google Drive integration.
-
-#### Step 5: Create OAuth 2.0 Credentials
-
-1. Go to [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials)
-2. Click **"Create Credentials"** > **"OAuth client ID"**
-3. Select **"Web application"** as the application type
-4. Enter a name (e.g., "NMTSA Web Client")
-5. Under **"Authorized JavaScript origins"**, add:
-   - For development: `http://localhost:5173`
-   - For production: `https://your-production-domain.com`
-6. Under **"Authorized redirect URIs"**, add:
-   - For development: `http://localhost:5173`
-   - For production: `https://your-production-domain.com`
-7. Click **"Create"**
-8. Copy the **Client ID** (you'll need this)
-
-#### Step 6: Create an API Key
-
-1. Go to [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials)
-2. Click **"Create Credentials"** > **"API key"**
-3. Copy the API key
-4. **Restrict the API key** (recommended for production):
-   - Click on the API key to edit it
-   - Under **"Application restrictions"**, select **"HTTP referrers"**
-   - Add your domains:
-     - `http://localhost:5173/*` (for development)
-     - `https://your-production-domain.com/*` (for production)
-   - Under **"API restrictions"**, select **"Restrict key"**
-   - Select only **"Google Drive API"** and **"Google Picker API"**
-   - Click **"Save"**
-
-#### Step 7: Get Your Project Number (App ID)
-
-1. Go to [Project Settings](https://console.cloud.google.com/iam-admin/settings)
-2. Find the **"Project number"** (a numeric ID like `929206318915`)
-3. This is your App ID for the picker
-
-#### Step 8: Configure Environment Variables
-
-Add the following to your `.env.local` file:
-
-```env
-# Google Drive Picker Configuration
-VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-VITE_GOOGLE_API_KEY=your-api-key
-VITE_GOOGLE_APP_ID=your-project-number
+```bash
+npm run setup   # Select "Production" when prompted
 ```
 
-Replace:
-- `your-client-id.apps.googleusercontent.com` with the OAuth Client ID from Step 5
-- `your-api-key` with the API Key from Step 6
-- `your-project-number` with the Project Number from Step 7
+The setup script can push environment variables to Vercel or Netlify automatically.
 
-#### Step 9: Restart and Test
+### Manual Deployment
 
-1. Restart your development server: `npm run dev`
-2. Go to Content Manager and click "Add Content"
-3. Select a file type (Video, Audio, Image, or PDF)
-4. Click **"Import from Google Drive"**
-5. Sign in with a test user account (if in testing mode)
-6. Select a file and it should be imported
+1. Set all required environment variables in your hosting platform
+2. Push Convex env vars: `npx convex env set KEY value` for each server-side variable
+3. Deploy Convex: `npx convex deploy`
+4. Build and deploy frontend: `npm run build`
 
-### Troubleshooting
+## Tech Stack
 
-| Issue | Solution |
-|-------|----------|
-| "Google Drive integration is not configured" | Check that all three env vars are set in `.env.local` |
-| "Access blocked: App is in testing mode" | Add your Google account as a test user in OAuth consent screen |
-| Picker opens but can't select files | Verify Google Drive API and Picker API are both enabled |
-| CORS errors | Ensure your domain is in Authorized JavaScript origins |
-| "idpiframe_initialization_failed" | Clear browser cache or try incognito mode |
-
-### Production Deployment
-
-For production, remember to:
-
-1. **Verify your OAuth consent screen** with Google (required for external users)
-2. **Update Authorized JavaScript origins** with your production domain
-3. **Restrict your API key** to only your production domain
-4. **Set environment variables** in your production environment (e.g., Vercel, Netlify)
-
-## HTTP API
-
-User-defined http routes are defined in the `convex/router.ts` file. We split these routes into a separate file from `convex/http.ts` to allow us to prevent the LLM from modifying the authentication routes.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React, TypeScript, Vite |
+| Styling | Tailwind CSS, Shadcn UI |
+| Backend | Convex (real-time, serverless) |
+| Auth | Convex Auth (password + Google OAuth) |
+| Rich Text | Lexical |
+| Email | Resend |
+| SMS | Twilio |
+| Payments | Stripe |
+| File Import | Google Drive Picker API |
