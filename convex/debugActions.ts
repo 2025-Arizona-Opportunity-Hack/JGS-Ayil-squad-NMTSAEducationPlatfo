@@ -7,8 +7,18 @@ import { getTwilio, isTwilioConfigured } from "./sms";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
-// Initialize Resend with API key from environment
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialized Resend client — must not be created at module load time
+// because Convex analyzes modules during deploy before env vars are available.
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not configured. Set it in your Convex environment variables.");
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 // Helper to verify the caller is an admin/owner
 async function requireAdmin(ctx: any): Promise<void> {
@@ -49,7 +59,7 @@ export const sendTestEmail = action({
     console.log(`[Debug Email] From: ${fromEmail}`);
 
     try {
-      const { data, error } = await resend.emails.send({
+      const { data, error } = await getResend().emails.send({
         from: fromEmail,
         to: recipientEmail,
         subject: subject,
