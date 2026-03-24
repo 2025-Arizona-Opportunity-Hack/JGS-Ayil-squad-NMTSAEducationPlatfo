@@ -454,8 +454,8 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {/* Rich Text Content (not for articles) */}
-          {content.type !== "article" && content.richTextContent && (
+          {/* Rich Text Content */}
+          {content.attachmentType === "richtext" && content.description && (
             <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
               <CardHeader className="px-4 sm:px-6">
                 <CardTitle className="text-lg sm:text-xl font-semibold">Content</CardTitle>
@@ -463,7 +463,7 @@ export function PublicContentViewer() {
               <CardContent className="px-4 sm:px-6">
                 <div
                   className="prose prose-sm md:prose-base max-w-none break-words"
-                  dangerouslySetInnerHTML={{ __html: content.richTextContent }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }}
                 />
               </CardContent>
             </Card>

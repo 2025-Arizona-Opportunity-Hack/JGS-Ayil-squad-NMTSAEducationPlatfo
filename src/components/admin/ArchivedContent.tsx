@@ -273,7 +273,7 @@ export function ArchivedContent() {
                   <h4 className="text-sm font-semibold mb-1">Content</h4>
                   <div
                     className="prose prose-sm max-w-none p-4 bg-muted rounded-lg"
-                    dangerouslySetInnerHTML={{ __html: selectedContent.body }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.body) }}
                   />
                 </div>
               )}

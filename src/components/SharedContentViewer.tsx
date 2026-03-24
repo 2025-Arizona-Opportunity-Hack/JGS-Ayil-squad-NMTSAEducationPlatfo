@@ -270,7 +270,7 @@ export function SharedContentViewer() {
         )}
 
         {/* Rich Text Content */}
-        {content.richTextContent && (
+        {content.attachmentType === "richtext" && content.description && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Content</CardTitle>
@@ -278,7 +278,7 @@ export function SharedContentViewer() {
             <CardContent>
               <div
                 className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: content.richTextContent }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }}
               />
             </CardContent>
           </Card>
