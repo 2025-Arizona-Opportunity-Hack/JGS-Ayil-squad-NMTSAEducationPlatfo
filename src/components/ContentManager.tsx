@@ -1243,7 +1243,14 @@ export function ContentManager() {
               {selectedContent.description && (
                 <div>
                   <h4 className="text-sm font-semibold mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground">{selectedContent.description}</p>
+                  {selectedContent.attachmentType === "richtext" ? (
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{selectedContent.description}</p>
+                  )}
                 </div>
               )}
 
@@ -1360,7 +1367,7 @@ export function ContentManager() {
                     )}
                     {previewContent.attachmentType === "richtext" && previewContent.description && (
                       <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
-                        <div dangerouslySetInnerHTML={{ __html: previewContent.description }} />
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewContent.description) }} />
                       </div>
                     )}
                   </div>
