@@ -26,6 +26,7 @@ import {
   Send,
   Loader2,
 } from "lucide-react";
+import { stripHtml } from "@/lib/sanitize";
 
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
 
@@ -202,7 +203,7 @@ export function Shop() {
                   </h3>
                   {item.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {item.description}
+                      {stripHtml(item.description)}
                     </p>
                   )}
                 </div>

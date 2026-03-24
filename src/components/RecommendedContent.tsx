@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { VideoThumbnail } from "./VideoThumbnail";
+import { stripHtml } from "@/lib/sanitize";
 
 export function RecommendedContent() {
   const recommendations = useQuery(api.recommendations.getMyRecommendations);
@@ -193,7 +194,7 @@ export function RecommendedContent() {
                       </h3>
                       {rec.content.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {rec.content.description}
+                          {stripHtml(rec.content.description)}
                         </p>
                       )}
                     </div>

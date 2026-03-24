@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ThirdPartyShareModal } from "./ThirdPartyShareModal";
 import { RecommendContentModal } from "./RecommendContentModal";
 import { Id } from "../../convex/_generated/dataModel";
+import { stripHtml } from "@/lib/sanitize";
 
 interface ContentViewerProps {
   content: Array<{
@@ -152,7 +153,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
               By {item.authorName || DEFAULT_AUTHOR}
             </p>
             {item.description && (
-              <CardDescription className="line-clamp-2">{item.description}</CardDescription>
+              <CardDescription className="line-clamp-2">{stripHtml(item.description)}</CardDescription>
             )}
           </CardHeader>
           
@@ -160,7 +161,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
             {/* Rich text preview - fixed height area */}
             {item.description && item.attachmentType === "richtext" ? (
               <p className="text-sm text-muted-foreground line-clamp-3 min-h-[60px]">
-                {item.description.substring(0, 150)}...
+                {stripHtml(item.description).substring(0, 150)}...
               </p>
             ) : (
               <div className="min-h-[60px]" /> 

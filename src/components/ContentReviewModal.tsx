@@ -385,7 +385,7 @@ export function ContentReviewModal({
                 <div className="space-y-2">
                   <h3 className="text-2xl font-bold">{content.title}</h3>
                   {content.description && (
-                    <p className="text-muted-foreground text-lg">{content.description}</p>
+                    <div className="text-muted-foreground text-lg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
                   )}
                 </div>
 

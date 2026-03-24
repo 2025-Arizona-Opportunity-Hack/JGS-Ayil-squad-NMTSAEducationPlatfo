@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sanitizeHtml } from "@/lib/sanitize";
+import { sanitizeHtml, stripHtml } from "@/lib/sanitize";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
@@ -150,7 +150,7 @@ export function ArchivedContent() {
                       <h4 className="font-semibold truncate">{item.title}</h4>
                       {item.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                          {item.description}
+                          {stripHtml(item.description)}
                         </p>
                       )}
                       <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -262,9 +262,7 @@ export function ArchivedContent() {
               {selectedContent.description && (
                 <div>
                   <h4 className="text-sm font-semibold mb-1">Description</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedContent.description}
-                  </p>
+                  <div className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }} />
                 </div>
               )}
 

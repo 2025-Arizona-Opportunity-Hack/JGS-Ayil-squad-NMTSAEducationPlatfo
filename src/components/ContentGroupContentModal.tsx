@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
+import { stripHtml } from "@/lib/sanitize";
 
 interface ContentGroupContentModalProps {
   isOpen: boolean;
@@ -132,7 +133,7 @@ export function ContentGroupContentModal({
                         <div className="flex-1">
                           <h5 className="font-medium">{item.title}</h5>
                           {item.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{stripHtml(item.description)}</p>
                           )}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="capitalize">
@@ -211,7 +212,7 @@ export function ContentGroupContentModal({
                               <h5 className="font-medium">{content.title}</h5>
                               {content.description && (
                                 <p className="text-sm text-muted-foreground line-clamp-2">
-                                  {content.description}
+                                  {stripHtml(content.description)}
                                 </p>
                               )}
                               <div className="flex items-center gap-2 mt-2">

@@ -145,7 +145,7 @@ export function SharedContentViewer() {
             <div className="flex-1">
               <h1 className="text-3xl font-bold">{content.title}</h1>
               {content.description && (
-                <p className="text-muted-foreground mt-2">{content.description}</p>
+                <div className="text-muted-foreground mt-2" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
               )}
             </div>
           </div>

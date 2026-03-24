@@ -36,6 +36,7 @@ import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
 import { RecommendContentModal } from "./RecommendContentModal";
 import { LexicalEditor } from "./LexicalEditor";
 import { GoogleDrivePicker } from "./GoogleDrivePicker";
+import { TagInput } from "@/components/ui/tag-input";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -943,14 +944,20 @@ export function ContentManager() {
             </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tags">Tags (comma-separated)</Label>
-                <Input
-                  id="tags"
-                type="text"
-                  {...register("tags")}
-                placeholder="therapy, music, neurologic"
-              />
-            </div>
+                <Label htmlFor="tags">Tags</Label>
+                <Controller
+                  name="tags"
+                  control={control}
+                  render={({ field }) => (
+                    <TagInput
+                      id="tags"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Type a tag and press Enter..."
+                    />
+                  )}
+                />
+              </div>
 
               <div className="flex items-center space-x-2">
                 <Checkbox

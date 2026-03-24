@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sanitizeHtml } from "@/lib/sanitize";
+import { sanitizeHtml, stripHtml } from "@/lib/sanitize";
 import { Video, FileText, FileAudio, Newspaper, Folder, FileDown } from "lucide-react";
 
 interface Content {
@@ -66,7 +66,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
                 By {selectedContent.authorName || DEFAULT_AUTHOR}
               </p>
               {selectedContent.description && (
-                <p className="text-muted-foreground mb-4">{selectedContent.description}</p>
+                <div className="text-muted-foreground mb-4" dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }} />
               )}
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>Added {formatDate(selectedContent._creationTime)}</span>
@@ -179,7 +179,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
               </p>
               {item.description && (
                 <p className="text-sm text-muted-foreground line-clamp-2">
-                  {item.description}
+                  {stripHtml(item.description)}
                 </p>
               )}
             </div>

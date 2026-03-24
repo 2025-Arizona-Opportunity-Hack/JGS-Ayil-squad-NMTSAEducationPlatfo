@@ -327,9 +327,7 @@ export function PublicContentViewer() {
                   By {content.authorName || "Neurological Music Therapy Services of Arizona"}
                 </p>
                 {content.description && (
-                  <p className="text-sm sm:text-base text-muted-foreground mt-3 max-w-3xl">
-                    {content.description}
-                  </p>
+                  <div className="text-sm sm:text-base text-muted-foreground mt-3 max-w-3xl" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
                 )}
               </div>
             </div>

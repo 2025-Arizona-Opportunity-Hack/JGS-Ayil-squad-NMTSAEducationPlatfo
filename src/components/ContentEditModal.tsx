@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { LexicalEditor } from "./LexicalEditor";
+import { TagInput } from "@/components/ui/tag-input";
 import {
   Dialog,
   DialogContent,
@@ -385,11 +386,18 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags (comma-separated)</Label>
-            <Input
-              id="tags"
-              {...register("tags")}
-              placeholder="therapy, music, neurologic"
+            <Label htmlFor="tags">Tags</Label>
+            <Controller
+              name="tags"
+              control={control}
+              render={({ field }) => (
+                <TagInput
+                  id="tags"
+                  value={field.value || ""}
+                  onChange={field.onChange}
+                  placeholder="Type a tag and press Enter..."
+                />
+              )}
             />
           </div>
 

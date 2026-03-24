@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { VideoThumbnail } from "../VideoThumbnail";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { stripHtml } from "@/lib/sanitize";
 
 export interface ContentItem {
   _id: string;
@@ -291,7 +292,7 @@ export function ContentList({
                       {/* Description */}
                       {item.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                          {item.description}
+                          {stripHtml(item.description)}
                         </p>
                       )}
                     </div>

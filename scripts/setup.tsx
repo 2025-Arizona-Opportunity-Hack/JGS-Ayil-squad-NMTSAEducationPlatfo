@@ -692,11 +692,13 @@ async function postWizardActions(
 
   // ── 3. Push to Convex ──
   if (pushToConvex) {
-    console.log("\n  Syncing environment variables to Convex...");
+    const convexTarget = isProd ? "production" : "development";
+    const convexFlag = isProd ? ["--prod"] : [];
+    console.log(`\n  Syncing environment variables to Convex (${convexTarget})...`);
     for (const [key, value] of Object.entries(cleanVars)) {
       if (!value || key.startsWith("VITE_")) continue;
       try {
-        execFileSync("npx", ["convex", "env", "set", key, "--", value], {
+        execFileSync("npx", ["convex", "env", "set", ...convexFlag, key, "--", value], {
           stdio: ["pipe", "inherit", "inherit"],
           cwd: process.cwd(),
         });
@@ -704,7 +706,7 @@ async function postWizardActions(
         console.log(`    \x1b[33m!\x1b[0m Could not set ${key} in Convex`);
       }
     }
-    console.log("  \x1b[32m✓\x1b[0m Done syncing to Convex");
+    console.log(`  \x1b[32m✓\x1b[0m Done syncing to Convex (${convexTarget})`);
   }
 
   // ── 4. Deploy to platform ──
@@ -805,7 +807,7 @@ async function postWizardActions(
           // Push to Convex
           if (pushToConvex) {
             try {
-              execFileSync("npx", ["convex", "env", "set", "STRIPE_WEBHOOK_SECRET", "--", trimmed], {
+              execFileSync("npx", ["convex", "env", "set", ...(isProd ? ["--prod"] : []), "STRIPE_WEBHOOK_SECRET", "--", trimmed], {
                 stdio: ["pipe", "inherit", "inherit"],
                 cwd: process.cwd(),
               });

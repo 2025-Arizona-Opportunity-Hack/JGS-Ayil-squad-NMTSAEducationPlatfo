@@ -51,3 +51,13 @@ export function sanitizeHtml(html: string | undefined | null): string {
   if (!html) return "";
   return getPurify().sanitize(html, SANITIZE_CONFIG);
 }
+
+/**
+ * Strip HTML tags and return plain text.
+ * Used for displaying richtext content as a text summary (cards, lists, previews).
+ */
+export function stripHtml(html: string | undefined | null): string {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body.textContent || "";
+}
