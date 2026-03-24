@@ -744,12 +744,18 @@ export function ContentManager() {
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  {...register("description")}
-                  className={errors.description ? "border-destructive" : ""}
-                rows={3}
-              />
+                <Controller
+                  name="description"
+                  control={control}
+                  render={({ field }) => (
+                    <LexicalEditor
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Enter a description..."
+                      isRichText={true}
+                    />
+                  )}
+                />
                 {errors.description && (
                   <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
@@ -784,7 +790,6 @@ export function ContentManager() {
                 <option value="audio">Audio</option>
                 <option value="image">Image</option>
                 <option value="pdf">PDF</option>
-                <option value="richtext">Rich Text</option>
               </select>
                 {errors.attachmentType && (
                   <p className="text-sm text-destructive">{errors.attachmentType.message}</p>
@@ -911,23 +916,6 @@ export function ContentManager() {
                 </div>
               )}
 
-              {formAttachmentType === "richtext" && (
-                <div className="space-y-2">
-                  <Label htmlFor="description">Content</Label>
-                  <Controller
-                    name="description"
-                    control={control}
-                    render={({ field }) => (
-                      <LexicalEditor
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                        placeholder="Enter your rich text content here..."
-                        isRichText={true}
-                      />
-                    )}
-                  />
-              </div>
-            )}
 
               <div className="space-y-2">
                 <Label htmlFor="externalUrl">External URL (optional)</Label>
@@ -1250,14 +1238,10 @@ export function ContentManager() {
               {selectedContent.description && (
                 <div>
                   <h4 className="text-sm font-semibold mb-2">Description</h4>
-                  {selectedContent.attachmentType === "richtext" ? (
-                    <div
-                      className="prose prose-sm max-w-none text-muted-foreground"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }}
-                    />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{selectedContent.description}</p>
-                  )}
+                  <div
+                    className="prose prose-sm max-w-none text-muted-foreground"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }}
+                  />
                 </div>
               )}
 
@@ -1372,7 +1356,7 @@ export function ContentManager() {
                         </a>
                       </div>
                     )}
-                    {previewContent.attachmentType === "richtext" && previewContent.description && (
+                    {previewContent.description && (
                       <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
                         <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewContent.description) }} />
                       </div>

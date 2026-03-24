@@ -269,11 +269,11 @@ export function SharedContentViewer() {
           </Card>
         )}
 
-        {/* Rich Text Content */}
-        {content.attachmentType === "richtext" && content.description && (
+        {/* Description Content */}
+        {content.description && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Content</CardTitle>
+              <CardTitle>Description</CardTitle>
             </CardHeader>
             <CardContent>
               <div

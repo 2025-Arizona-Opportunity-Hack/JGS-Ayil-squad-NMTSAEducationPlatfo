@@ -112,7 +112,7 @@ export function ContentViewer({ content }: ContentViewerProps) {
             </div>
           )}
 
-          {selectedContent.type === "article" && selectedContent.description && (
+          {selectedContent.description && (
             <div
               className="prose max-w-none"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContent.description) }}

@@ -452,11 +452,11 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {/* Rich Text Content */}
-          {content.attachmentType === "richtext" && content.description && (
+          {/* Description Content */}
+          {content.description && (
             <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
               <CardHeader className="px-4 sm:px-6">
-                <CardTitle className="text-lg sm:text-xl font-semibold">Content</CardTitle>
+                <CardTitle className="text-lg sm:text-xl font-semibold">Description</CardTitle>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 <div

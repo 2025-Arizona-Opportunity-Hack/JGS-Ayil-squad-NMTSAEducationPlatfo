@@ -231,7 +231,7 @@ export function ContentReviewModal({
                 </a>
               </div>
             )}
-            {content.attachmentType === "richtext" && content.description && (
+            {content.description && (
               <div className="prose prose-sm max-w-none p-4 bg-muted rounded-lg">
                 <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
               </div>

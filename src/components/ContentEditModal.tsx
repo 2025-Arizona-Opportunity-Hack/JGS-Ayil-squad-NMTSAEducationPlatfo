@@ -18,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -255,11 +254,17 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              {...register("description")}
-              className={errors.description ? "border-red-500" : ""}
-              rows={3}
+            <Controller
+              name="description"
+              control={control}
+              render={({ field }) => (
+                <LexicalEditor
+                  value={field.value || ""}
+                  onChange={field.onChange}
+                  placeholder="Enter a description..."
+                  isRichText={true}
+                />
+              )}
             />
             {errors.description && (
               <p className="text-sm text-red-500">{errors.description.message}</p>
@@ -290,7 +295,6 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
                 <SelectItem value="audio">Audio</SelectItem>
                 <SelectItem value="image">Image</SelectItem>
                 <SelectItem value="pdf">PDF</SelectItem>
-                <SelectItem value="richtext">Rich Text</SelectItem>
               </SelectContent>
             </Select>
             {errors.attachmentType && (
@@ -353,23 +357,6 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             </div>
           )}
 
-          {formAttachmentType === "richtext" && (
-            <div className="space-y-2">
-              <Label htmlFor="description">Content</Label>
-              <Controller
-                name="description"
-                control={control}
-                render={({ field }) => (
-                  <LexicalEditor
-                    value={field.value || ""}
-                    onChange={field.onChange}
-                    placeholder="Enter your rich text content here..."
-                    isRichText={true}
-                  />
-                )}
-              />
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="externalUrl">External URL (optional)</Label>

@@ -2,7 +2,6 @@ import {
   Video,
   FileText,
   FileAudio,
-  Newspaper,
   Folder,
   Filter,
   Search,
@@ -196,7 +195,6 @@ export function ContentFilters({
                   { value: "audio" as const, label: "Audio", icon: FileAudio, count: typeCounts.audio },
                   { value: "image" as const, label: "Image", icon: Folder, count: typeCounts.image },
                   { value: "pdf" as const, label: "PDF", icon: FileText, count: typeCounts.pdf },
-                  { value: "richtext" as const, label: "Rich Text", icon: Newspaper, count: typeCounts.richtext },
                 ]).map((type) => {
                   const Icon = type.icon;
                   return (

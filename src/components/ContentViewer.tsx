@@ -158,13 +158,13 @@ export function ContentViewer({ content }: ContentViewerProps) {
           </CardHeader>
           
           <CardContent className="space-y-4">
-            {/* Rich text preview - fixed height area */}
-            {item.description && item.attachmentType === "richtext" ? (
+            {/* Description preview - fixed height area */}
+            {item.description ? (
               <p className="text-sm text-muted-foreground line-clamp-3 min-h-[60px]">
                 {stripHtml(item.description).substring(0, 150)}...
               </p>
             ) : (
-              <div className="min-h-[60px]" /> 
+              <div className="min-h-[60px]" />
             )}
 
             {/* Tags section - always same height */}
