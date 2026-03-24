@@ -19,6 +19,7 @@ import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 import { execFileSync } from "child_process";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -105,13 +106,13 @@ const STEPS: StepDef[] = [
     description: "Auth keys (JWT) secure user sessions. You can auto-generate them or paste an existing key.",
     helpLines: [
       "Auto-generate (recommended):",
-      "• Generates a 2048-bit RSA key pair",
-      "• Creates the JWT_PRIVATE_KEY and JWKS automatically",
-      "• These are pushed to Convex in the deploy step",
+      "• Generates a 2048-bit RSA key pair instantly",
+      "• Creates JWT_PRIVATE_KEY and JWKS automatically",
+      "• Saved to your env file and pushed to Convex (if enabled)",
       "",
       "Paste existing key:",
-      "• Use if you already ran `npx @convex-dev/auth`",
-      "• Or if migrating keys from another environment",
+      "• Use if you already have keys from another environment",
+      "• Or if you previously ran `npx @convex-dev/auth`",
       "",
       "Skip:",
       "• You can set this up later via `npm run setup:auth`",
@@ -294,6 +295,53 @@ const STEPS: StepDef[] = [
       },
     ],
   },
+  {
+    id: "convex-push",
+    title: "Sync to Convex",
+    icon: "☁️",
+    description: "Push your environment variables to Convex so the backend can use them.",
+    helpLines: [
+      "This syncs your secrets (API keys, tokens) to Convex's",
+      "cloud environment so your serverless functions can access them.",
+      "",
+      "Variables prefixed with VITE_ are frontend-only and won't",
+      "be pushed (they're embedded in the build instead).",
+      "",
+      "You can always push variables manually later:",
+      "  npx convex env set KEY value",
+    ],
+    optional: true,
+    confirmPrompt: "Push environment variables to Convex?",
+    fields: [],
+  },
+  {
+    id: "deploy",
+    title: "Deploy",
+    icon: "🚀",
+    description: "Deploy your app to a hosting platform.",
+    helpLines: [
+      "Choose where to deploy your production frontend.",
+      "",
+      "Vercel (recommended for Next.js/Vite):",
+      "• Automatic HTTPS, preview deploys, edge network",
+      "• Run `npx vercel login` first if not already logged in",
+      "",
+      "Netlify:",
+      "• Similar features, different build system",
+      "• Run `npx netlify login` first if not already logged in",
+      "",
+      "Manual:",
+      "• Build with `npm run build` and deploy the dist/ folder",
+    ],
+    prodOnly: true,
+    selectPrompt: "Deploy to which platform?",
+    selectOptions: [
+      { label: "Vercel (recommended)", value: "vercel" },
+      { label: "Netlify", value: "netlify" },
+      { label: "None — I'll deploy manually", value: "manual" },
+    ],
+    fields: [],
+  },
 ];
 
 /** Populate the stripe-webhook step with environment-aware help and options. */
@@ -351,6 +399,24 @@ function configureWebhookStep(isProd: boolean) {
       { label: "I'll set this up later", value: "defer" },
     ];
   }
+}
+
+// ── Auth key generation ──────────────────────────────────────────────────────
+
+function generateAuthKeys(): { privateKey: string; jwks: string } {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+
+  const pubKeyObj = crypto.createPublicKey(publicKey);
+  const jwk = pubKeyObj.export({ format: "jwk" });
+  (jwk as Record<string, unknown>).kid = "convex-auth-key";
+  (jwk as Record<string, unknown>).use = "sig";
+  (jwk as Record<string, unknown>).alg = "RS256";
+
+  return { privateKey, jwks: JSON.stringify({ keys: [jwk] }) };
 }
 
 // ── Env writing ──────────────────────────────────────────────────────────────
@@ -567,11 +633,11 @@ function GeneratedSuccess({ onContinue }: { onContinue: () => void }) {
     <Box flexDirection="column">
       <Box gap={1}>
         <Text color="green">✓</Text>
-        <Text>Auth keys will be auto-generated via </Text>
-        <Text bold color="cyan">npx @convex-dev/auth</Text>
+        <Text>Auth keys will be auto-generated </Text>
+        <Text dimColor>(2048-bit RSA)</Text>
       </Box>
       <Box marginTop={0}>
-        <Text dimColor>  This runs after the wizard finishes and handles key generation + Convex setup.</Text>
+        <Text dimColor>  JWT_PRIVATE_KEY and JWKS will be created after the wizard finishes.</Text>
       </Box>
       <Box marginTop={1}>
         <Text dimColor>Press Enter to continue...</Text>
@@ -590,50 +656,43 @@ async function postWizardActions(
   const { stdin, stdout } = await import("process");
   const rl = readline.createInterface({ input: stdin, output: stdout });
 
-  const ask = async (question: string): Promise<boolean> => {
-    const answer = await rl.question(`  ${question} [Y/n]: `);
-    if (!answer.trim()) return true;
-    return answer.trim().toLowerCase().startsWith("y");
-  };
-
-  const choice = async (question: string, options: string[]): Promise<number> => {
-    console.log(`\n  ${question}`);
-    options.forEach((opt, i) => console.log(`    ${i + 1}. ${opt}`));
-    const answer = await rl.question("  Choice: ");
-    const idx = parseInt(answer.trim(), 10) - 1;
-    if (idx >= 0 && idx < options.length) return idx;
-    return 0;
-  };
-
-  // Strip internal flags before writing
+  // Extract internal flags
   const autoGenAuth = vars._AUTO_GEN_AUTH === "true";
   const deferStripeWebhook = vars._DEFER_STRIPE_WEBHOOK === "true";
-  const cleanVars = { ...vars };
-  delete cleanVars._AUTO_GEN_AUTH;
-  delete cleanVars._DEFER_STRIPE_WEBHOOK;
+  const pushToConvex = vars["_CONFIRM_CONVEX_PUSH"] === "true";
+  const deployPlatform = vars._DEPLOY_PLATFORM || ""; // "vercel" | "netlify" | "manual" | ""
 
-  // Write env file
+  // Strip all internal flags
+  const cleanVars = { ...vars };
+  for (const key of Object.keys(cleanVars)) {
+    if (key.startsWith("_")) delete cleanVars[key];
+  }
+
+  // ── 1. Write env file ──
   const filepath = writeEnvFile(cleanVars, isProd);
   console.log(`\n  \x1b[32m✓\x1b[0m Environment file written to: ${filepath}`);
 
-  // Auto-generate auth keys via Convex CLI
+  // ── 2. Auto-generate auth keys ──
   if (autoGenAuth) {
-    console.log("\n  \x1b[36m🔐 Generating auth keys via npx @convex-dev/auth...\x1b[0m\n");
+    console.log("\n  \x1b[36m🔐 Generating auth keys...\x1b[0m");
     try {
-      execFileSync("npx", ["@convex-dev/auth", "--skip-git-check"], {
-        stdio: "inherit",
-        cwd: process.cwd(),
-      });
-      console.log("  \x1b[32m✓\x1b[0m Auth keys generated and configured!");
-    } catch {
-      console.log("  \x1b[33m!\x1b[0m Auth key generation failed. You can run it manually later:");
-      console.log("    npx @convex-dev/auth");
+      const { privateKey, jwks } = generateAuthKeys();
+      cleanVars.JWT_PRIVATE_KEY = privateKey;
+      cleanVars.JWKS = jwks;
+
+      // Update env file with the generated keys
+      writeEnvFile({ JWT_PRIVATE_KEY: privateKey, JWKS: jwks }, isProd);
+      console.log("  \x1b[32m✓\x1b[0m RSA key pair generated (2048-bit)");
+      console.log("  \x1b[32m✓\x1b[0m JWT_PRIVATE_KEY and JWKS saved to env file");
+    } catch (err) {
+      console.log("  \x1b[33m!\x1b[0m Auth key generation failed:", err);
+      console.log("    You can generate keys manually later: npx @convex-dev/auth");
     }
   }
 
-  // Push to Convex
-  if (await ask("Push variables to Convex?")) {
-    console.log("  Pushing to Convex...");
+  // ── 3. Push to Convex ──
+  if (pushToConvex) {
+    console.log("\n  Syncing environment variables to Convex...");
     for (const [key, value] of Object.entries(cleanVars)) {
       if (!value || key.startsWith("VITE_")) continue;
       try {
@@ -645,120 +704,149 @@ async function postWizardActions(
         console.log(`    \x1b[33m!\x1b[0m Could not set ${key} in Convex`);
       }
     }
-    console.log("  \x1b[32m✓\x1b[0m Done pushing to Convex");
+    console.log("  \x1b[32m✓\x1b[0m Done syncing to Convex");
   }
 
-  // Production deployment
-  if (isProd) {
-    const platformIdx = await choice("Deploy to which platform?", [
-      "Vercel",
-      "Netlify",
-      "None (I'll deploy manually)",
-    ]);
+  // ── 4. Deploy to platform ──
+  if (deployPlatform === "vercel") {
+    console.log("\n  \x1b[36m🚀 Deploying to Vercel...\x1b[0m\n");
 
-    if (platformIdx === 0) {
-      console.log("\n  Pushing environment variables to Vercel...");
-      for (const [key, value] of Object.entries(cleanVars)) {
-        if (!value) continue;
-        try {
-          execFileSync("npx", ["vercel", "env", "add", key, "production"], {
-            input: value,
-            stdio: ["pipe", "inherit", "inherit"],
-            cwd: process.cwd(),
-          });
-        } catch {
-          console.log(`    \x1b[33m!\x1b[0m Could not set ${key} on Vercel (may already exist)`);
-        }
+    // Push env vars to Vercel
+    console.log("  Pushing environment variables to Vercel...");
+    for (const [key, value] of Object.entries(cleanVars)) {
+      if (!value) continue;
+      try {
+        execFileSync("npx", ["vercel", "env", "add", key, "production"], {
+          input: value,
+          stdio: ["pipe", "inherit", "inherit"],
+          cwd: process.cwd(),
+        });
+      } catch {
+        console.log(`    \x1b[33m!\x1b[0m Could not set ${key} on Vercel (may already exist)`);
       }
-      if (await ask("Trigger Vercel production deployment now?")) {
-        try {
-          execFileSync("npx", ["vercel", "deploy", "--prod"], {
-            stdio: "inherit",
-            cwd: process.cwd(),
-          });
-          console.log("  \x1b[32m✓\x1b[0m Deployment triggered!");
-        } catch {
-          console.log("  \x1b[33m!\x1b[0m Deployment failed. You may need to deploy manually.");
-        }
+    }
+    console.log("  \x1b[32m✓\x1b[0m Environment variables pushed to Vercel\n");
+
+    // Deploy
+    console.log("  Triggering production deployment...\n");
+    try {
+      execFileSync("npx", ["vercel", "deploy", "--prod"], {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("\n  \x1b[32m✓\x1b[0m Deployment triggered!");
+    } catch {
+      console.log("\n  \x1b[33m!\x1b[0m Deployment failed. You may need to deploy manually:");
+      console.log("    npx vercel deploy --prod");
+    }
+  } else if (deployPlatform === "netlify") {
+    console.log("\n  \x1b[36m🚀 Deploying to Netlify...\x1b[0m\n");
+
+    // Push env vars to Netlify
+    console.log("  Pushing environment variables to Netlify...");
+    for (const [key, value] of Object.entries(cleanVars)) {
+      if (!value) continue;
+      try {
+        execFileSync("npx", ["netlify", "env:set", key, value], {
+          stdio: ["pipe", "inherit", "inherit"],
+          cwd: process.cwd(),
+        });
+      } catch {
+        console.log(`    \x1b[33m!\x1b[0m Could not set ${key} on Netlify`);
       }
-    } else if (platformIdx === 1) {
-      console.log("\n  Pushing environment variables to Netlify...");
-      for (const [key, value] of Object.entries(cleanVars)) {
-        if (!value) continue;
-        try {
-          execFileSync("npx", ["netlify", "env:set", key, value], {
-            stdio: ["pipe", "inherit", "inherit"],
-            cwd: process.cwd(),
-          });
-        } catch {
-          console.log(`    \x1b[33m!\x1b[0m Could not set ${key} on Netlify`);
-        }
-      }
-      if (await ask("Trigger Netlify production deployment now?")) {
-        try {
-          execFileSync("npx", ["netlify", "deploy", "--prod"], {
-            stdio: "inherit",
-            cwd: process.cwd(),
-          });
-          console.log("  \x1b[32m✓\x1b[0m Deployment triggered!");
-        } catch {
-          console.log("  \x1b[33m!\x1b[0m Deployment failed. You may need to deploy manually.");
-        }
-      }
+    }
+    console.log("  \x1b[32m✓\x1b[0m Environment variables pushed to Netlify\n");
+
+    // Deploy
+    console.log("  Triggering production deployment...\n");
+    try {
+      execFileSync("npx", ["netlify", "deploy", "--prod"], {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("\n  \x1b[32m✓\x1b[0m Deployment triggered!");
+    } catch {
+      console.log("\n  \x1b[33m!\x1b[0m Deployment failed. You may need to deploy manually:");
+      console.log("    npx netlify deploy --prod");
     }
   }
 
-  // Deferred Stripe webhook setup — after deployment, we can now get the domain
+  // ── 5. Deferred Stripe webhook setup (after deployment) ──
   if (deferStripeWebhook) {
     console.log("\n  \x1b[36m╔════════════════════════════════════════════════════════╗\x1b[0m");
     console.log("  \x1b[36m║\x1b[0m  \x1b[1m🔗 Stripe Webhook Setup\x1b[0m                              \x1b[36m║\x1b[0m");
     console.log("  \x1b[36m╚════════════════════════════════════════════════════════╝\x1b[0m\n");
 
-    console.log("  Now that your app is deployed, set up the Stripe webhook:\n");
-    console.log("  1. Go to \x1b[4mdashboard.stripe.com/webhooks\x1b[0m");
-    console.log('  2. Click \x1b[1m"Add endpoint"\x1b[0m');
-    console.log("  3. Set the endpoint URL to:");
-    console.log("     \x1b[33mhttps://YOUR-DOMAIN/api/stripe/webhook\x1b[0m");
-    console.log("  4. Select these events:");
-    console.log("     • checkout.session.completed");
-    console.log("     • checkout.session.expired");
-    console.log("     • charge.refunded");
-    console.log('  5. Click \x1b[1m"Add endpoint"\x1b[0m, then copy the \x1b[1mSigning secret\x1b[0m\n');
+    if (isProd) {
+      console.log("  Now that your app is deployed, set up the Stripe webhook:\n");
+      console.log("  1. Go to \x1b[4mdashboard.stripe.com/webhooks\x1b[0m");
+      console.log('  2. Click \x1b[1m"Add endpoint"\x1b[0m');
+      console.log("  3. Set the endpoint URL to:");
+      console.log("     \x1b[33mhttps://YOUR-DOMAIN/api/stripe/webhook\x1b[0m");
+      console.log("  4. Select these events:");
+      console.log("     • checkout.session.completed");
+      console.log("     • checkout.session.expired");
+      console.log("     • charge.refunded");
+      console.log('  5. Click \x1b[1m"Add endpoint"\x1b[0m, then copy the \x1b[1mSigning secret\x1b[0m\n');
 
-    const webhookSecret = await rl.question("  Paste your webhook secret (whsec_...) or press Enter to skip: ");
-    const trimmed = webhookSecret.trim();
+      const webhookSecret = await rl.question("  Paste your webhook secret (whsec_...) or press Enter to skip: ");
+      const trimmed = webhookSecret.trim();
 
-    if (trimmed) {
-      const err = validators.STRIPE_WEBHOOK_SECRET(trimmed);
-      if (err) {
-        console.log(`    \x1b[33m!\x1b[0m ${err} — skipping for now`);
-        console.log("    You can set STRIPE_WEBHOOK_SECRET manually later.\n");
-      } else {
-        cleanVars.STRIPE_WEBHOOK_SECRET = trimmed;
+      if (trimmed) {
+        const err = validators.STRIPE_WEBHOOK_SECRET(trimmed);
+        if (err) {
+          console.log(`    \x1b[33m!\x1b[0m ${err} — skipping for now`);
+          console.log("    You can set STRIPE_WEBHOOK_SECRET manually later.\n");
+        } else {
+          // Update env file
+          writeEnvFile({ STRIPE_WEBHOOK_SECRET: trimmed }, isProd);
+          console.log("  \x1b[32m✓\x1b[0m Webhook secret saved to env file");
 
-        // Update env file
-        writeEnvFile({ STRIPE_WEBHOOK_SECRET: trimmed }, isProd);
-        console.log("  \x1b[32m✓\x1b[0m Webhook secret saved to env file");
+          // Push to Convex
+          if (pushToConvex) {
+            try {
+              execFileSync("npx", ["convex", "env", "set", "STRIPE_WEBHOOK_SECRET", "--", trimmed], {
+                stdio: ["pipe", "inherit", "inherit"],
+                cwd: process.cwd(),
+              });
+              console.log("  \x1b[32m✓\x1b[0m Webhook secret pushed to Convex");
+            } catch {
+              console.log("    \x1b[33m!\x1b[0m Could not push to Convex — set STRIPE_WEBHOOK_SECRET manually");
+            }
+          }
 
-        // Push to Convex
-        try {
-          execFileSync("npx", ["convex", "env", "set", "STRIPE_WEBHOOK_SECRET", "--", trimmed], {
-            stdio: ["pipe", "inherit", "inherit"],
-            cwd: process.cwd(),
-          });
-          console.log("  \x1b[32m✓\x1b[0m Webhook secret pushed to Convex");
-        } catch {
-          console.log("    \x1b[33m!\x1b[0m Could not push to Convex — set STRIPE_WEBHOOK_SECRET manually");
+          // Push to platform
+          if (deployPlatform === "vercel") {
+            try {
+              execFileSync("npx", ["vercel", "env", "add", "STRIPE_WEBHOOK_SECRET", "production"], {
+                input: trimmed,
+                stdio: ["pipe", "inherit", "inherit"],
+                cwd: process.cwd(),
+              });
+              console.log("  \x1b[32m✓\x1b[0m Webhook secret pushed to Vercel");
+            } catch {
+              console.log("    \x1b[33m!\x1b[0m Could not push to Vercel — set STRIPE_WEBHOOK_SECRET manually");
+            }
+          } else if (deployPlatform === "netlify") {
+            try {
+              execFileSync("npx", ["netlify", "env:set", "STRIPE_WEBHOOK_SECRET", trimmed], {
+                stdio: ["pipe", "inherit", "inherit"],
+                cwd: process.cwd(),
+              });
+              console.log("  \x1b[32m✓\x1b[0m Webhook secret pushed to Netlify");
+            } catch {
+              console.log("    \x1b[33m!\x1b[0m Could not push to Netlify — set STRIPE_WEBHOOK_SECRET manually");
+            }
+          }
         }
+      } else {
+        console.log("\n  \x1b[33m⚠\x1b[0m  Stripe webhook secret was not set.");
+        console.log("  Set \x1b[1mSTRIPE_WEBHOOK_SECRET\x1b[0m in your environment when ready.\n");
       }
-    } else {
-      console.log("\n  \x1b[33m⚠\x1b[0m  Stripe webhook secret was not set.");
-      console.log("  Payments will work but webhooks won't be verified.");
-      console.log("  Set \x1b[1mSTRIPE_WEBHOOK_SECRET\x1b[0m in your environment when ready.\n");
     }
   }
 
-  // Done
+  // ── Done ──
   const line = "═".repeat(40);
   console.log(`\n  \x1b[36m╔${line}╗\x1b[0m`);
   console.log(`  \x1b[36m║\x1b[0m\x1b[1m        Setup Complete!               \x1b[0m\x1b[36m║\x1b[0m`);
@@ -786,15 +874,33 @@ async function postWizardActions(
 
 // ── Main Wizard Component ────────────────────────────────────────────────────
 
-function SetupWizard() {
+function SetupWizard({
+  onlySteps,
+  forceProd,
+}: {
+  onlySteps: string[] | null;
+  forceProd: boolean;
+}) {
   const { exit } = useApp();
 
-  // Environment selection
-  const [isProd, setIsProd] = useState<boolean | null>(null);
+  const isOnlyMode = onlySteps !== null;
+
+  // Environment selection — skip if --prod flag or --only mode (default to dev)
+  const [isProd, setIsProd] = useState<boolean | null>(
+    forceProd ? true : isOnlyMode ? false : null,
+  );
+
+  // Configure webhook step for --only mode upfront
+  useEffect(() => {
+    if (isOnlyMode && isProd !== null) {
+      configureWebhookStep(isProd);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step navigation
   const [stepIndex, setStepIndex] = useState(0);
   const [phase, setPhase] = useState<"confirm" | "select" | "input" | "generated">("confirm");
+  const [initialPhaseSet, setInitialPhaseSet] = useState(false);
   const [fieldIndex, setFieldIndex] = useState(0);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
 
@@ -804,17 +910,29 @@ function SetupWizard() {
   // Completion
   const [done, setDone] = useState(false);
 
-  // Filter steps based on environment and dependencies
+  // Filter steps based on environment, dependencies, and --only mode
   const visibleSteps = STEPS.filter((s) => {
     if (s.prodOnly && !isProd) return false;
     if (s.devOnly && isProd) return false;
     // Hide webhook step if Stripe was skipped or not yet confirmed
     if (s.id === "stripe-webhook" && (skipped.has("stripe") || !vars.STRIPE_SECRET_KEY)) return false;
+    // In --only mode, show only the targeted steps + convex-push
+    if (isOnlyMode) {
+      return onlySteps!.includes(s.id) || s.id === "convex-push";
+    }
     return true;
   });
 
   const currentStep = visibleSteps[stepIndex];
   const totalSteps = visibleSteps.length;
+
+  // Set initial phase for the first step (needed for --only mode to skip confirm)
+  useEffect(() => {
+    if (!initialPhaseSet && isProd !== null && currentStep) {
+      setPhase(initialPhaseFor(currentStep));
+      setInitialPhaseSet(true);
+    }
+  }, [isProd, initialPhaseSet, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle completion — unmount Ink and run post-wizard actions
   useEffect(() => {
@@ -881,6 +999,21 @@ function SetupWizard() {
     return null;
   }
 
+  /** Determine the initial phase for a step. */
+  const initialPhaseFor = (step: StepDef): "confirm" | "select" | "input" => {
+    // In --only mode, skip confirm for targeted steps (user already chose to set it up)
+    const skipConfirm = isOnlyMode && onlySteps!.includes(step.id);
+
+    if (step.optional && !skipConfirm) {
+      return "confirm";
+    } else if (step.selectOptions && step.selectOptions.length > 0) {
+      return "select";
+    } else if (step.fields.length > 0) {
+      return "input";
+    }
+    return "confirm"; // fallback for confirm-only steps like convex-push
+  };
+
   const advanceStep = () => {
     if (stepIndex + 1 >= visibleSteps.length) {
       // Set ENVIRONMENT variable
@@ -890,9 +1023,10 @@ function SetupWizard() {
       }));
       setDone(true);
     } else {
+      const nextStep = visibleSteps[stepIndex + 1];
       setStepIndex(stepIndex + 1);
-      setPhase("confirm");
       setFieldIndex(0);
+      setPhase(initialPhaseFor(nextStep));
     }
   };
 
@@ -900,11 +1034,15 @@ function SetupWizard() {
     if (!yes) {
       setSkipped((prev) => new Set(prev).add(currentStep.id));
       advanceStep();
-    } else if (currentStep.selectOptions) {
+    } else if (currentStep.selectOptions && currentStep.selectOptions.length > 0) {
       setPhase("select");
-    } else {
+    } else if (currentStep.fields.length > 0) {
       setPhase("input");
       setFieldIndex(0);
+    } else {
+      // Step with confirm only, no fields (e.g., convex-push)
+      setVars((prev) => ({ ...prev, [`_CONFIRM_${currentStep.id.toUpperCase().replace(/-/g, "_")}`]: "true" }));
+      advanceStep();
     }
   };
 
@@ -917,10 +1055,16 @@ function SetupWizard() {
       // Defer to post-deployment — flag it and advance
       setVars((prev) => ({ ...prev, _DEFER_STRIPE_WEBHOOK: "true" }));
       advanceStep();
-    } else {
-      // Manual paste — go to input fields
+    } else if (currentStep.id === "deploy") {
+      // Store deploy platform choice
+      setVars((prev) => ({ ...prev, _DEPLOY_PLATFORM: value }));
+      advanceStep();
+    } else if (currentStep.fields.length > 0) {
+      // Has fields to collect (e.g., paste webhook secret)
       setPhase("input");
       setFieldIndex(0);
+    } else {
+      advanceStep();
     }
   };
 
@@ -1011,7 +1155,67 @@ function SetupWizard() {
   );
 }
 
+// ── Argument parsing ─────────────────────────────────────────────────────────
+
+const STEP_ALIASES: Record<string, string[]> = {
+  stripe: ["stripe", "stripe-webhook"],
+  email: ["email"],
+  resend: ["email"],
+  sms: ["sms"],
+  twilio: ["sms"],
+  google: ["google"],
+  drive: ["google"],
+  auth: ["auth"],
+  convex: ["convex"],
+};
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  let onlySteps: string[] | null = null;
+  let forceProd = false;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--only" && args[i + 1]) {
+      const alias = args[i + 1].toLowerCase();
+      onlySteps = STEP_ALIASES[alias] || [alias];
+      i++;
+    } else if (args[i] === "--prod") {
+      forceProd = true;
+    } else if (args[i] === "--help" || args[i] === "-h") {
+      console.log(`
+  NMTSA Education Platform Setup
+
+  Usage:
+    npm run setup                    Full setup wizard
+    npm run setup:stripe             Set up Stripe only
+    npm run setup:email              Set up Resend email only
+    npm run setup:sms                Set up Twilio SMS only
+    npm run setup:google             Set up Google Drive only
+    npm run setup:auth               Set up auth keys only
+
+  Flags:
+    --only <service>    Configure a single service
+                        (stripe, email, sms, google, auth, convex)
+    --prod              Use production environment
+    --help              Show this help
+`);
+      process.exit(0);
+    } else {
+      // Treat bare arg as --only shorthand
+      const alias = args[i].toLowerCase();
+      if (STEP_ALIASES[alias]) {
+        onlySteps = STEP_ALIASES[alias];
+      }
+    }
+  }
+
+  return { onlySteps, forceProd };
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
+
+// Parse args first (--help should work without TTY)
+const { onlySteps, forceProd } = parseArgs();
 
 if (!process.stdin.isTTY) {
   console.error(
@@ -1021,4 +1225,4 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
-render(<SetupWizard />);
+render(<SetupWizard onlySteps={onlySteps} forceProd={forceProd} />);
