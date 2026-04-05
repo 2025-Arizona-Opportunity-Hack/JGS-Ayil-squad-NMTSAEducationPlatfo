@@ -8,7 +8,7 @@ import { ContentGroupManager } from "./ContentGroupManager";
 import { ShareLinksManager } from "./ShareLinksManager";
 import { InviteCodeModal } from "./InviteCodeModal";
 import { ClientInviteModal } from "./ClientInviteModal";
-import { SalesAnalytics } from "./admin/SalesAnalytics";
+import { AnalyticsDashboard } from "./admin/AnalyticsDashboard";
 import { AdminOrders } from "./admin/AdminOrders";
 import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
@@ -69,7 +69,7 @@ export function AdminDashboard() {
       {activeTab === "joinRequests" && canViewUsers && <JoinRequests />}
       {activeTab === "users" && canViewUsers && <UserManager />}
       {activeTab === "userGroups" && canManageUserGroups && <UserGroupManager />}
-      {activeTab === "analytics" && canViewAnalytics && <SalesAnalytics />}
+      {activeTab === "analytics" && canViewAnalytics && <AnalyticsDashboard />}
       {activeTab === "purchaseRequests" && canViewPurchaseRequests && <PurchaseRequests />}
       {activeTab === "orders" && canViewOrders && <AdminOrders />}
       {activeTab === "archived" && canViewArchivedContent && <ArchivedContent />}

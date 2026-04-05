@@ -100,31 +100,60 @@ test.describe("Content Features", () => {
   // ── Content View History / Analytics ───────────────────────────────────────
 
   test.describe("Content View History", () => {
-    test("analytics tab is accessible", async ({ page }) => {
+    test("analytics dashboard loads with heading and KPIs", async ({ page }) => {
       await navigateToAdminTab(page, "Analytics");
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(3000);
 
-      // Should show analytics page (sales analytics)
-      const heading = page.getByText(/analytics/i).first();
-      await expect(heading).toBeVisible({ timeout: 5000 });
+      // KPI cards with unique text
+      await expect(page.getByText("Active Users")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Content Library").first()).toBeVisible({ timeout: 5000 });
     });
 
-    test("analytics shows revenue metrics", async ({ page }) => {
+    test("analytics has time period filter buttons", async ({ page }) => {
       await navigateToAdminTab(page, "Analytics");
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
 
-      // Should show revenue/order metrics
-      const revenueLabel = page.getByText(/total revenue|revenue/i).first();
-      await expect(revenueLabel).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("button", { name: "7 Days" })).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("button", { name: "30 Days" })).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("button", { name: "90 Days" })).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("button", { name: "1 Year" })).toBeVisible({ timeout: 5000 });
     });
 
-    test("analytics shows time-based breakdowns", async ({ page }) => {
+    test("analytics time filter changes period", async ({ page }) => {
       await navigateToAdminTab(page, "Analytics");
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
 
-      // Should show time period labels
-      const todayLabel = page.getByText("Today");
-      await expect(todayLabel).toBeVisible({ timeout: 5000 });
+      // Default is 30 days — the subtitle mentions it
+      await expect(page.getByText(/30 days/i).first()).toBeVisible({ timeout: 5000 });
+
+      // Click 7 Days filter
+      await page.getByRole("button", { name: "7 Days" }).click();
+      await page.waitForTimeout(2000);
+
+      // Subtitle should now reference 7 days
+      await expect(page.getByText(/7 days/i).first()).toBeVisible({ timeout: 5000 });
+    });
+
+    test("analytics shows chart sections", async ({ page }) => {
+      await navigateToAdminTab(page, "Analytics");
+      await page.waitForTimeout(2000);
+
+      // Scroll to see all chart sections
+      await page.evaluate(() => window.scrollTo(0, 600));
+      await page.waitForTimeout(500);
+
+      await expect(page.getByText("User Breakdown")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("User Growth")).toBeVisible({ timeout: 5000 });
+    });
+
+    test("analytics shows top content section", async ({ page }) => {
+      await navigateToAdminTab(page, "Analytics");
+      await page.waitForTimeout(2000);
+
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(500);
+
+      await expect(page.getByText("Top Content")).toBeVisible({ timeout: 5000 });
     });
   });
 
