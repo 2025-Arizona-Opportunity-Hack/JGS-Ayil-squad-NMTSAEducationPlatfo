@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { sanitizeHtml } from "./sanitize";
+import { sanitizeHtml, stripHtml } from "./sanitize";
 
 describe("sanitizeHtml", () => {
   it("returns empty string for null/undefined", () => {
@@ -89,5 +89,39 @@ describe("sanitizeHtml", () => {
   it("preserves code blocks", () => {
     const input = "<pre><code>const x = 1;</code></pre>";
     expect(sanitizeHtml(input)).toBe(input);
+  });
+});
+
+describe("stripHtml", () => {
+  it("returns empty string for null/undefined", () => {
+    expect(stripHtml(null)).toBe("");
+    expect(stripHtml(undefined)).toBe("");
+    expect(stripHtml("")).toBe("");
+  });
+
+  it("strips HTML tags and returns plain text", () => {
+    expect(stripHtml("<p>Hello <strong>world</strong></p>")).toBe("Hello world");
+  });
+
+  it("strips Lexical rich text content to plain text", () => {
+    const lexicalHtml = '<blockquote class="border-l-4 border-primary pl-4 italic my-2 text-muted-foreground"><span style="white-space: pre-wrap;">This is a test</span></blockquote><h1 class="text-2xl font-bold mb-3"><b><strong class="font-bold" style="white-space: pre-wrap;">Ok Here</strong></b></h1>';
+    const result = stripHtml(lexicalHtml);
+    expect(result).toBe("This is a testOk Here");
+    expect(result).not.toContain("<");
+    expect(result).not.toContain("class=");
+  });
+
+  it("handles nested tags", () => {
+    expect(stripHtml("<div><p>Nested <em>content</em></p></div>")).toBe("Nested content");
+  });
+
+  it("handles lists", () => {
+    const result = stripHtml("<ul><li>Item 1</li><li>Item 2</li></ul>");
+    expect(result).toContain("Item 1");
+    expect(result).toContain("Item 2");
+  });
+
+  it("returns plain text unchanged", () => {
+    expect(stripHtml("Just plain text")).toBe("Just plain text");
   });
 });

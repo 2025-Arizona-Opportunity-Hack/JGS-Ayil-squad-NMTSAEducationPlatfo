@@ -53,3 +53,10 @@ jspm_packages/
 
 # Git worktrees
 .worktrees/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+tests/.auth/

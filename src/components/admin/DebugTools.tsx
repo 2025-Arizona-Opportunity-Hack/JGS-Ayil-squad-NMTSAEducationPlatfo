@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { formatDistanceToNow } from "date-fns";
 // Debug actions are in debugActions.ts (Node.js runtime)
 import { toast } from "sonner";
 import {
@@ -453,16 +454,106 @@ export function DebugTools() {
         </Card>
       </div>
 
+      {/* Notification Logs */}
+      <NotificationLogs />
+
       {/* Info */}
       <Alert>
         <Info className="h-4 w-4" />
         <AlertTitle>About Debug Tools</AlertTitle>
         <AlertDescription>
-          These tools are for testing and debugging email and SMS integrations. 
-          In testing mode, emails are redirected to a verified test address. 
+          These tools are for testing and debugging email and SMS integrations.
+          In testing mode, emails are redirected to a verified test address.
           SMS messages are prefixed with [DEBUG TEST] to identify them as test messages.
         </AlertDescription>
       </Alert>
     </div>
+  );
+}
+
+function NotificationLogs() {
+  const [channelFilter, setChannelFilter] = useState<"all" | "email" | "sms">("all");
+  const logs = useQuery(api.notificationLogs.list, { channel: channelFilter, limit: 50 });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5" />
+              Notification Logs
+            </CardTitle>
+            <CardDescription>
+              Recent email and SMS send attempts
+            </CardDescription>
+          </div>
+          <div className="flex gap-1">
+            {(["all", "email", "sms"] as const).map((ch) => (
+              <Button
+                key={ch}
+                variant={channelFilter === ch ? "default" : "outline"}
+                size="sm"
+                onClick={() => setChannelFilter(ch)}
+              >
+                {ch === "all" ? "All" : ch === "email" ? "Email" : "SMS"}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {logs === undefined ? (
+          <div className="text-center py-4 text-muted-foreground text-sm">Loading...</div>
+        ) : logs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            No notification logs yet. Logs appear here when emails or SMS messages are sent.
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {logs.map((log) => (
+              <div
+                key={log._id}
+                className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
+                  log.success
+                    ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950"
+                    : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950"
+                }`}
+              >
+                <div className="mt-0.5">
+                  {log.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-600" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {log.channel}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {log.eventType}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(log.createdAt, { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    To: {log.recipient}
+                    {log.subject && <> &middot; {log.subject}</>}
+                  </div>
+                  {log.error && (
+                    <div className="text-xs text-red-600 dark:text-red-400 break-words">
+                      {log.error}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

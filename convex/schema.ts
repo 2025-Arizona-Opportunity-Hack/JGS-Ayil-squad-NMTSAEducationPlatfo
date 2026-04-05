@@ -437,6 +437,22 @@ const applicationTables = {
     expiresAt: v.number(), // 10-minute expiry
   }).index("by_locked_by", ["lockedBy"]),
 
+  // Email/SMS notification logs for debugging
+  notificationLogs: defineTable({
+    channel: v.union(v.literal("email"), v.literal("sms")),
+    eventType: v.string(), // e.g. "verificationEmail", "contentAccessGranted", "testEmail"
+    recipient: v.string(), // email address or phone number
+    from: v.optional(v.string()),
+    subject: v.optional(v.string()),
+    success: v.boolean(),
+    error: v.optional(v.string()),
+    metadata: v.optional(v.any()), // additional context (messageId, environment, etc.)
+    createdAt: v.number(),
+  })
+    .index("by_created_at", ["createdAt"])
+    .index("by_channel", ["channel", "createdAt"])
+    .index("by_success", ["success", "createdAt"]),
+
   // Notification settings (singleton — one document holds all event routing)
   notificationSettings: defineTable({
     // Per-event routing: which channels are enabled

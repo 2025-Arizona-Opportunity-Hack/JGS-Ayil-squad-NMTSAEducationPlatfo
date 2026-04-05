@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -141,8 +141,8 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
         authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
         active: data.active,
-        startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
-        endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+        startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
+        endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
         password: data.password || undefined,
       });
       
@@ -402,15 +402,15 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
           <div className="border-t pt-4 space-y-4">
             <h5 className="text-sm font-medium">Availability Settings</h5>
             
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="inactive-edit"
-                checked={!formActive}
-                onCheckedChange={(checked) => setValue("active", !checked as boolean)}
-              />
-              <Label htmlFor="inactive-edit" className="font-normal cursor-pointer">
-                Set content as in-active
+            <div className="flex items-center justify-between">
+              <Label htmlFor="active-toggle" className="font-normal cursor-pointer">
+                Active
               </Label>
+              <Switch
+                id="active-toggle"
+                checked={formActive}
+                onCheckedChange={(checked) => setValue("active", checked)}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

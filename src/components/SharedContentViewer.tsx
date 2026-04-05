@@ -163,7 +163,7 @@ export function SharedContentViewer() {
                 <span>Published {formatDate(content.publishedAt)}</span>
               </div>
             )}
-            <Badge variant="secondary">{content.type}</Badge>
+            {content.type && <Badge variant="secondary" className="capitalize">{content.type}</Badge>}
             {content.isPublic && <Badge variant="outline">Public</Badge>}
           </div>
         </div>

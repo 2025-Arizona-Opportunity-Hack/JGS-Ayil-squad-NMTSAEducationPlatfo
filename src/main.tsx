@@ -10,6 +10,7 @@ import App from "./App";
 import { PublicContentViewer } from "./components/PublicContentViewer";
 import { SharedContentViewer } from "./components/SharedContentViewer";
 import { VerifyEmail } from "./components/VerifyEmail";
+import { ResetPassword } from "./components/ResetPassword";
 import { CheckoutSuccess, CheckoutCancel } from "./components/CheckoutResult";
 import { BrandColorProvider } from "./components/ThemeProvider";
 
@@ -32,6 +33,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/view/:contentId" element={<PublicContentViewer />} />
             <Route path="/share/:accessToken" element={<SharedContentViewer />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
             <Route path="/*" element={<App />} />

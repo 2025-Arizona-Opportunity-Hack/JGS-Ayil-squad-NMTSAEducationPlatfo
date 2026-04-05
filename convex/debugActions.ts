@@ -46,7 +46,7 @@ export const sendTestEmail = action({
     // Configuration based on environment
     const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
     const TEST_EMAIL = process.env.DEV_TEST_EMAIL || "test@example.com";
-    const PRODUCTION_DOMAIN = process.env.RESEND_DOMAIN || "nmtsa.com";
+    const PRODUCTION_DOMAIN = process.env.RESEND_DOMAIN || "noreply-nmtsa.org";
 
     const recipientEmail = IS_PRODUCTION ? toEmail.trim().toLowerCase() : TEST_EMAIL;
     const fromEmail = IS_PRODUCTION
@@ -206,7 +206,7 @@ export const getDebugConfig = action({
         provider: "Resend",
         hasApiKey: hasResendKey,
         testEmail: IS_PRODUCTION ? null : (process.env.DEV_TEST_EMAIL || "test@example.com"),
-        fromDomain: IS_PRODUCTION ? (process.env.RESEND_DOMAIN || "nmtsa.com") : "resend.dev",
+        fromDomain: IS_PRODUCTION ? (process.env.RESEND_DOMAIN || "noreply-nmtsa.org") : "resend.dev",
       },
       sms: {
         provider: "Twilio",

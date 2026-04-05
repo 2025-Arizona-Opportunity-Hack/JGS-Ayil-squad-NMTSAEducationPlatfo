@@ -218,28 +218,52 @@ export const validateInviteCode = query({
     code: v.string(),
   },
   handler: async (ctx, args) => {
+    const code = args.code.toUpperCase();
+
+    // Check staff invite codes first
     const inviteCode = await ctx.db
       .query("inviteCodes")
-      .withIndex("by_code", (q) => q.eq("code", args.code.toUpperCase()))
+      .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
 
-    if (!inviteCode) {
-      return { valid: false, message: "Invalid invite code" };
+    if (inviteCode) {
+      if (!inviteCode.isActive) {
+        return { valid: false, message: "This invite code has been deactivated" };
+      }
+      if (inviteCode.expiresAt && inviteCode.expiresAt < Date.now()) {
+        return { valid: false, message: "This invite code has expired" };
+      }
+      return {
+        valid: true,
+        role: inviteCode.role,
+        message: `Valid invite code for ${inviteCode.role} role`,
+      };
     }
 
-    if (!inviteCode.isActive) {
-      return { valid: false, message: "This invite code has been deactivated" };
+    // Also check client invite codes
+    const clientInvite = await ctx.db
+      .query("clientInvites")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+
+    if (clientInvite) {
+      if (!clientInvite.isActive) {
+        return { valid: false, message: "This invite code has been deactivated" };
+      }
+      if (clientInvite.usedBy) {
+        return { valid: false, message: "This invite code has already been used" };
+      }
+      if (clientInvite.expiresAt && clientInvite.expiresAt < Date.now()) {
+        return { valid: false, message: "This invite code has expired" };
+      }
+      return {
+        valid: true,
+        role: clientInvite.role,
+        message: `Valid invite code for ${clientInvite.role} role`,
+      };
     }
 
-    if (inviteCode.expiresAt && inviteCode.expiresAt < Date.now()) {
-      return { valid: false, message: "This invite code has expired" };
-    }
-
-    return {
-      valid: true,
-      role: inviteCode.role,
-      message: `Valid invite code for ${inviteCode.role} role`,
-    };
+    return { valid: false, message: "Invalid invite code" };
   },
 });
 

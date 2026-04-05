@@ -22,6 +22,7 @@ import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as inviteCodes from "../inviteCodes.js";
 import type * as joinRequests from "../joinRequests.js";
+import type * as notificationLogs from "../notificationLogs.js";
 import type * as notificationSettings from "../notificationSettings.js";
 import type * as orders from "../orders.js";
 import type * as permissions from "../permissions.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inviteCodes: typeof inviteCodes;
   joinRequests: typeof joinRequests;
+  notificationLogs: typeof notificationLogs;
   notificationSettings: typeof notificationSettings;
   orders: typeof orders;
   permissions: typeof permissions;

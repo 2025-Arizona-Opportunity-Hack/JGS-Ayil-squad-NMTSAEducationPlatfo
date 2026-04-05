@@ -339,7 +339,7 @@ export function PublicContentViewer() {
                   <span>Published {formatDate(content.publishedAt)}</span>
                 </div>
               )}
-              <Badge variant="secondary" className="capitalize">{content.type}</Badge>
+              {content.type && <Badge variant="secondary" className="capitalize">{content.type}</Badge>}
               {content.isPublic && <Badge variant="outline">Public</Badge>}
               {pricing && pricing.isActive && (
                 <Badge variant="outline" className="gap-1">

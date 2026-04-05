@@ -501,8 +501,8 @@ export function ContentManager() {
         authorName: data.authorName || undefined,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
         active: data.active,
-        startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
-        endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+        startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
+        endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
         password: data.password || undefined,
       };
       console.log("[Create] Creating content with data:", contentData);

@@ -33,11 +33,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const reviewSchema = z.object({
+const reviewSchemaRequired = z.object({
   reviewNotes: z.string().min(1, "Review notes are required"),
 });
 
-type ReviewFormData = z.infer<typeof reviewSchema>;
+const reviewSchemaOptional = z.object({
+  reviewNotes: z.string().optional().default(""),
+});
+
+type ReviewFormData = { reviewNotes: string };
 
 interface ContentReviewModalProps {
   isOpen: boolean;
@@ -64,7 +68,9 @@ export function ContentReviewModal({
     formState: { errors },
     reset,
   } = useForm<ReviewFormData>({
-    resolver: zodResolver(reviewSchema),
+    resolver: zodResolver(
+      actionType === "approve" ? reviewSchemaOptional : reviewSchemaRequired
+    ),
   });
 
   const handleAction = async (action: "approve" | "request_changes" | "reject") => {

@@ -86,3 +86,38 @@ describe("validatePrice", () => {
     expect(() => validatePrice(19.99)).toThrow("positive integer");
   });
 });
+
+describe("date timezone handling", () => {
+  // Tests verify the T12:00:00 fix for date picker off-by-one bug.
+  // When a date string like "2026-03-28" is parsed with new Date(),
+  // it's interpreted as UTC midnight — which in western timezones
+  // displays as the previous day. Appending T12:00:00 fixes this.
+
+  it("date string without time creates UTC midnight (the bug)", () => {
+    const date = new Date("2026-03-28");
+    // This is midnight UTC — in e.g. US Pacific time, that's still March 27
+    expect(date.getUTCHours()).toBe(0);
+  });
+
+  it("date string with T12:00:00 creates noon local time (the fix)", () => {
+    const date = new Date("2026-03-28" + "T12:00:00");
+    // This is noon local time — always the correct day regardless of timezone
+    expect(date.getDate()).toBe(28);
+    expect(date.getMonth()).toBe(2); // March is 0-indexed
+  });
+
+  it("getTime() with T12:00:00 produces valid timestamp", () => {
+    const timestamp = new Date("2026-03-28" + "T12:00:00").getTime();
+    expect(timestamp).toBeGreaterThan(0);
+    // Round-trip: timestamp back to date should be March 28
+    const roundTrip = new Date(timestamp);
+    expect(roundTrip.getDate()).toBe(28);
+  });
+
+  it("empty date string is handled by the conditional", () => {
+    // The form uses: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined
+    const startDate = "";
+    const result = startDate ? new Date(startDate + "T12:00:00").getTime() : undefined;
+    expect(result).toBeUndefined();
+  });
+});

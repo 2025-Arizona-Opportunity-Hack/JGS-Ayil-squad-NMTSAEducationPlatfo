@@ -23,12 +23,14 @@ import { JoinRequestForm } from "./components/JoinRequestForm";
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
-  const [flow, setFlow] = useState<"signIn" | "signUp" | "joinRequest">("signIn");
+  const [flow, setFlow] = useState<"signIn" | "signUp" | "joinRequest" | "forgotPassword" | "resetPassword">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
   const [signupEmail, setSignupEmail] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
 
   // Check join request status for sign-up (only if not bootstrap mode and no invite code)
   const joinRequestStatus = useQuery(
@@ -37,26 +39,35 @@ export function SignInForm() {
       ? { email: signupEmail.toLowerCase() }
       : "skip"
   );
-  // Check for invite code in URL on mount
+  // Check for invite code or password reset params in URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const inviteParam = params.get('invite');
+    // Accept both ?invite= and ?clientInvite= for invite codes
+    const inviteParam = params.get('invite') || params.get('clientInvite');
     if (inviteParam) {
       setInviteCode(inviteParam.toUpperCase());
       setShowInviteCode(true);
-      setFlow('signUp'); // Switch to sign up flow
-      // Clean up URL
+      setFlow('signUp');
       window.history.replaceState({}, '', window.location.pathname);
       toast.success("Invite code applied!", {
         description: `Using invite code: ${inviteParam.toUpperCase()}`,
       });
+    }
+    // Handle password reset URL (from email link)
+    const resetCodeParam = params.get('code');
+    const resetEmailParam = params.get('email');
+    if (resetCodeParam) {
+      setResetCode(resetCodeParam);
+      if (resetEmailParam) setResetEmail(decodeURIComponent(resetEmailParam));
+      setFlow('resetPassword');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
   // Validate invite code
   const inviteCodeValidation = useQuery(
     api.inviteCodes.validateInviteCode,
-    showInviteCode && inviteCode.length >= 6 ? { code: inviteCode } : "skip"
+    inviteCode.length >= 6 ? { code: inviteCode } : "skip"
   );
 
   // If no profiles exist, guide user to create the owner account
@@ -79,6 +90,162 @@ export function SignInForm() {
           setFlow("signIn");
         }}
       />
+    );
+  }
+
+  // Forgot Password Flow
+  if (flow === "forgotPassword") {
+    return (
+      <Card className="w-full max-w-md mx-auto shadow-lg border-0">
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl">Reset Password</CardTitle>
+          <CardDescription>
+            Enter your email and we'll send you a reset code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSubmitting(true);
+              setError(null);
+              const formData = new FormData(e.target as HTMLFormElement);
+              formData.set("flow", "reset");
+
+              void signIn("password", formData)
+                .then(() => {
+                  toast.success("Reset code sent!", {
+                    description: "Check your email for the reset code.",
+                  });
+                  setResetEmail(formData.get("email") as string);
+                  setFlow("resetPassword");
+                  setSubmitting(false);
+                })
+                .catch((err) => {
+                  console.error("Reset error:", err);
+                  toast.error("Could not send reset email", {
+                    description: "Please check your email address and try again.",
+                  });
+                  setSubmitting(false);
+                });
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                required
+                autoFocus
+              />
+            </div>
+            <Button type="submit" disabled={submitting} className="w-full" size="lg">
+              {submitting ? "Sending..." : "Send Reset Code"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setFlow("signIn"); setError(null); }}
+            >
+              Back to sign in
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Reset Password (enter code + new password)
+  if (flow === "resetPassword") {
+    return (
+      <Card className="w-full max-w-md mx-auto shadow-lg border-0">
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl">Set New Password</CardTitle>
+          <CardDescription>
+            Enter the code from your email and choose a new password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSubmitting(true);
+              setError(null);
+              const formData = new FormData(e.target as HTMLFormElement);
+              formData.set("flow", "reset-verification");
+              formData.set("email", resetEmail);
+
+              void signIn("password", formData)
+                .then(() => {
+                  toast.success("Password updated!", {
+                    description: "You can now sign in with your new password.",
+                  });
+                  setFlow("signIn");
+                  setSubmitting(false);
+                })
+                .catch((err) => {
+                  console.error("Reset verification error:", err);
+                  const msg = err.message || "";
+                  if (msg.includes("InvalidSecret") || msg.includes("code")) {
+                    toast.error("Invalid or expired code", {
+                      description: "Please check the code and try again.",
+                    });
+                  } else {
+                    toast.error("Password reset failed", {
+                      description: "Something went wrong. Please try again.",
+                    });
+                  }
+                  setSubmitting(false);
+                });
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="reset-code">Reset Code</Label>
+              <Input
+                id="reset-code"
+                type="text"
+                name="code"
+                placeholder="Enter the code from your email"
+                required
+                autoFocus
+                value={resetCode}
+                onChange={(e) => setResetCode(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                name="newPassword"
+                placeholder="Enter your new password"
+                required
+                minLength={8}
+              />
+              <p className="text-xs text-muted-foreground">
+                At least 8 characters with letters and numbers
+              </p>
+            </div>
+            <Button type="submit" disabled={submitting} className="w-full" size="lg">
+              {submitting ? "Updating..." : "Update Password"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setFlow("forgotPassword"); setError(null); }}
+            >
+              Resend code
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -138,10 +305,11 @@ export function SignInForm() {
                       errorMessage.includes("InvalidSecret") ||
                       errorMessage.includes("Invalid password") ||
                       errorMessage.includes("credentials") ||
-                      errorMessage.includes("authentication failed")
+                      errorMessage.includes("authentication failed") ||
+                      errorMessage.includes("Server Error")
                     ) {
-                      toast.error("Oops! Wrong password", {
-                        description: "Double-check your password and try again.",
+                      toast.error("Incorrect email or password", {
+                        description: "Double-check your credentials and try again.",
                       });
                       setError("password");
                     } else if (
@@ -162,7 +330,7 @@ export function SignInForm() {
                       setError("network");
                     } else {
                       toast.error("Sign in failed", {
-                        description: errorMessage || "Something went wrong. Please try again.",
+                        description: "Something went wrong. Please try again.",
                       });
                       setError("general");
                     }
@@ -236,6 +404,19 @@ export function SignInForm() {
                 )}
               </div>
 
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    setFlow("forgotPassword");
+                    setError(null);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               <Button type="submit" disabled={submitting} className="w-full" size="lg">
                 {submitting ? "Signing in..." : "Sign In"}
               </Button>
@@ -244,70 +425,53 @@ export function SignInForm() {
 
           <TabsContent value="signUp" className="space-y-4 mt-0">
             {!bootstrapNeeded && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
-                <p className="text-sm font-medium text-foreground mb-1">
-                  👋 New here? Request access first!
+              <div className="space-y-1 text-center mb-4">
+                <p className="text-sm text-muted-foreground">
+                  Enter your invite code and create your account.
                 </p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  You'll need an approved request before you can create an account.
+                <p className="text-xs text-muted-foreground">
+                  Don't have an invite code?{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline hover:text-primary/80"
+                    onClick={() => {
+                      setFlow("joinRequest");
+                      setError(null);
+                    }}
+                  >
+                    Request access
+                  </button>
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => {
-                    setFlow("joinRequest");
-                    setError(null);
-                  }}
-                >
-                  Request Access
-                </Button>
               </div>
             )}
-            <div className="space-y-1 text-center mb-6">
-              <p className="text-sm text-muted-foreground">
-                {bootstrapNeeded
-                  ? "Create your owner account to get started."
-                  : "Already approved? Complete your sign up below."}
-              </p>
-            </div>
+            {bootstrapNeeded && (
+              <div className="space-y-1 text-center mb-6">
+                <p className="text-sm text-muted-foreground">
+                  Create your owner account to get started.
+                </p>
+              </div>
+            )}
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
                 setError(null);
 
-                // Check if user has approved join request BEFORE attempting auth
-                // Skip check if: bootstrap mode (first user), or has valid invite code
-                if (!bootstrapNeeded && !inviteCode) {
-                  if (joinRequestStatus === undefined) {
-                    // Still loading - wait
-                    toast.error("Please wait", {
-                      description: "Checking your access status...",
+                // Require a valid invite code (unless bootstrap mode)
+                if (!bootstrapNeeded) {
+                  if (!inviteCode) {
+                    toast.error("Invite code required", {
+                      description: "Please enter an invite code to create an account.",
                     });
+                    setError("notApproved");
                     return;
                   }
 
-                  if (joinRequestStatus?.status !== "approved") {
-                    // Not approved - show toast and don't proceed
-                    if (joinRequestStatus?.status === "pending_verification") {
-                      toast.error("Email verification required", {
-                        description: "Please check your inbox and verify your email first.",
-                      });
-                    } else if (joinRequestStatus?.status === "pending") {
-                      toast.error("Request pending review", {
-                        description: "Your join request is still pending admin approval.",
-                      });
-                    } else if (joinRequestStatus?.status === "denied") {
-                      toast.error("Access denied", {
-                        description: "Your join request was denied. Please contact support.",
-                      });
-                    } else {
-                      toast.error("Access required", {
-                        description: "No approved join request found. Please request access first.",
-                      });
-                    }
+                  // Validate invite code before proceeding
+                  if (!inviteCodeValidation?.valid) {
+                    toast.error("Invalid invite code", {
+                      description: inviteCodeValidation?.message || "Please check your invite code and try again.",
+                    });
                     setError("notApproved");
                     return;
                   }
@@ -425,53 +589,40 @@ export function SignInForm() {
                 )}
               </div>
 
-              {/* Invite Code Section - Only for special roles */}
+              {/* Invite Code - Required for sign up */}
               {!bootstrapNeeded && (
                 <div className="space-y-2">
-                  {!showInviteCode ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowInviteCode(true)}
-                      className="w-full"
-                    >
-                      Have an invite code?
-                    </Button>
-                  ) : (
-                    <>
-                      <Label htmlFor="inviteCode">Invite Code (Optional)</Label>
-                      <Input
-                        id="inviteCode"
-                        type="text"
-                        value={inviteCode}
-                        onChange={(e) =>
-                          setInviteCode(e.target.value.toUpperCase())
-                        }
-                        placeholder="Enter invite code"
-                        maxLength={8}
-                        className="font-mono"
-                      />
-                      {inviteCode.length >= 6 && inviteCodeValidation && (
-                        <div className="flex items-center gap-2">
-                          {inviteCodeValidation.valid ? (
-                            <div className="flex items-center gap-2 text-green-600">
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span className="text-sm">
-                                Valid code for{" "}
-                                <Badge variant="outline" className="ml-1">
-                                  {inviteCodeValidation.role}
-                                </Badge>
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-red-600">
-                              {inviteCodeValidation.message}
-                            </p>
-                          )}
+                  <Label htmlFor="inviteCode">Invite Code *</Label>
+                  <Input
+                    id="inviteCode"
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) =>
+                      setInviteCode(e.target.value.toUpperCase())
+                    }
+                    placeholder="Enter your invite code"
+                    maxLength={8}
+                    required
+                    className="font-mono"
+                  />
+                  {inviteCode.length >= 6 && inviteCodeValidation && (
+                    <div className="flex items-center gap-2">
+                      {inviteCodeValidation.valid ? (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-sm">
+                            Valid code for{" "}
+                            <Badge variant="outline" className="ml-1">
+                              {inviteCodeValidation.role}
+                            </Badge>
+                          </span>
                         </div>
+                      ) : (
+                        <p className="text-sm text-red-600">
+                          {inviteCodeValidation.message}
+                        </p>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               )}

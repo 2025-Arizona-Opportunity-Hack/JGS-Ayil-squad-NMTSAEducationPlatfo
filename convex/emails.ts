@@ -23,6 +23,37 @@ function getRecipient(email: string): string {
   return DEV_TEST_EMAIL;
 }
 
+// Helper to send email with logging
+async function sendEmailWithLogging(
+  ctx: any,
+  eventType: string,
+  emailConfig: { from: string; to: string; subject: string; html: string },
+) {
+  try {
+    await resend.sendEmail(ctx, emailConfig);
+    await ctx.runMutation(internal.notificationLogs.log, {
+      channel: "email" as const,
+      eventType,
+      recipient: emailConfig.to,
+      from: emailConfig.from,
+      subject: emailConfig.subject,
+      success: true,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Email] Failed to send ${eventType} to ${emailConfig.to}:`, errorMessage);
+    await ctx.runMutation(internal.notificationLogs.log, {
+      channel: "email" as const,
+      eventType,
+      recipient: emailConfig.to,
+      from: emailConfig.from,
+      subject: emailConfig.subject,
+      success: false,
+      error: errorMessage,
+    });
+  }
+}
+
 // Helper to get site settings for email branding
 export const getSiteSettings = internalQuery({
   args: {},
@@ -89,8 +120,7 @@ export const sendVerificationEmail = internalAction({
 
     const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
 
-    try {
-      await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "verificationEmail", {
         from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
         to: getRecipient(email),
         subject: "Verify your email address",
@@ -120,15 +150,6 @@ export const sendVerificationEmail = internalAction({
           </html>
         `,
       });
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error sending verification email:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
   },
 });
 
@@ -147,7 +168,7 @@ export const sendInviteEmail = internalAction({
 
     const inviteUrl = `${baseUrl}?invite=${args.inviteCode}`;
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "staffInvite", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(args.recipientEmail),
       subject: `You've been invited to join ${orgName}`,
@@ -207,7 +228,7 @@ export const sendClientInviteEmail = internalAction({
 
     const roleDescription = roleDescriptions[args.role] || "access our platform";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "clientInvite", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(args.recipientEmail),
       subject: `${args.inviterName} invited you to ${orgName}`,
@@ -274,7 +295,7 @@ export const sendPurchaseApprovedEmail = internalAction({
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
     const userName = userProfile ? `${userProfile.firstName}` : "there";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "purchaseApproved", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(userEmail),
       subject: `Your purchase request has been approved - ${content.title}`,
@@ -331,7 +352,7 @@ export const sendPurchaseDeniedEmail = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const userName = userProfile ? `${userProfile.firstName}` : "there";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "purchaseDenied", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(userEmail),
       subject: `Update on your purchase request - ${content.title}`,
@@ -390,7 +411,7 @@ export const sendContentAccessGrantedEmail = internalAction({
       ? `Access expires on ${new Date(args.expiresAt).toLocaleDateString()}.`
       : "You have permanent access to this content.";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "contentAccessGranted", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(userEmail),
       subject: `You've been given access to "${content.title}"`,
@@ -449,7 +470,7 @@ export const sendRecommendationEmail = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "recommendationSent", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(args.recipientEmail),
       subject: `${args.recommenderName} recommended "${content.title}" for you`,
@@ -538,7 +559,7 @@ export const sendContentStatusEmail = internalAction({
       icon: "ℹ",
     };
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "contentStatus", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(authorEmail),
       subject: `${config.title} - "${content.title}"`,
@@ -590,7 +611,7 @@ export const sendContentArchivedEmail = internalAction({
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const authorName = authorProfile ? `${authorProfile.firstName}` : "there";
 
-    await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "contentArchived", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
       to: getRecipient(authorEmail),
       subject: `Content Archived - "${content.title}"`,
@@ -624,9 +645,10 @@ export const sendJoinRequestApprovedEmail = internalAction({
     email: v.string(),
     firstName: v.string(),
     adminNotes: v.optional(v.string()),
+    inviteCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { email, firstName, adminNotes } = args;
+    const { email, firstName, adminNotes, inviteCode } = args;
     const eventSettings = await ctx.runQuery(
       internal.notificationSettings.getEventSettings,
       { eventName: "joinRequestApproved" }
@@ -641,9 +663,9 @@ export const sendJoinRequestApprovedEmail = internalAction({
     const siteUrl = process.env.SITE_URL || "";
     const isProd = process.env.ENVIRONMENT === "production";
     const baseUrl = isProd && siteUrl ? siteUrl : "http://localhost:5173";
+    const signUpUrl = inviteCode ? `${baseUrl}/?invite=${inviteCode}` : baseUrl;
 
-    try {
-      await resend.sendEmail(ctx, {
+    await sendEmailWithLogging(ctx, "joinRequestApproved", {
         from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
         to: getRecipient(email),
         subject: `Your request to join ${orgName} has been approved!`,
@@ -656,30 +678,27 @@ export const sendJoinRequestApprovedEmail = internalAction({
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">🎉 You're Approved!</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">You're Approved!</h1>
             </div>
             <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
               <p style="font-size: 16px;">Hi ${firstName},</p>
               <p style="font-size: 16px;">Great news! Your request to join <strong>${orgName}</strong> has been approved.</p>
               ${adminNotes ? `<div style="background: #fff; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0;"><p style="margin: 0; font-size: 14px; color: #666;"><strong>Note from admin:</strong> ${adminNotes}</p></div>` : ''}
-              <p style="font-size: 16px;">You can now create your account and start accessing our resources.</p>
+              ${inviteCode ? `
+              <div style="background: #fff; border: 2px dashed #10b981; padding: 20px; margin: 20px 0; text-align: center; border-radius: 8px;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Your invite code:</p>
+                <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #10b981; font-family: monospace;">${inviteCode}</p>
+              </div>
+              ` : ''}
+              <p style="font-size: 16px;">Click below to create your account — your invite code will be filled in automatically.</p>
               <p style="text-align: center; margin-top: 25px;">
-                <a href="${baseUrl}" style="display: inline-block; background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Your Account</a>
+                <a href="${signUpUrl}" style="display: inline-block; background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Your Account</a>
               </p>
-              <p style="font-size: 14px; color: #666; margin-top: 30px;">If you have any questions, please don't hesitate to reach out.</p>
+              <p style="font-size: 14px; color: #666; margin-top: 30px;">If the button doesn't work, copy your invite code <strong>${inviteCode || ''}</strong> and enter it on the sign up page.</p>
             </div>
           </body>
           </html>
         `,
       });
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error sending join request approved email:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
   },
 });

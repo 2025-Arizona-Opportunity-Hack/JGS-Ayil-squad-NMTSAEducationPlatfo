@@ -358,6 +358,40 @@ export const approveJoinRequest = mutation({
       throw new Error("This request has already been reviewed");
     }
 
+    // Generate a client invite code for the approved user
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const array = new Uint8Array(8);
+    crypto.getRandomValues(array);
+    let inviteCode = Array.from(array, (byte) => chars[byte % chars.length]).join("");
+
+    // Ensure uniqueness
+    let existing = await ctx.db
+      .query("clientInvites")
+      .withIndex("by_code", (q) => q.eq("code", inviteCode))
+      .unique();
+    while (existing) {
+      const newArray = new Uint8Array(8);
+      crypto.getRandomValues(newArray);
+      inviteCode = Array.from(newArray, (byte) => chars[byte % chars.length]).join("");
+      existing = await ctx.db
+        .query("clientInvites")
+        .withIndex("by_code", (q) => q.eq("code", inviteCode))
+        .unique();
+    }
+
+    // Create the client invite
+    await ctx.db.insert("clientInvites", {
+      code: inviteCode,
+      role: "client",
+      email: request.email,
+      firstName: request.firstName,
+      lastName: request.lastName,
+      createdBy: userId,
+      createdAt: Date.now(),
+      isActive: true,
+      emailSent: true,
+    });
+
     await ctx.db.patch(args.requestId, {
       status: "approved",
       reviewedAt: Date.now(),
@@ -365,11 +399,12 @@ export const approveJoinRequest = mutation({
       adminNotes: args.adminNotes,
     });
 
-    // Send approval notification email
+    // Send approval notification email with invite code
     await ctx.scheduler.runAfter(0, internal.emails.sendJoinRequestApprovedEmail, {
       email: request.email,
       firstName: request.firstName,
       adminNotes: args.adminNotes,
+      inviteCode,
     });
 
     return { success: true };
