@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
@@ -52,6 +52,83 @@ export const createContent = mutation({
     // All new content starts as draft
     const contentId = await ctx.db.insert("content", {
       ...args,
+      createdBy: userId,
+      status: "draft",
+      isArchived: false,
+    });
+
+    return contentId;
+  },
+});
+
+// Create chunked content (for files too large for Convex's single-POST 2-min limit).
+// The client uploads each chunk separately via generateUploadUrl + POST, then
+// calls this with the resulting storage ids in order. The file is served via
+// the /api/serve-chunked HTTP action which translates Range requests to the
+// appropriate chunk(s).
+export const createChunkedContent = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    attachmentType: v.union(
+      v.literal("video"),
+      v.literal("image"),
+      v.literal("pdf"),
+      v.literal("audio"),
+      v.literal("richtext")
+    ),
+    chunks: v.array(
+      v.object({
+        storageId: v.id("_storage"),
+        size: v.number(),
+      })
+    ),
+    mimeType: v.string(),
+    fileName: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")),
+    externalUrl: v.optional(v.string()),
+    isPublic: v.boolean(),
+    authorName: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    active: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    password: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new Error("Profile not found");
+
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
+      throw new Error("You don't have permission to create content");
+    }
+
+    if (args.chunks.length === 0) {
+      throw new Error("chunks array must not be empty");
+    }
+    for (const c of args.chunks) {
+      if (c.size <= 0) throw new Error("chunk size must be positive");
+    }
+
+    if (args.startDate && args.endDate && args.startDate > args.endDate) {
+      throw new Error("Start date must be before end date");
+    }
+
+    const totalSize = args.chunks.reduce((sum, c) => sum + c.size, 0);
+
+    const { fileName: _fileName, ...rest } = args;
+
+    const contentId = await ctx.db.insert("content", {
+      ...rest,
+      fileSize: totalSize,
       createdBy: userId,
       status: "draft",
       isArchived: false,
@@ -388,6 +465,24 @@ export const grantContentAccess = mutation({
     }
 
     return accessId;
+  },
+});
+
+// Internal query used by the /api/serve-chunked HTTP action to fetch the
+// chunk list + mime type for a given content row. Kept internal because the
+// HTTP action does its own access enforcement (or, for v1, intentionally
+// allows anyone with the contentId to fetch the bytes — same posture as the
+// existing public storage URLs).
+export const getChunkedContentInternal = internalQuery({
+  args: { contentId: v.id("content") },
+  handler: async (ctx, args) => {
+    const content = await ctx.db.get(args.contentId);
+    if (!content) return null;
+    if (!content.chunks || content.chunks.length === 0) return null;
+    return {
+      chunks: content.chunks,
+      mimeType: content.mimeType,
+    };
   },
 });
 

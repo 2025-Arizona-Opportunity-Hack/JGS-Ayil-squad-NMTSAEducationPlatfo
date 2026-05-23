@@ -69,6 +69,16 @@ const applicationTables = {
     // For file-based attachments (video, image, pdf, audio)
     fileId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()), // For external video/audio URLs
+    // Chunked storage for files too large for Convex's single-POST 2-min limit.
+    // When present, `fileId` is empty and the file is served via /api/serve-chunked.
+    chunks: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          size: v.number(), // bytes in this chunk
+        })
+      )
+    ),
     // File metadata
     thumbnailId: v.optional(v.id("_storage")),
     duration: v.optional(v.number()),
