@@ -226,9 +226,18 @@ async function handleChunkedServe(
     });
   }
 
-  const content = await ctx.runQuery(internal.content.getChunkedContentInternal, {
-    contentId: contentId as Id<"content">,
-  });
+  let content: { chunks: Array<{ storageId: Id<"_storage">; size: number }>; mimeType?: string } | null;
+  try {
+    content = await ctx.runQuery(internal.content.getChunkedContentInternal, {
+      contentId: contentId as Id<"content">,
+    });
+  } catch {
+    // Malformed contentId — Id validator throws. Treat as not found.
+    return new Response("Not found", {
+      status: 404,
+      headers: mediaCorsHeaders(),
+    });
+  }
 
   if (!content || !content.chunks || content.chunks.length === 0) {
     return new Response("Not found", {
