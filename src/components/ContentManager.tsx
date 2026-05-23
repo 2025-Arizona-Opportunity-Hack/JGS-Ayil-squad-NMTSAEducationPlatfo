@@ -102,6 +102,7 @@ export function ContentManager() {
   });
   const { searchQuery, contentTypeFilter, statusFilter, selectedTags, selectedGroupId, sortBy } = filterState;
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileSource, setFileSource] = useState<"local" | "google_drive" | null>(null);
   const [uploading, setUploading] = useState(false);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -152,6 +153,35 @@ export function ContentManager() {
   );
   const createContent = useMutation(api.content.createContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
+  const logUploadFailure = useMutation(api.uploadLogs.log);
+
+  const reportUploadFailure = (args: {
+    step: string;
+    error: unknown;
+    file?: File | null;
+    source?: "local" | "google_drive" | null;
+    attachmentType?: string;
+    httpStatus?: number;
+    metadata?: Record<string, unknown>;
+  }) => {
+    const err = args.error;
+    const errorMessage =
+      err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+    const errorName = err instanceof Error ? err.name : undefined;
+    logUploadFailure({
+      step: args.step,
+      source: args.source ?? undefined,
+      errorMessage,
+      errorName,
+      fileName: args.file?.name,
+      fileSize: args.file?.size,
+      mimeType: args.file?.type,
+      attachmentType: args.attachmentType,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      httpStatus: args.httpStatus,
+      metadata: args.metadata,
+    }).catch(() => {});
+  };
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const archiveContentMutation = useMutation(api.content.archiveContent);
   const submitForReview = useMutation(api.content.submitForReview);
@@ -443,15 +473,38 @@ export function ContentManager() {
         });
 
         const uploadUrl = await generateUploadUrl();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
+        let result: Response;
+        try {
+          result = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": selectedFile.type },
+            body: selectedFile,
+          });
+        } catch (fetchError) {
+          // Network-level failure (e.g. Safari "Load failed", connection drop, CORS)
+          reportUploadFailure({
+            step: "convex_upload",
+            error: fetchError,
+            file: selectedFile,
+            source: fileSource,
+            attachmentType: data.attachmentType,
+            metadata: { phase: "fetch" },
+          });
+          throw fetchError;
+        }
         const json = await result.json();
         console.log("[Upload] Upload response:", json);
 
         if (!result.ok) {
+          reportUploadFailure({
+            step: "convex_upload",
+            error: new Error(`Upload failed: ${JSON.stringify(json)}`),
+            file: selectedFile,
+            source: fileSource,
+            attachmentType: data.attachmentType,
+            httpStatus: result.status,
+            metadata: { phase: "response_not_ok", response: json },
+          });
           throw new Error(`Upload failed: ${JSON.stringify(json)}`);
         }
         fileId = json.storageId;
@@ -480,10 +533,27 @@ export function ContentManager() {
               toast.success("Thumbnail generated!", { id: "thumbnail" });
             } else {
               console.error("[Thumbnail] Upload failed:", thumbnailJson);
+              reportUploadFailure({
+                step: "thumbnail_upload",
+                error: new Error(`Thumbnail upload failed: ${JSON.stringify(thumbnailJson)}`),
+                file: selectedFile,
+                source: fileSource,
+                attachmentType: data.attachmentType,
+                httpStatus: thumbnailResult.status,
+                metadata: { phase: "response_not_ok", response: thumbnailJson },
+              });
               toast.dismiss("thumbnail");
             }
           } catch (error) {
             console.error("[Thumbnail] Error generating thumbnail:", error);
+            reportUploadFailure({
+              step: "thumbnail_upload",
+              error,
+              file: selectedFile,
+              source: fileSource,
+              attachmentType: data.attachmentType,
+              metadata: { phase: "generation_or_fetch" },
+            });
             toast.error("Thumbnail generation failed - video format may not be supported", { id: "thumbnail" });
             // Continue without thumbnail if generation fails
           }
@@ -513,6 +583,7 @@ export function ContentManager() {
       // Reset form
       reset();
       setSelectedFile(null);
+      setFileSource(null);
       setShowCreateForm(false);
       toast.success("Content created successfully!");
     } catch (error) {
@@ -629,6 +700,7 @@ export function ContentManager() {
         return;
       }
       setSelectedFile(file);
+      setFileSource("local");
     }
   };
 
@@ -812,6 +884,7 @@ export function ContentManager() {
                       accept="video/*"
                       onFileSelected={(file) => {
                         setSelectedFile(file);
+                        setFileSource("google_drive");
                         toast.success(`Selected: ${file.name}`);
                       }}
                       onPickerOpen={() => setIsPickerOpen(true)}
@@ -842,6 +915,7 @@ export function ContentManager() {
                       accept="audio/*"
                       onFileSelected={(file) => {
                         setSelectedFile(file);
+                        setFileSource("google_drive");
                         toast.success(`Selected: ${file.name}`);
                       }}
                       onPickerOpen={() => setIsPickerOpen(true)}
@@ -872,6 +946,7 @@ export function ContentManager() {
                       accept="image/*"
                       onFileSelected={(file) => {
                         setSelectedFile(file);
+                        setFileSource("google_drive");
                         toast.success(`Selected: ${file.name}`);
                       }}
                       onPickerOpen={() => setIsPickerOpen(true)}
@@ -902,6 +977,7 @@ export function ContentManager() {
                       accept="application/pdf"
                       onFileSelected={(file) => {
                         setSelectedFile(file);
+                        setFileSource("google_drive");
                         toast.success(`Selected: ${file.name}`);
                       }}
                       onPickerOpen={() => setIsPickerOpen(true)}

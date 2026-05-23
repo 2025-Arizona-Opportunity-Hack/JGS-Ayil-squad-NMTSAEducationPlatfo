@@ -437,6 +437,28 @@ const applicationTables = {
     expiresAt: v.number(), // 10-minute expiry
   }).index("by_locked_by", ["lockedBy"]),
 
+  // Upload failure logs for debugging client-side upload errors
+  // (network failures, Drive download failures, Convex storage failures)
+  uploadLogs: defineTable({
+    userId: v.optional(v.id("users")),
+    step: v.string(), // e.g. "drive_picker_open", "drive_download", "convex_upload", "thumbnail_upload"
+    source: v.optional(v.string()), // e.g. "google_drive", "local"
+    errorMessage: v.string(),
+    errorName: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
+    attachmentType: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    url: v.optional(v.string()), // request URL that failed (when applicable)
+    httpStatus: v.optional(v.number()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_created_at", ["createdAt"])
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_step", ["step", "createdAt"]),
+
   // Email/SMS notification logs for debugging
   notificationLogs: defineTable({
     channel: v.union(v.literal("email"), v.literal("sms")),

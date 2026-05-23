@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Cloud, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 // Google API configuration
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
@@ -39,6 +41,41 @@ export function GoogleDrivePicker({
   const [isLoading, setIsLoading] = useState(false);
   const [isApiLoaded, setIsApiLoaded] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  const logUploadFailure = useMutation(api.uploadLogs.log);
+
+  // Best-effort failure reporter — never throws so it can't mask the real error.
+  const reportFailure = useCallback(
+    (args: {
+      step: string;
+      error: unknown;
+      fileName?: string;
+      fileSize?: number;
+      mimeType?: string;
+      url?: string;
+      httpStatus?: number;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const err = args.error;
+      const errorMessage =
+        err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+      const errorName = err instanceof Error ? err.name : undefined;
+      logUploadFailure({
+        step: args.step,
+        source: "google_drive",
+        errorMessage,
+        errorName,
+        fileName: args.fileName,
+        fileSize: args.fileSize,
+        mimeType: args.mimeType,
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        url: args.url,
+        httpStatus: args.httpStatus,
+        metadata: args.metadata,
+      }).catch(() => {});
+    },
+    [logUploadFailure]
+  );
 
   // Load Google API scripts (only when configured)
   useEffect(() => {
@@ -135,7 +172,11 @@ export function GoogleDrivePicker({
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to download file: ${response.statusText}`);
+      const err: Error & { httpStatus?: number } = new Error(
+        `Failed to download file: ${response.status} ${response.statusText}`
+      );
+      err.httpStatus = response.status;
+      throw err;
     }
 
     const blob = await response.blob();
@@ -239,6 +280,18 @@ export function GoogleDrivePicker({
               onFileSelected(file);
             } catch (error) {
               console.error("Error downloading file:", error);
+              reportFailure({
+                step: "drive_download",
+                error,
+                fileName: document.name,
+                fileSize: typeof document.sizeBytes === "number"
+                  ? document.sizeBytes
+                  : Number(document.sizeBytes) || undefined,
+                mimeType: document.mimeType,
+                url: `https://www.googleapis.com/drive/v3/files/${document.id}?alt=media`,
+                httpStatus: (error as { httpStatus?: number })?.httpStatus,
+                metadata: { fileId: document.id },
+              });
               toast.error("Failed to download file from Google Drive");
             }
           }
@@ -258,6 +311,11 @@ export function GoogleDrivePicker({
       picker.setVisible(true);
     } catch (error) {
       console.error("Error opening Google Drive picker:", error);
+      reportFailure({
+        step: "drive_picker_open",
+        error,
+        metadata: { accept },
+      });
       toast.error("Failed to open Google Drive. Please try again.");
       setIsLoading(false);
     }
