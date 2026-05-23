@@ -60,3 +60,14 @@ jspm_packages/
 /blob-report/
 /playwright/.cache/
 tests/.auth/
+
+# Claude Code / agent tooling
+.agents/
+.claude/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+convex/_generated/ai/
+
+# Local backups
+.env.local.bak.*
