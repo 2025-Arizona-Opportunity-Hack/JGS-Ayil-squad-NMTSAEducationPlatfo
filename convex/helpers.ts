@@ -128,8 +128,37 @@ export async function getUserName(
 }
 
 /**
+ * Resolve the playable/downloadable URL for a content row, transparently
+ * handling both the single-file path (content.fileId in _storage) and the
+ * chunked-upload path (content.chunks served via /api/serve-chunked).
+ *
+ * Frontend code can treat the returned URL uniformly — for chunked content
+ * the HTTP action translates Range requests to the right underlying chunk(s).
+ */
+export async function getContentFileUrl(
+  ctx: QueryCtx,
+  content: {
+    _id: Id<"content">;
+    fileId?: Id<"_storage"> | null;
+    chunks?: Array<{ storageId: Id<"_storage">; size: number }> | null;
+  } | null | undefined
+): Promise<string | null> {
+  if (!content) return null;
+  if (content.fileId) return await ctx.storage.getUrl(content.fileId);
+  if (content.chunks && content.chunks.length > 0) {
+    const siteUrl = process.env.CONVEX_SITE_URL;
+    if (!siteUrl) return null;
+    return `${siteUrl}/api/serve-chunked/${content._id}`;
+  }
+  return null;
+}
+
+/**
  * Get storage URLs for file and thumbnail IDs.
  * Returns null for any missing ID.
+ *
+ * For chunked content, prefer `getContentFileUrl` since this helper only knows
+ * about direct storage ids — it has no contentId/chunks context.
  */
 export async function getStorageUrls(
   ctx: QueryCtx,

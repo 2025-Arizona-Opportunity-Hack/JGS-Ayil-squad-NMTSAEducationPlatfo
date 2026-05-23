@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, validateEmail } from "./helpers";
+import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, validateEmail } from "./helpers";
 import { PERMISSIONS } from "./permissions";
 
 // Create a content recommendation
@@ -93,11 +93,11 @@ export const getMyRecommendations = query({
           .filter((q) => q.eq(q.field("isActive"), true))
           .first();
 
-        // Get file URLs
-        const { fileUrl, thumbnailUrl } = await getStorageUrls(ctx, {
-          fileId: content.fileId,
-          thumbnailId: content.thumbnailId,
-        });
+        // Get file URLs (chunked-aware for large files)
+        const [fileUrl, thumbnailUrl] = await Promise.all([
+          getContentFileUrl(ctx, content),
+          content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
+        ]);
 
         return {
           ...rec,

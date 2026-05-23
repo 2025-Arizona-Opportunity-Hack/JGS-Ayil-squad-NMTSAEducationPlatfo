@@ -7,7 +7,7 @@ import {
   checkContentAccess,
   getUserProfile,
   formatUserName,
-  getStorageUrls,
+  getContentFileUrl,
 } from "./helpers";
 import {
   getEffectivePermissions,
@@ -126,10 +126,11 @@ export const getContentByShareToken = query({
     if (content.endDate && content.endDate < now)
       return { error: "This content is no longer available", content: null };
 
-    const urls = await getStorageUrls(ctx, {
-      fileId: content.fileId,
-      thumbnailId: content.thumbnailId,
-    });
+    const [fileUrl, thumbnailUrl] = await Promise.all([
+      getContentFileUrl(ctx, content),
+      content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
+    ]);
+    const urls = { fileUrl, thumbnailUrl };
 
     const creatorName = await (async () => {
       const p = await getUserProfile(ctx, content.createdBy);

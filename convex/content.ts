@@ -2,6 +2,7 @@ import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
+import { getContentFileUrl } from "./helpers";
 import { internal } from "./_generated/api";
 
 // Create content (as draft)
@@ -269,7 +270,7 @@ export const listContent = query({
       }
 
       // Get file and thumbnail URLs
-      const fileUrl = content.fileId ? await ctx.storage.getUrl(content.fileId) : null;
+      const fileUrl = await getContentFileUrl(ctx, content);
       const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
 
       // Map attachmentType to legacy type field for frontend compatibility
@@ -591,7 +592,7 @@ export const getContent = query({
       return {
         ...content,
         type: contentType,
-        fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
+        fileUrl: await getContentFileUrl(ctx, content),
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
         reviewerName,
@@ -608,7 +609,7 @@ export const getContent = query({
       return {
         ...content,
         type: contentType,
-        fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
+        fileUrl: await getContentFileUrl(ctx, content),
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
         reviewerName,
@@ -621,7 +622,7 @@ export const getContent = query({
     return {
       ...content,
       type: contentType,
-      fileUrl: content.fileId ? await ctx.storage.getUrl(content.fileId) : null,
+      fileUrl: await getContentFileUrl(ctx, content),
       thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
       creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
       reviewerName,
@@ -987,11 +988,30 @@ export const deleteContent = mutation({
       await ctx.db.delete(share._id);
     }
 
+    // Chunked-storage cleanup: a single chunked content row can own dozens of
+    // _storage objects (one per ~50 MB slice), and they have no other owner.
+    // If we leave them orphaned, storage costs accumulate quickly. The
+    // single-file path (content.fileId) deliberately doesn't delete storage
+    // since a fileId could be referenced elsewhere; chunks don't have that
+    // concern — they're created exclusively for this content row.
+    if (content.chunks && content.chunks.length > 0) {
+      for (const chunk of content.chunks) {
+        try {
+          await ctx.storage.delete(chunk.storageId);
+        } catch (err) {
+          // Log and continue — best-effort. A missing chunk is acceptable;
+          // we'd rather not block the row deletion on a storage hiccup.
+          console.error("Failed to delete chunk storage object:", chunk.storageId, err);
+        }
+      }
+    }
+
     // Finally, delete the content itself
     await ctx.db.delete(args.contentId);
 
-    // Note: Files in storage are not deleted to prevent data loss
-    // You may want to implement a cleanup job for orphaned files
+    // Note: Single-file content (content.fileId) and thumbnails are NOT
+    // auto-deleted from storage to avoid breaking other references. A
+    // separate cleanup job is the right place for that.
   },
 });
 
@@ -1552,9 +1572,7 @@ export const listArchivedContent = query({
     // Get file URLs and creator names
     const contentWithDetails = await Promise.all(
       archivedContent.map(async (content) => {
-        const fileUrl = content.fileId
-          ? await ctx.storage.getUrl(content.fileId)
-          : null;
+        const fileUrl = await getContentFileUrl(ctx, content);
         const thumbnailUrl = content.thumbnailId
           ? await ctx.storage.getUrl(content.thumbnailId)
           : null;

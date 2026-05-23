@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getUserProfile, getStorageUrls, formatUserName, checkContentAccess } from "./helpers";
+import { getUserProfile, getContentFileUrl, formatUserName, checkContentAccess } from "./helpers";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Get public content by ID (no auth required for public content)
@@ -101,7 +101,10 @@ export const getPublicContent = query({
       return { error: "You don't have permission to view this content", requiresPassword: false, requiresAuth: true, content: null };
     }
 
-    const urls = await getStorageUrls(ctx, { fileId: content.fileId, thumbnailId: content.thumbnailId });
+    const [fileUrl, thumbnailUrl] = await Promise.all([
+      getContentFileUrl(ctx, content),
+      content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
+    ]);
     const creatorName = formatUserName(await getUserProfile(ctx, content.createdBy));
 
     return {
@@ -109,7 +112,8 @@ export const getPublicContent = query({
       requiresAuth: false,
       content: {
         ...content,
-        ...urls,
+        fileUrl,
+        thumbnailUrl,
         creatorName,
         password: undefined,
       },

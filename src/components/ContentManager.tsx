@@ -79,6 +79,12 @@ import { ContentFilters, type FilterState } from "./admin/ContentFilters";
 import { ContentList } from "./admin/ContentList";
 import { ContentActions } from "./admin/ContentActions";
 
+// Files larger than this go through the chunked-upload path so we don't blow
+// past Convex's 2-minute single-POST window. Below this, the single-POST flow
+// is faster and simpler.
+const CHUNKED_UPLOAD_THRESHOLD_BYTES = 500 * 1024 * 1024; // 500 MB
+const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB per chunk — comfortably uploads in <2 min on typical broadband
+
 export function ContentManager() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -152,6 +158,7 @@ export function ContentManager() {
     previewContentId ? { contentId: previewContentId as any } : "skip" as any
   );
   const createContent = useMutation(api.content.createContent);
+  const createChunkedContent = useMutation(api.content.createChunkedContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const logUploadFailure = useMutation(api.uploadLogs.log);
 
@@ -458,13 +465,26 @@ export function ContentManager() {
 
   const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
-    
+
     try {
       let fileId = undefined;
       let thumbnailId = undefined;
-      
+      let chunkedUploadResult:
+        | { chunks: Array<{ storageId: string; size: number }>; mimeType: string }
+        | null = null;
+
+      const isFileAttachment =
+        selectedFile &&
+        (data.attachmentType === "video" ||
+          data.attachmentType === "pdf" ||
+          data.attachmentType === "audio" ||
+          data.attachmentType === "image");
+
+      const useChunkedUpload =
+        isFileAttachment && selectedFile.size > CHUNKED_UPLOAD_THRESHOLD_BYTES;
+
       // Handle file upload for videos, pdfs, images, and audio
-      if (selectedFile && (data.attachmentType === "video" || data.attachmentType === "pdf" || data.attachmentType === "audio" || data.attachmentType === "image")) {
+      if (isFileAttachment && !useChunkedUpload) {
         console.log("[Upload] Starting file upload:", {
           fileName: selectedFile.name,
           fileSize: selectedFile.size,
@@ -558,27 +578,126 @@ export function ContentManager() {
             // Continue without thumbnail if generation fails
           }
         }
+      } else if (useChunkedUpload && selectedFile) {
+        // Chunked-upload path for files larger than CHUNKED_UPLOAD_THRESHOLD_BYTES.
+        // We upload each 50 MB chunk as its own _storage object, then call
+        // createChunkedContent with the ordered list. The /api/serve-chunked
+        // HTTP action stitches them back together via Range requests.
+        //
+        // Trade-offs vs. single-POST: no Convex 2-min timeout (each chunk
+        // uploads independently). Thumbnail generation is skipped because the
+        // generator needs the whole video in one Blob, which would require
+        // re-stitching client-side. Acceptable for v1.
+        const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE_BYTES);
+        console.log("[ChunkedUpload] Starting:", {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          chunkSize: CHUNK_SIZE_BYTES,
+          totalChunks,
+        });
+
+        const chunks: Array<{ storageId: string; size: number }> = [];
+        const toastId = "chunked-upload";
+        toast.loading(`Uploading chunk 1 of ${totalChunks}…`, { id: toastId });
+
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE_BYTES;
+          const end = Math.min(start + CHUNK_SIZE_BYTES, selectedFile.size);
+          const chunkBlob = selectedFile.slice(start, end);
+
+          toast.loading(`Uploading chunk ${i + 1} of ${totalChunks}…`, { id: toastId });
+
+          const uploadUrl = await generateUploadUrl();
+          let result: Response;
+          try {
+            result = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
+              body: chunkBlob,
+            });
+          } catch (fetchError) {
+            reportUploadFailure({
+              step: "convex_upload",
+              error: fetchError,
+              file: selectedFile,
+              source: fileSource,
+              attachmentType: data.attachmentType,
+              metadata: { phase: "fetch", chunkIndex: i, totalChunks, chunked: true },
+            });
+            toast.error(`Chunk ${i + 1} failed to upload`, { id: toastId });
+            throw fetchError;
+          }
+
+          const json = await result.json();
+          if (!result.ok) {
+            reportUploadFailure({
+              step: "convex_upload",
+              error: new Error(`Chunk upload failed: ${JSON.stringify(json)}`),
+              file: selectedFile,
+              source: fileSource,
+              attachmentType: data.attachmentType,
+              httpStatus: result.status,
+              metadata: { phase: "response_not_ok", response: json, chunkIndex: i, totalChunks, chunked: true },
+            });
+            toast.error(`Chunk ${i + 1} failed to upload`, { id: toastId });
+            throw new Error(`Chunk upload failed: ${JSON.stringify(json)}`);
+          }
+
+          chunks.push({ storageId: json.storageId, size: end - start });
+        }
+
+        toast.success(`All ${totalChunks} chunks uploaded`, { id: toastId });
+        chunkedUploadResult = {
+          chunks,
+          mimeType: selectedFile.type || "application/octet-stream",
+        };
       }
 
-      const contentData = {
-        title: data.title,
-        description: data.description || undefined,
-        attachmentType: data.attachmentType,
-        fileId: fileId,
-        thumbnailId: thumbnailId,
-        externalUrl: data.externalUrl || undefined,
-        isPublic: data.isPublic,
-        authorName: data.authorName || undefined,
-        tags: data.tags ? data.tags.split(",").map(tag => tag.trim()) : undefined,
-        active: data.active,
-        startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
-        endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
-        password: data.password || undefined,
-      };
-      console.log("[Create] Creating content with data:", contentData);
-
-      const newContentId = await createContent(contentData);
-      console.log("[Create] Content created successfully with ID:", newContentId);
+      let newContentId: string;
+      if (chunkedUploadResult && selectedFile) {
+        // Chunked path: call createChunkedContent (does not accept fileId or
+        // thumbnailId since chunked content is served via /api/serve-chunked
+        // and thumbnail generation is skipped above).
+        console.log("[Create] Creating chunked content:", {
+          totalChunks: chunkedUploadResult.chunks.length,
+        });
+        newContentId = await createChunkedContent({
+          title: data.title,
+          description: data.description || undefined,
+          attachmentType: data.attachmentType as "video" | "image" | "pdf" | "audio" | "richtext",
+          chunks: chunkedUploadResult.chunks as Array<{ storageId: any; size: number }>,
+          mimeType: chunkedUploadResult.mimeType,
+          fileName: selectedFile.name,
+          externalUrl: data.externalUrl || undefined,
+          isPublic: data.isPublic,
+          authorName: data.authorName || undefined,
+          tags: data.tags ? data.tags.split(",").map((tag) => tag.trim()) : undefined,
+          active: data.active,
+          startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
+          endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
+          password: data.password || undefined,
+        });
+        console.log("[Create] Chunked content created with ID:", newContentId);
+      } else {
+        const contentData = {
+          title: data.title,
+          description: data.description || undefined,
+          attachmentType: data.attachmentType,
+          fileId: fileId,
+          thumbnailId: thumbnailId,
+          externalUrl: data.externalUrl || undefined,
+          isPublic: data.isPublic,
+          authorName: data.authorName || undefined,
+          tags: data.tags ? data.tags.split(",").map((tag) => tag.trim()) : undefined,
+          active: data.active,
+          startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
+          endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
+          password: data.password || undefined,
+        };
+        console.log("[Create] Creating content with data:", contentData);
+        newContentId = await createContent(contentData);
+        console.log("[Create] Content created successfully with ID:", newContentId);
+      }
 
       // Reset form
       reset();
