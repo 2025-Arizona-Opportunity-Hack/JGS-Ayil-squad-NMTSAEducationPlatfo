@@ -1,5 +1,5 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { requireAuth, requirePermission, getUserProfile } from "./helpers";
@@ -47,14 +47,14 @@ export const createOwnerProfile = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Ensure this is the very first profile
     const anyProfile = await ctx.db.query("userProfiles").first();
-    if (anyProfile) throw new Error("Bootstrap already completed");
+    if (anyProfile) throw new ConvexError("Bootstrap already completed");
 
     const user = await ctx.db.get(userId);
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const newProfile = await ctx.db.insert("userProfiles", {
       userId,
@@ -93,7 +93,7 @@ export const createUserProfile = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if profile already exists
     const existingProfile = await ctx.db
@@ -107,7 +107,7 @@ export const createUserProfile = mutation({
 
     // Get user info
     const user = await ctx.db.get(userId);
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     // Check if another user with the same email already has a profile
     if (user.email) {
@@ -129,7 +129,7 @@ export const createUserProfile = mutation({
           .unique();
 
         if (existingUserProfile) {
-          throw new Error(
+          throw new ConvexError(
             `An account with email ${user.email} already exists. Please sign in instead of creating a new account.`
           );
         }
@@ -144,7 +144,7 @@ export const createUserProfile = mutation({
           .first();
 
         if (!joinRequest || joinRequest.status !== "approved") {
-          throw new Error(
+          throw new ConvexError(
             "You need an approved join request to create an account. Please request access first or contact support."
           );
         }
@@ -170,27 +170,38 @@ export const createUserProfile = mutation({
 
     // If invite code is provided, validate and use it
     if (args.inviteCode && args.inviteCode.trim() !== "") {
-      const inviteCode = await ctx.db
+      const code = args.inviteCode.toUpperCase();
+
+      // Check staff invite codes first
+      const staffInvite = await ctx.db
         .query("inviteCodes")
-        .withIndex("by_code", (q) =>
-          q.eq("code", args.inviteCode!.toUpperCase())
-        )
+        .withIndex("by_code", (q) => q.eq("code", code))
         .unique();
 
-      if (!inviteCode) {
-        throw new Error("Invalid invite code");
-      }
+      // Also check client invite codes
+      const clientInvite = await ctx.db
+        .query("clientInvites")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .unique();
 
-      if (!inviteCode.isActive) {
-        throw new Error("This invite code has been deactivated");
-      }
+      if (staffInvite) {
+        if (!staffInvite.isActive) throw new ConvexError("This invite code has been deactivated");
+        if (staffInvite.expiresAt && staffInvite.expiresAt < Date.now()) throw new ConvexError("This invite code has expired");
+        roleToAssign = staffInvite.role;
+      } else if (clientInvite) {
+        if (!clientInvite.isActive) throw new ConvexError("This invite code has been deactivated");
+        if (clientInvite.usedBy) throw new ConvexError("This invite code has already been used");
+        if (clientInvite.expiresAt && clientInvite.expiresAt < Date.now()) throw new ConvexError("This invite code has expired");
+        roleToAssign = clientInvite.role;
 
-      if (inviteCode.expiresAt && inviteCode.expiresAt < Date.now()) {
-        throw new Error("This invite code has expired");
+        // Mark client invite as used
+        await ctx.db.patch(clientInvite._id, {
+          usedBy: userId,
+          usedAt: Date.now(),
+        });
+      } else {
+        throw new ConvexError("Invalid invite code");
       }
-
-      // Use the role from the invite code
-      roleToAssign = inviteCode.role;
     }
 
     const newProfile = await ctx.db.insert("userProfiles", {
@@ -214,14 +225,14 @@ export const updateProfile = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     await ctx.db.patch(profile._id, {
       firstName: args.firstName,
@@ -236,7 +247,7 @@ export const generateProfilePictureUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     return await ctx.storage.generateUploadUrl();
   },
@@ -261,12 +272,12 @@ export const updateUserRole = mutation({
     // Promoting to admin requires PROMOTE_TO_ADMIN permission (owner only by default)
     if (args.role === "admin") {
       if (!hasPermission(permissions, PERMISSIONS.PROMOTE_TO_ADMIN)) {
-        throw new Error("Only owners can promote users to admin");
+        throw new ConvexError("Only owners can promote users to admin");
       }
     }
 
     const targetProfile = await getUserProfile(ctx, args.userId);
-    if (!targetProfile) throw new Error("User profile not found");
+    if (!targetProfile) throw new ConvexError("User profile not found");
 
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
@@ -282,7 +293,7 @@ export const promoteToAdmin = mutation({
     await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
-    if (!targetProfile) throw new Error("User profile not found");
+    if (!targetProfile) throw new ConvexError("User profile not found");
 
     await ctx.db.patch(targetProfile._id, {
       role: "admin",
@@ -301,15 +312,15 @@ export const updateUserPermissions = mutation({
     const { permissions: callerPerms } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
-    if (!targetProfile) throw new Error("User profile not found");
+    if (!targetProfile) throw new ConvexError("User profile not found");
 
     if (targetProfile.role === "owner") {
-      throw new Error("Cannot modify owner permissions");
+      throw new ConvexError("Cannot modify owner permissions");
     }
 
     if (args.permissions.includes(PERMISSIONS.PROMOTE_TO_ADMIN)) {
       if (!hasPermission(callerPerms, PERMISSIONS.PROMOTE_TO_ADMIN)) {
-        throw new Error("Only owners can grant the PROMOTE_TO_ADMIN permission");
+        throw new ConvexError("Only owners can grant the PROMOTE_TO_ADMIN permission");
       }
     }
 
@@ -324,10 +335,10 @@ export const resetUserPermissions = mutation({
     await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
-    if (!targetProfile) throw new Error("User profile not found");
+    if (!targetProfile) throw new ConvexError("User profile not found");
 
     if (targetProfile.role === "owner") {
-      throw new Error("Cannot modify owner permissions");
+      throw new ConvexError("Cannot modify owner permissions");
     }
 
     await ctx.db.patch(targetProfile._id, { permissions: undefined });

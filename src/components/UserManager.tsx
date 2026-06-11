@@ -107,11 +107,12 @@ export function UserManager() {
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="client">Client</SelectItem>
-                            <SelectItem value="parent">Parent</SelectItem>
-                            <SelectItem value="professional">Professional</SelectItem>
+                            {canPromoteToAdmin && <SelectItem value="admin">Admin</SelectItem>}
                             <SelectItem value="editor">Editor</SelectItem>
                             <SelectItem value="contributor">Contributor</SelectItem>
+                            <SelectItem value="professional">Professional</SelectItem>
+                            <SelectItem value="parent">Parent</SelectItem>
+                            <SelectItem value="client">Client</SelectItem>
                           </SelectContent>
                         </Select>
                       </>

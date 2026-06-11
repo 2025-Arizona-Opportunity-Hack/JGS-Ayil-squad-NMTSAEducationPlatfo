@@ -64,8 +64,20 @@ export function RoleSelection() {
         })
         .catch((error) => {
           console.error("Error creating profile with invite code:", error);
-          // Clear invalid invite code
-          localStorage.removeItem("signupInviteCode");
+          // Only discard the stored code when the server tells us the code
+          // itself is bad. For other failures (e.g. email collision, transient
+          // issues) we keep the code so the user can retry.
+          const message = String(
+            (error as { data?: unknown })?.data ?? error?.message ?? ""
+          ).toLowerCase();
+          const codeIsBad =
+            message.includes("invalid invite") ||
+            message.includes("invite code has expired") ||
+            message.includes("invite code has been deactivated") ||
+            message.includes("invite code has already been used");
+          if (codeIsBad) {
+            localStorage.removeItem("signupInviteCode");
+          }
           setError("invite_code_error");
           setSubmitting(false);
         });

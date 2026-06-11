@@ -1,6 +1,7 @@
 import { convexAuth, getAuthUserId } from "@convex-dev/auth/server";
 import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
+import { ConvexError } from "convex/values";
 import { query } from "./_generated/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
@@ -11,7 +12,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         from: `NMTSA Platform <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
         sendVerificationRequest: async ({ identifier: email, token }) => {
           const apiKey = process.env.RESEND_API_KEY;
-          if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
+          if (!apiKey) throw new ConvexError("RESEND_API_KEY is not configured");
           const domain = process.env.RESEND_DOMAIN || "resend.dev";
           const siteUrl = process.env.SITE_URL || "http://localhost:5173";
           const resetUrl = `${siteUrl}/reset-password?code=${token}&email=${encodeURIComponent(email)}`;
@@ -49,7 +50,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
           if (!res.ok) {
             const err = await res.text();
-            throw new Error(`Failed to send reset email: ${err}`);
+            throw new ConvexError(`Failed to send reset email: ${err}`);
           }
         },
       }),

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
@@ -28,7 +28,7 @@ export const createClientInviteWithEmail = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if user has permission to invite clients
     const profile = await ctx.db
@@ -36,19 +36,19 @@ export const createClientInviteWithEmail = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     // Require MANAGE_USERS or GENERATE_INVITE_CODES permission
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS) && 
         !hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to invite clients");
+      throw new ConvexError("You don't have permission to invite clients");
     }
 
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(args.email)) {
-      throw new Error("Invalid email address");
+      throw new ConvexError("Invalid email address");
     }
 
     // Check if there's already an active invite for this email
@@ -59,7 +59,7 @@ export const createClientInviteWithEmail = mutation({
       .first();
 
     if (existingInvite) {
-      throw new Error("An active invite already exists for this email");
+      throw new ConvexError("An active invite already exists for this email");
     }
 
     // Generate a unique code
@@ -125,7 +125,7 @@ export const createClientInviteWithSms = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if user has permission to invite clients
     const profile = await ctx.db
@@ -133,18 +133,18 @@ export const createClientInviteWithSms = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS) && 
         !hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to invite clients");
+      throw new ConvexError("You don't have permission to invite clients");
     }
 
     // Validate phone number format (basic E.164 validation)
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(args.phoneNumber)) {
-      throw new Error("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
+      throw new ConvexError("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
     }
 
     // Check if there's already an active invite for this phone
@@ -155,7 +155,7 @@ export const createClientInviteWithSms = mutation({
       .first();
 
     if (existingInvite) {
-      throw new Error("An active invite already exists for this phone number");
+      throw new ConvexError("An active invite already exists for this phone number");
     }
 
     // Generate a unique code
@@ -220,7 +220,7 @@ export const createClientInviteWithBoth = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if user has permission to invite clients
     const profile = await ctx.db
@@ -228,24 +228,24 @@ export const createClientInviteWithBoth = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS) && 
         !hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to invite clients");
+      throw new ConvexError("You don't have permission to invite clients");
     }
 
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(args.email)) {
-      throw new Error("Invalid email address");
+      throw new ConvexError("Invalid email address");
     }
 
     // Validate phone number format
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(args.phoneNumber)) {
-      throw new Error("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
+      throw new ConvexError("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
     }
 
     // Generate a unique code
@@ -349,7 +349,7 @@ export const useClientInvite = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const invite = await ctx.db
       .query("clientInvites")
@@ -357,19 +357,19 @@ export const useClientInvite = mutation({
       .unique();
 
     if (!invite) {
-      throw new Error("Invalid invite code");
+      throw new ConvexError("Invalid invite code");
     }
 
     if (!invite.isActive) {
-      throw new Error("This invite code has been deactivated");
+      throw new ConvexError("This invite code has been deactivated");
     }
 
     if (invite.usedBy) {
-      throw new Error("This invite code has already been used");
+      throw new ConvexError("This invite code has already been used");
     }
 
     if (invite.expiresAt && invite.expiresAt < Date.now()) {
-      throw new Error("This invite code has expired");
+      throw new ConvexError("This invite code has expired");
     }
 
     // Mark invite as used
@@ -391,19 +391,19 @@ export const useClientInvite = mutation({
 export const listClientInvites = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.VIEW_USERS) && 
         !hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to view client invites");
+      throw new ConvexError("You don't have permission to view client invites");
     }
 
     const invites = await ctx.db
@@ -451,10 +451,10 @@ export const deactivateClientInvite = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const invite = await ctx.db.get(args.inviteId);
-    if (!invite) throw new Error("Invite not found");
+    if (!invite) throw new ConvexError("Invite not found");
 
     // Only creator or admin can deactivate
     const profile = await ctx.db
@@ -462,11 +462,11 @@ export const deactivateClientInvite = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (invite.createdBy !== userId && !hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to deactivate this invite");
+      throw new ConvexError("You don't have permission to deactivate this invite");
     }
 
     await ctx.db.patch(args.inviteId, { isActive: false });
@@ -482,17 +482,17 @@ export const resendClientInvite = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const invite = await ctx.db.get(args.inviteId);
-    if (!invite) throw new Error("Invite not found");
+    if (!invite) throw new ConvexError("Invite not found");
 
     if (!invite.isActive) {
-      throw new Error("Cannot resend a deactivated invite");
+      throw new ConvexError("Cannot resend a deactivated invite");
     }
 
     if (invite.usedBy) {
-      throw new Error("Cannot resend an already used invite");
+      throw new ConvexError("Cannot resend an already used invite");
     }
 
     const profile = await ctx.db
@@ -500,11 +500,11 @@ export const resendClientInvite = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (invite.createdBy !== userId && !hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to resend this invite");
+      throw new ConvexError("You don't have permission to resend this invite");
     }
 
     const inviterName = `${profile.firstName} ${profile.lastName}`;

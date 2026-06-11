@@ -1,5 +1,5 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requirePermission, requireAuth, formatUserName, getUserName, getStorageUrls } from "./helpers";
 import { PERMISSIONS } from "./permissions";
 
@@ -178,7 +178,7 @@ export const addContentToGroup = mutation({
       .first();
 
     if (existingItem) {
-      throw new Error("Content is already in this group");
+      throw new ConvexError("Content is already in this group");
     }
 
     return await ctx.db.insert("contentGroupItems", {
@@ -200,7 +200,7 @@ export const removeContentFromGroup = mutation({
 
     const groupItem = await ctx.db.get(args.groupItemId);
     if (!groupItem) {
-      throw new Error("Content group item not found");
+      throw new ConvexError("Content group item not found");
     }
 
     await ctx.db.delete(args.groupItemId);
@@ -286,7 +286,7 @@ export const setBundlePricing = mutation({
 
     // Check if bundle exists
     const bundle = await ctx.db.get(args.bundleId);
-    if (!bundle) throw new Error("Bundle not found");
+    if (!bundle) throw new ConvexError("Bundle not found");
 
     // Deactivate any existing pricing
     const existingPricing = await ctx.db
@@ -398,7 +398,7 @@ export const bulkAddContentToGroup = mutation({
 
     // Check if group exists
     const group = await ctx.db.get(args.groupId);
-    if (!group) throw new Error("Content group not found");
+    if (!group) throw new ConvexError("Content group not found");
 
     // Get existing items in the group
     const existingItems = await ctx.db

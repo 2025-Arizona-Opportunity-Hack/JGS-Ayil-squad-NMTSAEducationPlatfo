@@ -1,7 +1,7 @@
 "use node";
 
 import { action } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { Resend } from "resend";
 import { getTwilio, isTwilioConfigured } from "./sms";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -13,7 +13,7 @@ let _resend: Resend | null = null;
 function getResend(): Resend {
   if (!_resend) {
     if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not configured. Set it in your Convex environment variables.");
+      throw new ConvexError("RESEND_API_KEY is not configured. Set it in your Convex environment variables.");
     }
     _resend = new Resend(process.env.RESEND_API_KEY);
   }
@@ -23,10 +23,10 @@ function getResend(): Resend {
 // Helper to verify the caller is an admin/owner
 async function requireAdmin(ctx: any): Promise<void> {
   const userId = await getAuthUserId(ctx);
-  if (!userId) throw new Error("Not authenticated");
+  if (!userId) throw new ConvexError("Not authenticated");
   const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId });
   if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-    throw new Error("Only admins can use debug tools");
+    throw new ConvexError("Only admins can use debug tools");
   }
 }
 

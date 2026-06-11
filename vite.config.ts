@@ -10,7 +10,9 @@ export default defineConfig(({ mode }) => ({
     environmentMatchGlobs: [
       ["src/**/*.test.tsx", "happy-dom"],
       ["src/lib/sanitize.test.ts", "happy-dom"],
+      ["convex/**/*.test.ts", "edge-runtime"],
     ],
+    server: { deps: { inline: ["convex-test"] } },
   },
   server: {
     host: "0.0.0.0", // Listen on all network interfaces (localhost, 127.0.0.1, etc.)

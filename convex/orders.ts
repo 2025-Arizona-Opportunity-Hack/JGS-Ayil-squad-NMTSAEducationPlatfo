@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
@@ -12,12 +12,12 @@ export const createOrder = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Get pricing details
     const pricing = await ctx.db.get(args.pricingId);
     if (!pricing || !pricing.isActive) {
-      throw new Error("Pricing not found or inactive");
+      throw new ConvexError("Pricing not found or inactive");
     }
 
     // Check if user already has an active order for this content
@@ -37,7 +37,7 @@ export const createOrder = mutation({
       (!existingOrder.accessExpiresAt ||
         existingOrder.accessExpiresAt > Date.now())
     ) {
-      throw new Error("You already have access to this content");
+      throw new ConvexError("You already have access to this content");
     }
 
     // Check for approved purchase request
@@ -50,14 +50,14 @@ export const createOrder = mutation({
       .first();
 
     if (!approvedRequest) {
-      throw new Error(
+      throw new ConvexError(
         "You need an approved purchase request to buy this content. Please request permission first."
       );
     }
 
     // Check if the approved request has already been used
     if (approvedRequest.purchaseCompletedAt) {
-      throw new Error("This purchase request has already been used");
+      throw new ConvexError("This purchase request has already been used");
     }
 
     // Calculate access expiration
@@ -91,12 +91,12 @@ export const completeOrder = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const order = await ctx.db.get(args.orderId);
-    if (!order) throw new Error("Order not found");
-    if (order.userId !== userId) throw new Error("Not authorized");
-    if (order.status !== "pending") throw new Error("Order already processed");
+    if (!order) throw new ConvexError("Order not found");
+    if (order.userId !== userId) throw new ConvexError("Not authorized");
+    if (order.status !== "pending") throw new ConvexError("Order already processed");
 
     // Update order status
     await ctx.db.patch(args.orderId, {
@@ -154,7 +154,7 @@ export const completeOrderInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
-    if (!order) throw new Error("Order not found");
+    if (!order) throw new ConvexError("Order not found");
     if (order.status !== "pending") return; // Already processed, idempotent
 
     // Update order status
@@ -241,18 +241,18 @@ export const getUserOrders = query({
 export const getAllOrders = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const userProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile) throw new Error("Profile not found");
+    if (!userProfile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(userProfile);
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ORDERS)) {
-      throw new Error("You don't have permission to view all orders");
+      throw new ConvexError("You don't have permission to view all orders");
     }
 
     const orders = await ctx.db
@@ -302,18 +302,18 @@ export const getAllOrders = query({
 export const getSalesAnalytics = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const userProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!userProfile) throw new Error("Profile not found");
+    if (!userProfile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(userProfile);
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ANALYTICS)) {
-      throw new Error("You don't have permission to view analytics");
+      throw new ConvexError("You don't have permission to view analytics");
     }
 
     // Get all completed orders

@@ -1,12 +1,12 @@
 "use node";
 
 import Stripe from "stripe";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalAction } from "./_generated/server";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+  if (!key) throw new ConvexError("STRIPE_SECRET_KEY is not set");
   return new Stripe(key);
 }
 
@@ -65,7 +65,7 @@ export const verifyWebhookAction = internalAction({
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      throw new Error(
+      throw new ConvexError(
         "STRIPE_WEBHOOK_SECRET is not configured. " +
         "Webhook signature verification is required for security. " +
         "Set STRIPE_WEBHOOK_SECRET in your Convex environment variables."

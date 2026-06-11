@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, validateEmail } from "./helpers";
@@ -18,7 +18,7 @@ export const createRecommendation = mutation({
 
     // Check if content exists
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Check if recipient user exists by email
     const recipientUser = await ctx.db
@@ -165,7 +165,7 @@ export const markRecommendationViewed = mutation({
     const { userId } = await requireAuth(ctx);
 
     const recommendation = await ctx.db.get(args.recommendationId);
-    if (!recommendation) throw new Error("Recommendation not found");
+    if (!recommendation) throw new ConvexError("Recommendation not found");
 
     // Verify this recommendation is for the current user
     const user = await ctx.db.get(userId);
@@ -173,7 +173,7 @@ export const markRecommendationViewed = mutation({
       recommendation.recipientUserId !== userId &&
       recommendation.recipientEmail !== user?.email
     ) {
-      throw new Error("Not authorized");
+      throw new ConvexError("Not authorized");
     }
 
     await ctx.db.patch(args.recommendationId, {
@@ -194,11 +194,11 @@ export const deleteRecommendation = mutation({
     const { userId } = await requireAuth(ctx);
 
     const recommendation = await ctx.db.get(args.recommendationId);
-    if (!recommendation) throw new Error("Recommendation not found");
+    if (!recommendation) throw new ConvexError("Recommendation not found");
 
     // Only the professional who made it can delete it
     if (recommendation.recommendedBy !== userId) {
-      throw new Error("Not authorized");
+      throw new ConvexError("Not authorized");
     }
 
     await ctx.db.patch(args.recommendationId, {

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requirePermission, requireAuth, formatUserName, getUserProfile } from "./helpers";
@@ -66,7 +66,7 @@ export const createPurchaseRequest = mutation({
 
     // Check if content exists and has pricing
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     const pricing = await ctx.db
       .query("contentPricing")
@@ -74,7 +74,7 @@ export const createPurchaseRequest = mutation({
       .filter((q) => q.eq(q.field("isActive"), true))
       .first();
 
-    if (!pricing) throw new Error("This content is not available for purchase");
+    if (!pricing) throw new ConvexError("This content is not available for purchase");
 
     // Check if user already has a pending or approved request
     const existingRequest = await ctx.db
@@ -92,10 +92,10 @@ export const createPurchaseRequest = mutation({
 
     if (existingRequest) {
       if (existingRequest.status === "pending") {
-        throw new Error("You already have a pending request for this content");
+        throw new ConvexError("You already have a pending request for this content");
       }
       if (existingRequest.status === "approved") {
-        throw new Error("Your request has already been approved. You can now purchase this content.");
+        throw new ConvexError("Your request has already been approved. You can now purchase this content.");
       }
     }
 
@@ -114,7 +114,7 @@ export const createPurchaseRequest = mutation({
     if (existingOrder) {
       const hasAccess = !existingOrder.accessExpiresAt || existingOrder.accessExpiresAt > Date.now();
       if (hasAccess) {
-        throw new Error("You already have access to this content");
+        throw new ConvexError("You already have access to this content");
       }
     }
 
@@ -225,10 +225,10 @@ export const approveRequest = mutation({
     const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Request not found");
+    if (!request) throw new ConvexError("Request not found");
 
     if (request.status !== "pending") {
-      throw new Error("This request has already been reviewed");
+      throw new ConvexError("This request has already been reviewed");
     }
 
     await ctx.db.patch(args.requestId, {
@@ -264,10 +264,10 @@ export const denyRequest = mutation({
     const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_PURCHASE_REQUESTS);
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Request not found");
+    if (!request) throw new ConvexError("Request not found");
 
     if (request.status !== "pending") {
-      throw new Error("This request has already been reviewed");
+      throw new ConvexError("This request has already been reviewed");
     }
 
     await ctx.db.patch(args.requestId, {
@@ -388,14 +388,14 @@ export const markRequestCompleted = mutation({
     const { userId } = await requireAuth(ctx);
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Request not found");
+    if (!request) throw new ConvexError("Request not found");
 
     if (request.userId !== userId) {
-      throw new Error("You can only complete your own purchase requests");
+      throw new ConvexError("You can only complete your own purchase requests");
     }
 
     if (request.status !== "approved") {
-      throw new Error("Only approved requests can be marked as completed");
+      throw new ConvexError("Only approved requests can be marked as completed");
     }
 
     await ctx.db.patch(args.requestId, {

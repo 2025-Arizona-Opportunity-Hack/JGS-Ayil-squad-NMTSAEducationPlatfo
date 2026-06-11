@@ -2,7 +2,7 @@ import { Twilio } from "@convex-dev/twilio";
 import { components } from "./_generated/api";
 import { internalAction, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Initialize Twilio component lazily to avoid startup errors when credentials are missing
@@ -75,12 +75,12 @@ export const startPhoneVerification = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Validate phone number format (basic E.164 validation)
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(args.phoneNumber)) {
-      throw new Error("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
+      throw new ConvexError("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
     }
 
     // Check if phone number is already verified by another user
@@ -91,7 +91,7 @@ export const startPhoneVerification = mutation({
       .first();
 
     if (existingProfile && existingProfile.userId !== userId) {
-      throw new Error("This phone number is already registered to another account");
+      throw new ConvexError("This phone number is already registered to another account");
     }
 
     const profile = await ctx.db
@@ -99,7 +99,7 @@ export const startPhoneVerification = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     // Generate verification code
     const verificationCode = generateVerificationCode();
@@ -147,25 +147,25 @@ export const verifyPhoneNumber = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     if (!profile.phoneVerificationCode || !profile.phoneVerificationExpires) {
-      throw new Error("No pending verification. Please request a new code.");
+      throw new ConvexError("No pending verification. Please request a new code.");
     }
 
     if (Date.now() > profile.phoneVerificationExpires) {
-      throw new Error("Verification code has expired. Please request a new code.");
+      throw new ConvexError("Verification code has expired. Please request a new code.");
     }
 
     if (profile.phoneVerificationCode !== args.code) {
-      throw new Error("Invalid verification code");
+      throw new ConvexError("Invalid verification code");
     }
 
     // Mark phone as verified and enable SMS notifications by default
@@ -185,15 +185,15 @@ export const resendVerificationCode = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
-    if (!profile.phoneNumber) throw new Error("No phone number on file");
+    if (!profile) throw new ConvexError("Profile not found");
+    if (!profile.phoneNumber) throw new ConvexError("No phone number on file");
 
     // Generate new verification code
     const verificationCode = generateVerificationCode();
@@ -221,17 +221,17 @@ export const toggleSmsNotifications = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     if (args.enabled && !profile.phoneVerified) {
-      throw new Error("Please verify your phone number first");
+      throw new ConvexError("Please verify your phone number first");
     }
 
     await ctx.db.patch(profile._id, {

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, action } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
@@ -23,7 +23,7 @@ export const createJoinRequest = mutation({
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(args.email)) {
-      throw new Error("Invalid email address");
+      throw new ConvexError("Invalid email address");
     }
 
     // Check if a request with this email already exists
@@ -34,16 +34,16 @@ export const createJoinRequest = mutation({
 
     if (existingRequest) {
       if (existingRequest.status === "pending_verification") {
-        throw new Error("A verification email has already been sent to this address. Please check your email and click the verification link.");
+        throw new ConvexError("A verification email has already been sent to this address. Please check your email and click the verification link.");
       }
       if (existingRequest.status === "pending") {
-        throw new Error("A join request with this email is already pending review");
+        throw new ConvexError("A join request with this email is already pending review");
       }
       if (existingRequest.status === "approved") {
-        throw new Error("Your join request has already been approved. Please sign in to continue.");
+        throw new ConvexError("Your join request has already been approved. Please sign in to continue.");
       }
       if (existingRequest.status === "denied") {
-        throw new Error("Your previous join request was denied. Please contact support if you believe this is an error.");
+        throw new ConvexError("Your previous join request was denied. Please contact support if you believe this is an error.");
       }
     }
 
@@ -61,7 +61,7 @@ export const createJoinRequest = mutation({
         .first();
 
       if (profile) {
-        throw new Error("An account with this email already exists. Please sign in instead. If you're having trouble signing in, try resetting your password.");
+        throw new ConvexError("An account with this email already exists. Please sign in instead. If you're having trouble signing in, try resetting your password.");
       }
     }
 
@@ -128,7 +128,7 @@ export const verifyJoinRequestEmail = mutation({
       .first();
 
     if (!request) {
-      throw new Error("Invalid verification token. Please check your email and try again.");
+      throw new ConvexError("Invalid verification token. Please check your email and try again.");
     }
 
     // Check if already verified (handle legacy records that might not have emailVerified)
@@ -138,12 +138,12 @@ export const verifyJoinRequestEmail = mutation({
 
     // Check if token expired
     if (request.verificationTokenExpiresAt && request.verificationTokenExpiresAt < Date.now()) {
-      throw new Error("Verification link has expired. Please request a new verification email.");
+      throw new ConvexError("Verification link has expired. Please request a new verification email.");
     }
 
     // Check if request was denied
     if (request.status === "denied") {
-      throw new Error("This join request was denied. Please contact support if you believe this is an error.");
+      throw new ConvexError("This join request was denied. Please contact support if you believe this is an error.");
     }
 
     // Verify the email
@@ -176,15 +176,15 @@ export const resendVerificationEmail = mutation({
       .first();
 
     if (!request) {
-      throw new Error("No join request found with this email address.");
+      throw new ConvexError("No join request found with this email address.");
     }
 
     if (request.emailVerified ?? false) {
-      throw new Error("Email already verified. Your request is pending admin review.");
+      throw new ConvexError("Email already verified. Your request is pending admin review.");
     }
 
     if (request.status === "denied") {
-      throw new Error("This join request was denied. Please contact support.");
+      throw new ConvexError("This join request was denied. Please contact support.");
     }
 
     // Generate new token
@@ -216,7 +216,7 @@ export const resendVerificationEmail = mutation({
       });
     } catch (error) {
       console.error("Failed to schedule email:", error);
-      throw new Error("Failed to send verification email. Please try again later.");
+      throw new ConvexError("Failed to send verification email. Please try again later.");
     }
 
     return { success: true, message: "Verification email sent successfully." };
@@ -257,18 +257,18 @@ export const listJoinRequests = query({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.VIEW_USERS)) {
-      throw new Error("You don't have permission to view join requests");
+      throw new ConvexError("You don't have permission to view join requests");
     }
 
     // Build query based on status filter
@@ -334,28 +334,28 @@ export const approveJoinRequest = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to approve join requests");
+      throw new ConvexError("You don't have permission to approve join requests");
     }
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Join request not found");
+    if (!request) throw new ConvexError("Join request not found");
 
     if (request.status === "pending_verification") {
-      throw new Error("This request's email has not been verified yet.");
+      throw new ConvexError("This request's email has not been verified yet.");
     }
     if (request.status !== "pending") {
-      throw new Error("This request has already been reviewed");
+      throw new ConvexError("This request has already been reviewed");
     }
 
     // Generate a client invite code for the approved user
@@ -419,28 +419,28 @@ export const denyJoinRequest = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
-      throw new Error("You don't have permission to deny join requests");
+      throw new ConvexError("You don't have permission to deny join requests");
     }
 
     const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Join request not found");
+    if (!request) throw new ConvexError("Join request not found");
 
     if (request.status === "pending_verification") {
-      throw new Error("This request's email has not been verified yet.");
+      throw new ConvexError("This request's email has not been verified yet.");
     }
     if (request.status !== "pending") {
-      throw new Error("This request has already been reviewed");
+      throw new ConvexError("This request has already been reviewed");
     }
 
     await ctx.db.patch(args.requestId, {

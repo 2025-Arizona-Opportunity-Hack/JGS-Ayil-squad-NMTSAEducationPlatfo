@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requirePermission, requireAuth } from "./helpers";
 import { PERMISSIONS } from "./permissions";
@@ -101,7 +101,7 @@ export const updateSiteSettings = mutation({
     const existingSettings = await ctx.db.query("siteSettings").first();
 
     if (!existingSettings) {
-      throw new Error("Site settings not found. Please complete setup first.");
+      throw new ConvexError("Site settings not found. Please complete setup first.");
     }
 
     // Build update object with only provided fields

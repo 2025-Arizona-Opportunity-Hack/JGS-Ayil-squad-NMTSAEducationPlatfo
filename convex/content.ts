@@ -1,5 +1,5 @@
 import { query, mutation, internalQuery } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { getContentFileUrl } from "./helpers";
@@ -30,7 +30,7 @@ export const createContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if user has permission to create content
     const profile = await ctx.db
@@ -38,16 +38,16 @@ export const createContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
-      throw new Error("You don't have permission to create content");
+      throw new ConvexError("You don't have permission to create content");
     }
 
     // Validate dates
     if (args.startDate && args.endDate && args.startDate > args.endDate) {
-      throw new Error("Start date must be before end date");
+      throw new ConvexError("Start date must be before end date");
     }
 
     // All new content starts as draft
@@ -98,29 +98,29 @@ export const createChunkedContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
 
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
-      throw new Error("You don't have permission to create content");
+      throw new ConvexError("You don't have permission to create content");
     }
 
     if (args.chunks.length === 0) {
-      throw new Error("chunks array must not be empty");
+      throw new ConvexError("chunks array must not be empty");
     }
     for (const c of args.chunks) {
-      if (c.size <= 0) throw new Error("chunk size must be positive");
+      if (c.size <= 0) throw new ConvexError("chunk size must be positive");
     }
 
     if (args.startDate && args.endDate && args.startDate > args.endDate) {
-      throw new Error("Start date must be before end date");
+      throw new ConvexError("Start date must be before end date");
     }
 
     const totalSize = args.chunks.reduce((sum, c) => sum + c.size, 0);
@@ -144,18 +144,18 @@ export const migrateContentToAttachmentType = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_SITE_SETTINGS)) {
-      throw new Error("You don't have permission to run migrations");
+      throw new ConvexError("You don't have permission to run migrations");
     }
 
     const all = await ctx.db.query("content").collect();
@@ -427,7 +427,7 @@ export const grantContentAccess = mutation({
   },
   handler: async (ctx, args) => {
     const currentUserId = await getAuthUserId(ctx);
-    if (!currentUserId) throw new Error("Not authenticated");
+    if (!currentUserId) throw new ConvexError("Not authenticated");
 
     // Check if current user has permission to manage content access
     const profile = await ctx.db
@@ -435,11 +435,11 @@ export const grantContentAccess = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", currentUserId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
-      throw new Error("You don't have permission to grant content access");
+      throw new ConvexError("You don't have permission to grant content access");
     }
 
     const accessId = await ctx.db.insert("contentAccess", {
@@ -492,18 +492,18 @@ export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
-      throw new Error("You don't have permission to upload content");
+      throw new ConvexError("You don't have permission to upload content");
     }
 
     return await ctx.storage.generateUploadUrl();
@@ -518,18 +518,18 @@ export const updateContentPublic = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
-      throw new Error("You don't have permission to update content visibility");
+      throw new ConvexError("You don't have permission to update content visibility");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -655,39 +655,39 @@ export const updateContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)) {
-      throw new Error("You don't have permission to edit content");
+      throw new ConvexError("You don't have permission to edit content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Permission checks: users without VIEW_ALL_CONTENT can only edit their own content or drafts
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
       // Can only edit own content
       if (content.createdBy !== userId) {
-        throw new Error("You can only edit your own content");
+        throw new ConvexError("You can only edit your own content");
       }
       // Can only edit drafts, rejected, or changes_requested
       if (content.status !== "draft" && content.status !== "rejected" && content.status !== "changes_requested") {
-        throw new Error("You can only edit content in draft, rejected, or changes_requested status");
+        throw new ConvexError("You can only edit content in draft, rejected, or changes_requested status");
       }
     }
     // Users with VIEW_ALL_CONTENT can edit any content at any time
 
     // Validate dates
     if (args.startDate && args.endDate && args.startDate > args.endDate) {
-      throw new Error("Start date must be before end date");
+      throw new ConvexError("Start date must be before end date");
     }
 
     // Update content
@@ -703,31 +703,31 @@ export const submitForReview = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.SUBMIT_FOR_REVIEW)) {
-      throw new Error("You don't have permission to submit content for review");
+      throw new ConvexError("You don't have permission to submit content for review");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Users without VIEW_ALL_CONTENT can only submit their own content
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT) && content.createdBy !== userId) {
-      throw new Error("You can only submit your own content for review");
+      throw new ConvexError("You can only submit your own content for review");
     }
 
     // Can only submit drafts, rejected content, or content with changes requested
     if (content.status !== "draft" && content.status !== "rejected" && content.status !== "changes_requested") {
-      throw new Error("Can only submit drafts, rejected content, or content with requested changes for review");
+      throw new ConvexError("Can only submit drafts, rejected content, or content with requested changes for review");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -746,25 +746,25 @@ export const approveContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
-      throw new Error("You don't have permission to approve content");
+      throw new ConvexError("You don't have permission to approve content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (content.status !== "review") {
-      throw new Error("Can only approve content in review status");
+      throw new ConvexError("Can only approve content in review status");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -801,25 +801,25 @@ export const rejectContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
-      throw new Error("You don't have permission to reject content");
+      throw new ConvexError("You don't have permission to reject content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (content.status !== "review") {
-      throw new Error("Can only reject content in review status");
+      throw new ConvexError("Can only reject content in review status");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -849,25 +849,25 @@ export const requestChanges = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.REVIEW_CONTENT)) {
-      throw new Error("You don't have permission to request changes");
+      throw new ConvexError("You don't have permission to request changes");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (content.status !== "review") {
-      throw new Error("Can only request changes for content in review status");
+      throw new ConvexError("Can only request changes for content in review status");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -896,25 +896,25 @@ export const unpublishContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.PUBLISH_CONTENT)) {
-      throw new Error("You don't have permission to unpublish content");
+      throw new ConvexError("You don't have permission to unpublish content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (content.status !== "published") {
-      throw new Error("Can only unpublish published content");
+      throw new ConvexError("Can only unpublish published content");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -930,30 +930,30 @@ export const deleteContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.DELETE_CONTENT)) {
-      throw new Error("You don't have permission to delete content");
+      throw new ConvexError("You don't have permission to delete content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Users without VIEW_ALL_CONTENT can only delete their own drafts/rejected content
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
       if (content.createdBy !== userId) {
-        throw new Error("You can only delete your own content");
+        throw new ConvexError("You can only delete your own content");
       }
       if (content.status !== "draft" && content.status !== "rejected") {
-        throw new Error("You can only delete content in draft or rejected status");
+        throw new ConvexError("You can only delete content in draft or rejected status");
       }
     }
 
@@ -1023,10 +1023,10 @@ export const updateContentThumbnailId = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Update thumbnail
     await ctx.db.patch(args.contentId, {
@@ -1042,10 +1042,10 @@ export const grantAccessAfterPassword = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Check if user already has access
     const existingAccess = await ctx.db
@@ -1071,7 +1071,7 @@ export const createDemoContent = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Check if user has permission to create content
     const profile = await ctx.db
@@ -1079,11 +1079,11 @@ export const createDemoContent = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
-      throw new Error("You don't have permission to create content");
+      throw new ConvexError("You don't have permission to create content");
     }
 
     const demoContents = [
@@ -1403,7 +1403,7 @@ export const createDemoContentWithAssets = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
@@ -1411,7 +1411,7 @@ export const createDemoContentWithAssets = mutation({
       .unique();
 
     if (!profile || !["admin", "editor", "contributor", "owner"].includes(profile.role)) {
-      throw new Error("Only admins, editors, contributors, or the owner can create content");
+      throw new ConvexError("Only admins, editors, contributors, or the owner can create content");
     }
 
     const imageUrls: string[] = [];
@@ -1472,25 +1472,25 @@ export const archiveContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.ARCHIVE_CONTENT)) {
-      throw new Error("You don't have permission to archive content");
+      throw new ConvexError("You don't have permission to archive content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (content.isArchived) {
-      throw new Error("Content is already archived");
+      throw new ConvexError("Content is already archived");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -1516,25 +1516,25 @@ export const unarchiveContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.RESTORE_ARCHIVED_CONTENT)) {
-      throw new Error("You don't have permission to unarchive content");
+      throw new ConvexError("You don't have permission to unarchive content");
     }
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     if (!content.isArchived) {
-      throw new Error("Content is not archived");
+      throw new ConvexError("Content is not archived");
     }
 
     await ctx.db.patch(args.contentId, {
@@ -1550,18 +1550,18 @@ export const listArchivedContent = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.VIEW_ARCHIVED_CONTENT)) {
-      throw new Error("You don't have permission to view archived content");
+      throw new ConvexError("You don't have permission to view archived content");
     }
 
     const archivedContent = await ctx.db
@@ -1624,18 +1624,18 @@ export const bulkUpdateVisibility = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)) {
-      throw new Error("You don't have permission to update content visibility");
+      throw new ConvexError("You don't have permission to update content visibility");
     }
 
     let updated = 0;
@@ -1659,18 +1659,18 @@ export const bulkUpdateActiveStatus = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)) {
-      throw new Error("You don't have permission to update content");
+      throw new ConvexError("You don't have permission to update content");
     }
 
     let updated = 0;
@@ -1693,18 +1693,18 @@ export const bulkArchiveContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.ARCHIVE_CONTENT)) {
-      throw new Error("You don't have permission to archive content");
+      throw new ConvexError("You don't have permission to archive content");
     }
 
     let archived = 0;
@@ -1731,18 +1731,18 @@ export const bulkDeleteContent = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.DELETE_CONTENT)) {
-      throw new Error("You don't have permission to delete content");
+      throw new ConvexError("You don't have permission to delete content");
     }
 
     let deleted = 0;

@@ -1,5 +1,5 @@
 import { action } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { api } from "./_generated/api";
 
 // Action to generate thumbnail on-demand
@@ -14,7 +14,7 @@ export const generateThumbnailFromVideo = action({
       // Fetch the video file
       const response = await fetch(args.videoUrl);
       if (!response.ok) {
-        throw new Error("Failed to fetch video");
+        throw new ConvexError("Failed to fetch video");
       }
 
       const videoBlob = await response.blob();

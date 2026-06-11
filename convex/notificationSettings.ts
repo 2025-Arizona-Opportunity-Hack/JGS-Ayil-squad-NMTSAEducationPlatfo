@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   query,
   mutation,
@@ -62,7 +62,7 @@ export const updateNotificationSettings = mutation({
     const existing = await ctx.db.query("notificationSettings").first();
 
     if (!existing) {
-      throw new Error(
+      throw new ConvexError(
         "Notification settings not found. Please complete setup first."
       );
     }

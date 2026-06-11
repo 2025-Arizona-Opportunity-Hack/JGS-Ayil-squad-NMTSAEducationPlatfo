@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
@@ -25,7 +25,7 @@ export const createInviteCode = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to generate invite codes
@@ -34,11 +34,11 @@ export const createInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to create invite codes");
+      throw new ConvexError("You don't have permission to create invite codes");
     }
 
     // Generate a unique code
@@ -84,7 +84,7 @@ export const createInviteCodeWithEmail = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to generate invite codes
@@ -93,11 +93,11 @@ export const createInviteCodeWithEmail = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to create invite codes");
+      throw new ConvexError("You don't have permission to create invite codes");
     }
 
     // Generate a unique code
@@ -152,7 +152,7 @@ export const createInviteCodeWithSms = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to generate invite codes
@@ -161,17 +161,17 @@ export const createInviteCodeWithSms = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to create invite codes");
+      throw new ConvexError("You don't have permission to create invite codes");
     }
 
     // Validate phone number format (basic E.164 validation)
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(args.recipientPhone)) {
-      throw new Error("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
+      throw new ConvexError("Invalid phone number format. Please use E.164 format (e.g., +14155551234)");
     }
 
     // Generate a unique code
@@ -273,7 +273,7 @@ export const listInviteCodes = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to view invite codes
@@ -282,11 +282,11 @@ export const listInviteCodes = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to view invite codes");
+      throw new ConvexError("You don't have permission to view invite codes");
     }
 
     const inviteCodes = await ctx.db.query("inviteCodes").collect();
@@ -320,7 +320,7 @@ export const deactivateInviteCode = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to manage invite codes
@@ -329,11 +329,11 @@ export const deactivateInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to deactivate invite codes");
+      throw new ConvexError("You don't have permission to deactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {
@@ -350,7 +350,7 @@ export const reactivateInviteCode = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     // Check if user has permission to manage invite codes
@@ -359,11 +359,11 @@ export const reactivateInviteCode = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!profile) throw new Error("Profile not found");
+    if (!profile) throw new ConvexError("Profile not found");
     
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES)) {
-      throw new Error("You don't have permission to reactivate invite codes");
+      throw new ConvexError("You don't have permission to reactivate invite codes");
     }
 
     await ctx.db.patch(args.inviteCodeId, {

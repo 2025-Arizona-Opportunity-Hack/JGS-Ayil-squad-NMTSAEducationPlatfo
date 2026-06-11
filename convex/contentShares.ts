@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
@@ -237,10 +237,10 @@ export const createThirdPartyShare = mutation({
     const { userId } = await requireAuth(ctx);
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     const userProfile = await getUserProfile(ctx, userId);
-    if (!userProfile) throw new Error("User profile not found");
+    if (!userProfile) throw new ConvexError("User profile not found");
 
     const { canShare } = await evaluateSharePermission(
       ctx,
@@ -250,7 +250,7 @@ export const createThirdPartyShare = mutation({
       userProfile
     );
     if (!canShare) {
-      throw new Error("You don't have permission to share this content");
+      throw new ConvexError("You don't have permission to share this content");
     }
 
     const accessToken = generateAccessToken();
@@ -294,14 +294,14 @@ export const deleteShare = mutation({
     const { userId, permissions } = await requireAuth(ctx);
 
     const share = await ctx.db.get(args.shareId);
-    if (!share) throw new Error("Share not found");
+    if (!share) throw new ConvexError("Share not found");
 
     // Sharer can always delete their own shares; otherwise need MANAGE_CONTENT_ACCESS
     if (
       share.sharedBy !== userId &&
       !hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_ACCESS)
     ) {
-      throw new Error("You don't have permission to delete this share");
+      throw new ConvexError("You don't have permission to delete this share");
     }
 
     await ctx.db.delete(args.shareId);

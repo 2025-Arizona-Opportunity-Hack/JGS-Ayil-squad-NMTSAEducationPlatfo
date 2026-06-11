@@ -1,5 +1,5 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requirePermission, formatUserName, getUserProfile } from "./helpers";
 import { PERMISSIONS } from "./permissions";
 
@@ -51,7 +51,7 @@ export const addUserToGroup = mutation({
       .first();
 
     if (existingMembership) {
-      throw new Error("User is already in this group");
+      throw new ConvexError("User is already in this group");
     }
 
     return await ctx.db.insert("userGroupMembers", {
@@ -78,7 +78,7 @@ export const removeUserFromGroup = mutation({
       .first();
 
     if (!membership) {
-      throw new Error("User is not in this group");
+      throw new ConvexError("User is not in this group");
     }
 
     await ctx.db.delete(membership._id);

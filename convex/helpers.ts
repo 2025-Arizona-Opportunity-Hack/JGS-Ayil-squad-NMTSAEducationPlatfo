@@ -5,6 +5,7 @@
  * verification, storage URL lookups, and user name formatting to
  * eliminate boilerplate across mutation/query handlers.
  */
+import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
@@ -42,14 +43,14 @@ interface AuthResult {
  */
 export async function requireAuth(ctx: AuthContext): Promise<AuthResult> {
   const userId = await getAuthUserId(ctx);
-  if (!userId) throw new Error("Not authenticated");
+  if (!userId) throw new ConvexError("Not authenticated");
 
   const profile = await ctx.db
     .query("userProfiles")
     .withIndex("by_user_id", (q) => q.eq("userId", userId))
     .unique();
 
-  if (!profile) throw new Error("Profile not found");
+  if (!profile) throw new ConvexError("Profile not found");
 
   const permissions = getEffectivePermissions(profile);
 
@@ -68,7 +69,7 @@ export async function requirePermission(
 ): Promise<AuthResult> {
   const auth = await requireAuth(ctx);
   if (!hasPermission(auth.permissions, permission)) {
-    throw new Error(`Missing required permission: ${permission}`);
+    throw new ConvexError(`Missing required permission: ${permission}`);
   }
   return auth;
 }
@@ -86,7 +87,7 @@ export async function requireAnyPermission(
   const auth = await requireAuth(ctx);
   const hasSome = permissions.some((p) => hasPermission(auth.permissions, p));
   if (!hasSome) {
-    throw new Error(
+    throw new ConvexError(
       `Missing required permission: one of ${permissions.join(", ")}`
     );
   }
@@ -242,7 +243,7 @@ export async function checkContentAccess(
 export function validateEmail(email: string): void {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    throw new Error("Invalid email address");
+    throw new ConvexError("Invalid email address");
   }
 }
 
@@ -252,7 +253,7 @@ export function validateEmail(email: string): void {
 export function validatePhoneNumber(phone: string): void {
   const phoneRegex = /^\+[1-9]\d{1,14}$/;
   if (!phoneRegex.test(phone)) {
-    throw new Error(
+    throw new ConvexError(
       "Invalid phone number format. Please use E.164 format (e.g., +14155551234)"
     );
   }
@@ -263,6 +264,6 @@ export function validatePhoneNumber(phone: string): void {
  */
 export function validatePrice(price: number): void {
   if (!Number.isInteger(price) || price <= 0) {
-    throw new Error("Price must be a positive integer (in cents)");
+    throw new ConvexError("Price must be a positive integer (in cents)");
   }
 }

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
@@ -28,7 +28,7 @@ export const acquireSetupLock = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     const now = Date.now();
@@ -71,7 +71,7 @@ export const touchSetupLock = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
 
     const now = Date.now();
@@ -82,7 +82,7 @@ export const touchSetupLock = mutation({
 
     const activeLock = userLocks.find((lock) => lock.expiresAt > now);
     if (!activeLock) {
-      throw new Error("No active lock found for current user");
+      throw new ConvexError("No active lock found for current user");
     }
 
     await ctx.db.patch(activeLock._id, {
@@ -132,7 +132,7 @@ export const completeSetupWizard = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) throw new ConvexError("Not authenticated");
 
     // Verify this user holds the setup lock
     const lock = await ctx.db
@@ -140,12 +140,12 @@ export const completeSetupWizard = mutation({
       .withIndex("by_locked_by", (q) => q.eq("lockedBy", userId))
       .first();
     if (!lock || lock.expiresAt < Date.now()) {
-      throw new Error("Setup lock expired. Please restart setup.");
+      throw new ConvexError("Setup lock expired. Please restart setup.");
     }
 
     // Ensure no profiles exist (bootstrap guard)
     const anyProfile = await ctx.db.query("userProfiles").first();
-    if (anyProfile) throw new Error("Setup already completed");
+    if (anyProfile) throw new ConvexError("Setup already completed");
 
     // 1. Create owner profile
     await ctx.db.insert("userProfiles", {
