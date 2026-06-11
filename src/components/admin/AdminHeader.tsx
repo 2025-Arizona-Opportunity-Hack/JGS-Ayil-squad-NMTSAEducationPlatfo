@@ -20,6 +20,8 @@ interface AdminHeaderProps {
 export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPermissions }: AdminHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  const orgName = siteSettings?.organizationName || "Content Platform";
 
   const handleMobileTabChange = (value: string) => {
     onTabChange(value);
@@ -28,8 +30,8 @@ export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPer
 
   return (
     <header className="sticky top-0 z-30 bg-card border-b border-border">
-      <div className="px-4 flex items-center justify-between h-14 sm:h-16">
-        <div className="flex items-center gap-3">
+      <div className="px-4 flex items-center justify-between gap-2 h-14 sm:h-16">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Mobile hamburger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -49,12 +51,15 @@ export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPer
               />
             </SheetContent>
           </Sheet>
-          <Logo size="md" showText={true} />
-          <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+          {/* Mobile: icon only (text moves to the second row below). */}
+          <Logo size="md" showText={false} className="md:hidden" />
+          {/* Desktop: icon + truncated text. */}
+          <Logo size="md" showText={true} className="hidden md:flex min-w-0" />
+          <span className="hidden sm:inline-flex shrink-0 items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
             Admin
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <ThemeToggle />
           <Button
             variant="ghost"
@@ -72,6 +77,17 @@ export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPer
           </Button>
           <SignOutButton />
         </div>
+      </div>
+      {/* Mobile-only second row: org name. Inherits the header's sticky
+          positioning by being inside <header>. Hidden at md+ where the
+          name lives inline in the Logo. */}
+      <div className="md:hidden px-4 py-2 border-t border-border/60">
+        <p
+          className="text-sm font-semibold text-foreground truncate"
+          title={orgName}
+        >
+          {orgName}
+        </p>
       </div>
     </header>
   );

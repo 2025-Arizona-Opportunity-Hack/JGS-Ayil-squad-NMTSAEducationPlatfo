@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Save, Mail, MessageSquare } from "lucide-react";
+import { SMS_ENABLED } from "@/lib/featureFlags";
 
 const EVENT_LABELS: Record<string, { label: string; description: string }> = {
   contentAccessGranted: {
@@ -153,20 +154,28 @@ export function NotificationSettings() {
             <Mail className="h-3 w-3 mr-1" />
             Email {settings.emailConfigured ? "Configured" : "Not Configured"}
           </Badge>
-          <Badge variant={settings.smsConfigured ? "default" : "secondary"}>
-            <MessageSquare className="h-3 w-3 mr-1" />
-            SMS {settings.smsConfigured ? "Configured" : "Not Configured"}
-          </Badge>
+          {SMS_ENABLED && (
+            <Badge variant={settings.smsConfigured ? "default" : "secondary"}>
+              <MessageSquare className="h-3 w-3 mr-1" />
+              SMS {settings.smsConfigured ? "Configured" : "Not Configured"}
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
       <CardContent>
         <div className="space-y-4">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr,auto,auto] gap-4 text-sm font-medium text-muted-foreground px-2">
+          <div
+            className={
+              SMS_ENABLED
+                ? "grid grid-cols-[1fr,auto,auto] gap-4 text-sm font-medium text-muted-foreground px-2"
+                : "grid grid-cols-[1fr,auto] gap-4 text-sm font-medium text-muted-foreground px-2"
+            }
+          >
             <span>Event</span>
             <span className="w-16 text-center">Email</span>
-            <span className="w-16 text-center">SMS</span>
+            {SMS_ENABLED && <span className="w-16 text-center">SMS</span>}
           </div>
 
           {/* Event rows */}
@@ -178,7 +187,11 @@ export function NotificationSettings() {
               return (
                 <div
                   key={eventName}
-                  className="grid grid-cols-[1fr,auto,auto] gap-4 items-center px-2 py-2 rounded-lg hover:bg-muted/50"
+                  className={
+                    SMS_ENABLED
+                      ? "grid grid-cols-[1fr,auto,auto] gap-4 items-center px-2 py-2 rounded-lg hover:bg-muted/50"
+                      : "grid grid-cols-[1fr,auto] gap-4 items-center px-2 py-2 rounded-lg hover:bg-muted/50"
+                  }
                 >
                   <div>
                     <p className="text-sm font-medium">{label}</p>
@@ -196,16 +209,18 @@ export function NotificationSettings() {
                       aria-label={`${label} email notifications`}
                     />
                   </div>
-                  <div className="w-16 flex justify-center">
-                    <Switch
-                      checked={event.sms}
-                      onCheckedChange={(v) =>
-                        handleToggle(eventName, "sms", v)
-                      }
-                      disabled={!settings.smsConfigured}
-                      aria-label={`${label} SMS notifications`}
-                    />
-                  </div>
+                  {SMS_ENABLED && (
+                    <div className="w-16 flex justify-center">
+                      <Switch
+                        checked={event.sms}
+                        onCheckedChange={(v) =>
+                          handleToggle(eventName, "sms", v)
+                        }
+                        disabled={!settings.smsConfigured}
+                        aria-label={`${label} SMS notifications`}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             }

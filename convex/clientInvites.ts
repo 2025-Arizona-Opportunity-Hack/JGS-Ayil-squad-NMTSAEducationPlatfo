@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
+import { assertSmsEnabled } from "./featureFlags";
 
 // Generate a cryptographically secure invite code
 function generateCode(): string {
@@ -124,6 +125,7 @@ export const createClientInviteWithSms = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -219,6 +221,7 @@ export const createClientInviteWithBoth = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -481,6 +484,7 @@ export const resendClientInvite = mutation({
     method: v.union(v.literal("email"), v.literal("sms"), v.literal("both")),
   },
   handler: async (ctx, args) => {
+    if (args.method === "sms" || args.method === "both") assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -531,6 +535,36 @@ export const resendClientInvite = mutation({
       await ctx.db.patch(args.inviteId, { smsSent: true });
     }
 
+    return { success: true };
+  },
+});
+
+// Permanently delete a client invite (cannot be undone). Distinct from
+// deactivateClientInvite, which preserves the row for audit history.
+export const deleteClientInvite = mutation({
+  args: {
+    inviteId: v.id("clientInvites"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+    const invite = await ctx.db.get(args.inviteId);
+    if (!invite) throw new ConvexError("Invite not found");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new ConvexError("Profile not found");
+
+    const permissions = getEffectivePermissions(profile);
+    if (invite.createdBy !== userId && !hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
+      throw new ConvexError("You don't have permission to delete this invite");
+    }
+
+    await ctx.db.delete(args.inviteId);
     return { success: true };
   },
 });

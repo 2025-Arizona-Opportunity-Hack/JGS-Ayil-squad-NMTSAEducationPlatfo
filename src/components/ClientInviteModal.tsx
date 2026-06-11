@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
+import { SMS_ENABLED } from "@/lib/featureFlags";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,8 @@ import {
   User,
   Clock,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Trash2
 } from "lucide-react";
 import { Id } from "../../convex/_generated/dataModel";
 
@@ -62,6 +64,7 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
   const createWithBoth = useMutation(api.clientInvites.createClientInviteWithBoth);
   const clientInvites = useQuery(api.clientInvites.listClientInvites);
   const deactivateInvite = useMutation(api.clientInvites.deactivateClientInvite);
+  const deleteInvite = useMutation(api.clientInvites.deleteClientInvite);
   const resendInvite = useMutation(api.clientInvites.resendClientInvite);
 
   const handleSendInvite = async () => {
@@ -160,6 +163,23 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
     } catch (error) {
       console.error("Error deactivating invite:", error);
       toast.error("Failed to deactivate invitation");
+    }
+  };
+
+  const handleDelete = async (inviteId: Id<"clientInvites">) => {
+    if (
+      !window.confirm(
+        "Permanently delete this invite? This cannot be undone. (Use 'Deactivate' if you just want to revoke it.)"
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteInvite({ inviteId });
+      toast.success("Invitation deleted");
+    } catch (error) {
+      console.error("Error deleting invite:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete invitation");
     }
   };
 
@@ -278,42 +298,44 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
                   </p>
                 </div>
 
-                {/* Send Method */}
-                <div className="space-y-2">
-                  <Label>Send Via</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={sendMethod === "email" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSendMethod("email")}
-                      className="flex-1"
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Email
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={sendMethod === "sms" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSendMethod("sms")}
-                      className="flex-1"
-                    >
-                      <Phone className="w-4 h-4 mr-2" />
-                      SMS
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={sendMethod === "both" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSendMethod("both")}
-                      className="flex-1"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      Both
-                    </Button>
+                {/* Send Method — SMS options are hidden when SMS_ENABLED is false */}
+                {SMS_ENABLED && (
+                  <div className="space-y-2">
+                    <Label>Send Via</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={sendMethod === "email" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSendMethod("email")}
+                        className="flex-1"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Email
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={sendMethod === "sms" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSendMethod("sms")}
+                        className="flex-1"
+                      >
+                        <Phone className="w-4 h-4 mr-2" />
+                        SMS
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={sendMethod === "both" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSendMethod("both")}
+                        className="flex-1"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Both
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Contact Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -515,7 +537,7 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
                               Sent
                             </Badge>
                           )}
-                          {invite.smsSent && (
+                          {SMS_ENABLED && invite.smsSent && (
                             <Badge variant="outline" className="text-xs">
                               <Phone className="w-3 h-3 mr-1" />
                               Sent
@@ -536,7 +558,7 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
                               Resend Email
                             </Button>
                           )}
-                          {invite.phoneNumber && (
+                          {SMS_ENABLED && invite.phoneNumber && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -551,8 +573,33 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
                             size="sm"
                             onClick={() => handleDeactivate(invite._id)}
                             className="ml-auto text-destructive hover:text-destructive"
+                            title="Deactivate (preserve audit history)"
                           >
                             <XCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(invite._id)}
+                            className="text-destructive hover:text-destructive"
+                            title="Delete permanently (cannot be undone)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {/* Allow deleting deactivated or used invites too. */}
+                      {!(invite.isActive && !isUsed) && (
+                        <div className="flex items-center justify-end pt-2 border-t">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(invite._id)}
+                            className="text-destructive hover:text-destructive"
+                            title="Delete permanently (cannot be undone)"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Delete
                           </Button>
                         </div>
                       )}

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SMS_ENABLED } from "@/lib/featureFlags";
 import { Upload, ArrowRight, Check } from "lucide-react";
 
 const COLOR_PRESETS = [
@@ -174,16 +175,18 @@ export function OrganizationStep({
               }
             />
           </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="defaultSms" className="cursor-pointer">
-              SMS notifications
-            </Label>
-            <Switch
-              id="defaultSms"
-              checked={data.defaultSms}
-              onCheckedChange={(checked) => updateData({ defaultSms: checked })}
-            />
-          </div>
+          {SMS_ENABLED && (
+            <div className="flex items-center justify-between">
+              <Label htmlFor="defaultSms" className="cursor-pointer">
+                SMS notifications
+              </Label>
+              <Switch
+                id="defaultSms"
+                checked={data.defaultSms}
+                onCheckedChange={(checked) => updateData({ defaultSms: checked })}
+              />
+            </div>
+          )}
         </div>
 
         <Button

@@ -4,6 +4,7 @@ import { internalAction, internalQuery, mutation, query } from "./_generated/ser
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { SMS_ENABLED, assertSmsEnabled } from "./featureFlags";
 
 // Initialize Twilio component lazily to avoid startup errors when credentials are missing
 let _twilio: ReturnType<typeof createTwilio> | null = null;
@@ -74,6 +75,7 @@ export const startPhoneVerification = mutation({
     phoneNumber: v.string(),
   },
   handler: async (ctx, args) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -130,6 +132,7 @@ export const sendVerificationSms = internalAction({
     verificationCode: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
 
@@ -146,6 +149,7 @@ export const verifyPhoneNumber = mutation({
     code: v.string(),
   },
   handler: async (ctx, args) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -184,6 +188,7 @@ export const verifyPhoneNumber = mutation({
 export const resendVerificationCode = mutation({
   args: {},
   handler: async (ctx) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -220,6 +225,9 @@ export const toggleSmsNotifications = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // Allow turning OFF even when SMS is globally disabled (lets users
+    // clean up their own state). Reject turning ON.
+    if (args.enabled) assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
 
@@ -277,6 +285,7 @@ export const sendContentAccessSms = internalAction({
     granterName: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const eventSettings = await ctx.runQuery(
       internal.notificationSettings.getEventSettings,
       { eventName: "contentAccessGranted" }
@@ -315,6 +324,7 @@ export const sendInviteSms = internalAction({
     inviterName: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
@@ -337,6 +347,7 @@ export const sendClientInviteSms = internalAction({
     inviterName: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
     const orgName = settings?.organizationName || "NMTSA Education Platform";
     const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
@@ -366,6 +377,7 @@ export const sendRecommendationSms = internalAction({
     recommenderName: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const eventSettings = await ctx.runQuery(
       internal.notificationSettings.getEventSettings,
       { eventName: "recommendationSent" }
@@ -402,6 +414,7 @@ export const sendPurchaseApprovedSms = internalAction({
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const eventSettings = await ctx.runQuery(
       internal.notificationSettings.getEventSettings,
       { eventName: "purchaseRequestApproved" }
@@ -439,6 +452,7 @@ export const sendContentStatusSms = internalAction({
     newStatus: v.string(),
   },
   handler: async (ctx, args) => {
+    if (!SMS_ENABLED) return;
     const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId: args.authorId });
     
     if (!profile?.phoneNumber || !profile.phoneVerified || !profile.smsNotificationsEnabled) {

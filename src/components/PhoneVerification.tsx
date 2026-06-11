@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
+import { SMS_ENABLED } from "@/lib/featureFlags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, CheckCircle2, AlertCircle, MessageSquare } from "lucide-react";
 
 export function PhoneVerification() {
+  if (!SMS_ENABLED) return null;
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

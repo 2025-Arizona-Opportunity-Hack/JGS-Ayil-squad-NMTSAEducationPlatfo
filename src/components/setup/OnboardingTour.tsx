@@ -35,7 +35,7 @@ const TOUR_STOPS: TourStop[] = [
     target: "invite-client",
     title: "Invite Clients",
     description:
-      "Use this button to quickly invite new clients to your platform via email or SMS.",
+      "Use this button to quickly invite new clients to your platform via email.",
     position: "bottom",
   },
   {

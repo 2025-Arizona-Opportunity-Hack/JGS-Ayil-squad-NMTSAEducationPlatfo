@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
+import { assertSmsEnabled } from "./featureFlags";
 
 // Generate a cryptographically secure invite code
 function generateCode(): string {
@@ -150,6 +151,7 @@ export const createInviteCodeWithSms = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    assertSmsEnabled();
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new ConvexError("Not authenticated");
@@ -369,5 +371,35 @@ export const reactivateInviteCode = mutation({
     await ctx.db.patch(args.inviteCodeId, {
       isActive: true,
     });
+  },
+});
+
+// Permanently delete an invite code (cannot be undone). Distinct from
+// deactivateInviteCode, which preserves the row for audit history.
+export const deleteInviteCode = mutation({
+  args: {
+    inviteCodeId: v.id("inviteCodes"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) throw new ConvexError("Profile not found");
+
+    const permissions = getEffectivePermissions(profile);
+    if (!hasPermission(permissions, PERMISSIONS.MANAGE_USERS)) {
+      throw new ConvexError("You don't have permission to delete invite codes");
+    }
+
+    const invite = await ctx.db.get(args.inviteCodeId);
+    if (!invite) throw new ConvexError("Invite code not found");
+
+    await ctx.db.delete(args.inviteCodeId);
+    return { success: true };
   },
 });

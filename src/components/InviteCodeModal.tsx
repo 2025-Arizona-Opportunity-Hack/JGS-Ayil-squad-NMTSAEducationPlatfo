@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, X, RefreshCw, Link } from "lucide-react";
+import { Copy, Check, X, RefreshCw, Link, Trash2 } from "lucide-react";
 import { Id } from "../../convex/_generated/dataModel";
 
 interface InviteCodeModalProps {
@@ -41,6 +41,7 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
   const inviteCodes = useQuery(api.inviteCodes.listInviteCodes);
   const deactivateCode = useMutation(api.inviteCodes.deactivateInviteCode);
   const reactivateCode = useMutation(api.inviteCodes.reactivateInviteCode);
+  const deleteCode = useMutation(api.inviteCodes.deleteInviteCode);
 
   const handleGenerate = async () => {
     try {
@@ -95,6 +96,23 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
     } catch (error) {
       console.error("Error reactivating invite code:", error);
       toast.error("Failed to reactivate invite code");
+    }
+  };
+
+  const handleDelete = async (inviteCodeId: Id<"inviteCodes">) => {
+    if (
+      !window.confirm(
+        "Permanently delete this invite code? This cannot be undone. (Use 'Deactivate' to revoke without deleting.)"
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteCode({ inviteCodeId });
+      toast.success("Invite code deleted");
+    } catch (error) {
+      console.error("Error deleting invite code:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete invite code");
     }
   };
 
@@ -295,6 +313,7 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeactivate(code._id)}
+                            title="Deactivate (preserve audit history)"
                           >
                             <X className="w-4 h-4 text-red-500" />
                           </Button>
@@ -303,10 +322,19 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleReactivate(code._id)}
+                            title="Reactivate"
                           >
                             <RefreshCw className="w-4 h-4 text-green-500" />
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(code._id)}
+                          title="Delete permanently (cannot be undone)"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
                       </div>
                     </div>
                   );

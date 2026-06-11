@@ -269,3 +269,90 @@ describe("users.createUserProfile (via client invite)", () => {
     }
   });
 });
+
+describe("clientInvites SMS guards (SMS_ENABLED=false)", () => {
+  it("rejects createClientInviteWithSms when SMS is globally disabled", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedOwner(t);
+
+    await expect(
+      t
+        .withIdentity({ subject: ownerId })
+        .mutation(api.clientInvites.createClientInviteWithSms, {
+          role: "client",
+          phoneNumber: "+14155551234",
+        }),
+    ).rejects.toThrow(/sms.*disabled/i);
+  });
+
+  it("rejects createClientInviteWithBoth when SMS is globally disabled", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedOwner(t);
+
+    await expect(
+      t
+        .withIdentity({ subject: ownerId })
+        .mutation(api.clientInvites.createClientInviteWithBoth, {
+          role: "client",
+          email: "both@example.com",
+          phoneNumber: "+14155551234",
+        }),
+    ).rejects.toThrow(/sms.*disabled/i);
+  });
+});
+
+describe("clientInvites.deleteClientInvite", () => {
+  it("permanently removes the invite row", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedOwner(t);
+
+    const { inviteId } = await t
+      .withIdentity({ subject: ownerId })
+      .mutation(api.clientInvites.createClientInviteWithEmail, {
+        role: "client",
+        email: "doomed@example.com",
+      });
+
+    await t
+      .withIdentity({ subject: ownerId })
+      .mutation(api.clientInvites.deleteClientInvite, { inviteId });
+
+    const after = await t.run(async (ctx) => ctx.db.get(inviteId));
+    expect(after).toBeNull();
+  });
+
+  it("rejects deletion by a user who isn't the creator and lacks MANAGE_USERS", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedOwner(t);
+
+    const { inviteId } = await t
+      .withIdentity({ subject: ownerId })
+      .mutation(api.clientInvites.createClientInviteWithEmail, {
+        role: "client",
+        email: "creator-owns@example.com",
+      });
+
+    // Seed a separate "viewer" user with no permissions.
+    const viewerId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("users", { email: "viewer@test.local" });
+      await ctx.db.insert("userProfiles", {
+        userId: id,
+        role: "client",
+        firstName: "View",
+        lastName: "Er",
+        isActive: true,
+      });
+      return id;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: viewerId })
+        .mutation(api.clientInvites.deleteClientInvite, { inviteId }),
+    ).rejects.toThrow(/don't have permission/i);
+
+    // Row still exists.
+    const after = await t.run(async (ctx) => ctx.db.get(inviteId));
+    expect(after).not.toBeNull();
+  });
+});

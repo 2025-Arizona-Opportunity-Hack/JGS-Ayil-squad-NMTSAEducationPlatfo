@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { formatDistanceToNow } from "date-fns";
 // Debug actions are in debugActions.ts (Node.js runtime)
 import { toast } from "sonner";
+import { SMS_ENABLED } from "@/lib/featureFlags";
 import {
   Bug,
   Mail,
@@ -370,7 +371,8 @@ export function DebugTools() {
           </CardContent>
         </Card>
 
-        {/* Test SMS */}
+        {/* Test SMS — hidden when SMS is disabled globally */}
+        {SMS_ENABLED && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -452,6 +454,7 @@ export function DebugTools() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Notification Logs */}
