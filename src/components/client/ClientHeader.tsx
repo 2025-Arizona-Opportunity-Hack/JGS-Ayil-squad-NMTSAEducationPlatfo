@@ -9,6 +9,7 @@ import { Logo } from "../Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "../ThemeToggle";
+import { SignOutButton } from "../../SignOutButton";
 import { cn } from "@/lib/utils";
 
 interface ClientHeaderProps {
@@ -65,6 +66,7 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
                 </AvatarFallback>
               </Avatar>
             </Button>
+            <SignOutButton className="min-w-[44px] min-h-[44px]" />
           </div>
         </div>
 
@@ -110,6 +112,7 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
                 </AvatarFallback>
               </Avatar>
             </Button>
+            <SignOutButton />
           </div>
         </div>
       </div>

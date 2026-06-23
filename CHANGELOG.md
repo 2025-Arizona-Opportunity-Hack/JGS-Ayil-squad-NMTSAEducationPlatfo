@@ -3,6 +3,11 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.1.3 — 2026-06-22
+
+- Add: sign-out button to the client portal header (mobile + desktop), reusing
+  the shared `SignOutButton`.
+
 ## 0.1.2 — 2026-06-22
 
 - Fix: video thumbnail generation no longer logs "The operation is insecure".
