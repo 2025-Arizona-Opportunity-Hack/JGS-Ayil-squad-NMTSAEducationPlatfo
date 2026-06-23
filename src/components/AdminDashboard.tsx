@@ -76,9 +76,16 @@ export function AdminDashboard() {
       {activeTab === "settings" && canManageSiteSettings && <SiteSettings />}
       {activeTab === "debug" && canManageSiteSettings && <DebugTools />}
 
-      {/* Modals */}
-      <InviteCodeModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
-      <ClientInviteModal open={clientInviteModalOpen} onOpenChange={setClientInviteModalOpen} />
+      {/* Modals — only mounted for users who can generate invite codes. These
+          modals run privileged queries (listInviteCodes / listClientInvites)
+          on mount that throw for users without GENERATE_INVITE_CODES, which
+          would otherwise blank the whole dashboard for contributors/editors. */}
+      {canGenerateInviteCodes && (
+        <>
+          <InviteCodeModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
+          <ClientInviteModal open={clientInviteModalOpen} onOpenChange={setClientInviteModalOpen} />
+        </>
+      )}
 
       {/* Onboarding tour — auto-shows on first visit */}
       <OnboardingTour />

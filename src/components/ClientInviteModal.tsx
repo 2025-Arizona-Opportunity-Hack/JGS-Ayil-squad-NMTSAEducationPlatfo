@@ -1,8 +1,21 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 import { SMS_ENABLED } from "@/lib/featureFlags";
+
+// Extract the underlying message from a Convex error. ConvexError thrown
+// server-side surfaces here as a ConvexError instance whose `.data` is the
+// raw payload (a clean string); `.message` includes wrapper noise like
+// "[CONVEX M(...)] Uncaught ConvexError: ... Called by client". Prefer .data.
+function getErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError && typeof error.data === "string") {
+    return error.data;
+  }
+  if (error instanceof Error) return error.message;
+  return "An unexpected error occurred";
+}
 import {
   Dialog,
   DialogContent,
@@ -62,7 +75,12 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
   const createWithEmail = useMutation(api.clientInvites.createClientInviteWithEmail);
   const createWithSms = useMutation(api.clientInvites.createClientInviteWithSms);
   const createWithBoth = useMutation(api.clientInvites.createClientInviteWithBoth);
-  const clientInvites = useQuery(api.clientInvites.listClientInvites);
+  // Only fetch when open: this query requires elevated permissions and throws
+  // otherwise. Skipping while closed keeps the modal safe to mount anywhere.
+  const clientInvites = useQuery(
+    api.clientInvites.listClientInvites,
+    open ? {} : "skip"
+  );
   const deactivateInvite = useMutation(api.clientInvites.deactivateClientInvite);
   const deleteInvite = useMutation(api.clientInvites.deleteClientInvite);
   const resendInvite = useMutation(api.clientInvites.resendClientInvite);
@@ -135,7 +153,18 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
       });
     } catch (error) {
       console.error("Error sending invite:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to send invitation");
+      const message = getErrorMessage(error);
+
+      // Special-case the duplicate-invite error so the admin sees what to do
+      // next, not just the raw server message.
+      if (/active invite already exists/i.test(message)) {
+        toast.error("This email has already been invited", {
+          description:
+            "An invitation is already active for this email. Delete or deactivate the existing invite in the list below before sending a new one.",
+        });
+      } else {
+        toast.error("Failed to send invitation", { description: message });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -179,7 +208,9 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
       toast.success("Invitation deleted");
     } catch (error) {
       console.error("Error deleting invite:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to delete invitation");
+      toast.error("Failed to delete invitation", {
+        description: getErrorMessage(error),
+      });
     }
   };
 
@@ -189,7 +220,9 @@ export function ClientInviteModal({ open, onOpenChange }: ClientInviteModalProps
       toast.success("Invitation resent successfully");
     } catch (error) {
       console.error("Error resending invite:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to resend invitation");
+      toast.error("Failed to resend invitation", {
+        description: getErrorMessage(error),
+      });
     }
   };
 

@@ -38,7 +38,12 @@ export function InviteCodeModal({ open, onOpenChange }: InviteCodeModalProps) {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const createInviteCode = useMutation(api.inviteCodes.createInviteCode);
-  const inviteCodes = useQuery(api.inviteCodes.listInviteCodes);
+  // Only fetch when open: this query requires GENERATE_INVITE_CODES and throws
+  // otherwise. Skipping while closed keeps the modal safe to mount anywhere.
+  const inviteCodes = useQuery(
+    api.inviteCodes.listInviteCodes,
+    open ? {} : "skip"
+  );
   const deactivateCode = useMutation(api.inviteCodes.deactivateInviteCode);
   const reactivateCode = useMutation(api.inviteCodes.reactivateInviteCode);
   const deleteCode = useMutation(api.inviteCodes.deleteInviteCode);

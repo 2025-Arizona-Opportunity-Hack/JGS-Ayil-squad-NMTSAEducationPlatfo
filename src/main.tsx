@@ -13,6 +13,7 @@ import { VerifyEmail } from "./components/VerifyEmail";
 import { ResetPassword } from "./components/ResetPassword";
 import { CheckoutSuccess, CheckoutCancel } from "./components/CheckoutResult";
 import { BrandColorProvider } from "./components/ThemeProvider";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
 
@@ -28,17 +29,19 @@ createRoot(document.getElementById("root")!).render(
   <ConvexAuthProvider client={convex}>
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
       <BrandColorProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/view/:contentId" element={<PublicContentViewer />} />
-            <Route path="/share/:accessToken" element={<SharedContentViewer />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/checkout/success" element={<CheckoutSuccess />} />
-            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </BrowserRouter>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/view/:contentId" element={<PublicContentViewer />} />
+              <Route path="/share/:accessToken" element={<SharedContentViewer />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/checkout/success" element={<CheckoutSuccess />} />
+              <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+              <Route path="/*" element={<App />} />
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
         <Toaster position="top-center" />
       </BrandColorProvider>
     </NextThemesProvider>
