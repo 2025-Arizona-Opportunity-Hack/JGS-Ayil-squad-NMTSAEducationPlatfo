@@ -21,6 +21,9 @@ export function VideoThumbnail({
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // When canvas extraction can't run (e.g. the video host blocks CORS so the
+  // canvas would be tainted), show the video's first frame instead of an error.
+  const [useFirstFrame, setUseFirstFrame] = useState(false);
   const hasAttemptedGeneration = useRef(false);
   
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
@@ -58,8 +61,12 @@ export function VideoThumbnail({
       video.preload = 'metadata';
       video.muted = true;
       video.playsInline = true;
-      // Try without crossOrigin first for better compatibility
-      
+      // Request CORS access: drawing a cross-origin frame onto a canvas taints
+      // it, which makes canvas.toBlob() throw "The operation is insecure". With
+      // crossOrigin the canvas stays clean (when the host allows CORS); if the
+      // host rejects it the video errors out and we fall back to the first frame.
+      video.crossOrigin = 'anonymous';
+
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Video load timeout'));
@@ -139,8 +146,10 @@ export function VideoThumbnail({
       });
       
     } catch (err) {
-      console.error("Error generating thumbnail:", err);
-      setError(err instanceof Error ? err.message : 'Failed to generate thumbnail');
+      // Generation failed (tainted canvas / CORS / decode). Don't surface a
+      // hard error — fall back to showing the video's first frame instead.
+      console.warn("Thumbnail generation failed; falling back to first frame:", err);
+      setUseFirstFrame(true);
     } finally {
       setIsGenerating(false);
     }
@@ -172,7 +181,26 @@ export function VideoThumbnail({
     );
   }
 
-  // Show error state
+  // Fallback: show the video's first frame when canvas extraction couldn't run
+  // (e.g. CORS taint) or the upload failed. Rendering the video in an element
+  // doesn't read pixels, so it works regardless of CORS. The #t fragment hints
+  // the browser to display an early frame as the poster.
+  if ((useFirstFrame || error) && videoUrl) {
+    return (
+      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border">
+        <video
+          src={`${videoUrl}#t=0.1`}
+          muted
+          playsInline
+          preload="metadata"
+          aria-label={title}
+          className="w-full h-full object-cover pointer-events-none"
+        />
+      </div>
+    );
+  }
+
+  // Show error state (no video to fall back to)
   if (error) {
     return (
       <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted border flex items-center justify-center">

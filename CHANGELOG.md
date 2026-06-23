@@ -3,6 +3,13 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.1.2 — 2026-06-22
+
+- Fix: video thumbnail generation no longer logs "The operation is insecure".
+  `VideoThumbnail` now requests CORS (`crossOrigin`) so canvas extraction works
+  where the host allows it, and falls back to displaying the video's first frame
+  (instead of an error icon) when extraction can't run.
+
 ## 0.1.1 — 2026-06-22
 
 - Track `CLAUDE.md` in git (removed from `.gitignore`) so the versioning policy
