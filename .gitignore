@@ -65,7 +65,6 @@ tests/.auth/
 .agents/
 .claude/
 AGENTS.md
-CLAUDE.md
 skills-lock.json
 convex/_generated/ai/
 

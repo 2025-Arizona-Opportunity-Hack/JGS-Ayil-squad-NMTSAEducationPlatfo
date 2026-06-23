@@ -3,6 +3,11 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.1.1 — 2026-06-22
+
+- Track `CLAUDE.md` in git (removed from `.gitignore`) so the versioning policy
+  and project guide are shared with the team.
+
 ## 0.1.0 — 2026-06-22
 
 - Introduce versioning policy + this changelog (see `CLAUDE.md`).
