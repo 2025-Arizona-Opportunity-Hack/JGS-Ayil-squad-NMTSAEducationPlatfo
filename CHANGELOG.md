@@ -3,6 +3,14 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.2.0 — 2026-06-23
+
+- Add: professionals can now recommend content from the client portal. A
+  permission-gated "Recommend" button (`RecommendButton`, requires
+  RECOMMEND_CONTENT) appears in the content viewer (`/view/:id`) and opens the
+  existing recommend modal. Closes the gap where the role had the permission but
+  no UI to use it after moving to the client portal.
+
 ## 0.1.5 — 2026-06-22
 
 - Tests: add unit coverage for the changes that lacked it — `listInviteCodes` /

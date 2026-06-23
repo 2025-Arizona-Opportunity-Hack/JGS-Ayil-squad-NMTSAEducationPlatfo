@@ -6,6 +6,7 @@ import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Ta
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
 import { Logo } from "./Logo";
+import { RecommendButton } from "./RecommendButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,9 @@ export function PublicContentViewer() {
     api.pricing.getPricing,
     contentId ? { contentId: contentId as any } : ("skip" as any)
   );
+  // Viewer's profile — used to surface the "Recommend" action for professionals
+  // (RECOMMEND_CONTENT). Returns null for anonymous viewers, hiding the button.
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
   const grantAccess = useMutation(api.content.grantAccessAfterPassword);
   const trackView = useMutation(api.analytics.trackView);
   const sessionIdRef = useRef<string>(`session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
@@ -330,6 +334,12 @@ export function PublicContentViewer() {
                   <div className="text-sm sm:text-base text-muted-foreground mt-3 max-w-3xl" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
                 )}
               </div>
+              <RecommendButton
+                permissions={userProfile?.effectivePermissions}
+                contentId={contentId ?? ""}
+                title={content.title}
+                className="shrink-0"
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 sm:mt-5 text-xs sm:text-sm">
