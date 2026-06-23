@@ -133,7 +133,15 @@ export const getAllContentAnalytics = query({
 // Get view counts for all content (admin only)
 export const getContentViewCounts = query({
   handler: async (ctx) => {
-    await requirePermission(ctx, PERMISSIONS.VIEW_ANALYTICS);
+    // View counts are surfaced inside ContentManager, which contributors and
+    // editors (who lack VIEW_ANALYTICS) can open. Degrade gracefully instead of
+    // throwing — an unhandled throw here blanks the whole app. Mirrors the
+    // pattern used by contentGroups.listContentGroups.
+    try {
+      await requirePermission(ctx, PERMISSIONS.VIEW_ANALYTICS);
+    } catch {
+      return {} as Record<string, number>;
+    }
 
     // Get all content views
     const allViews = await ctx.db.query("contentViews").collect();
