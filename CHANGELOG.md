@@ -3,6 +3,12 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.1.4 — 2026-06-22
+
+- Fix: the admin dashboard validates its persisted tab (`adminDashboardTab`,
+  shared across users on a browser) against the current user's permissions,
+  falling back to "Content" instead of showing an empty panel.
+
 ## 0.1.3 — 2026-06-22
 
 - Add: sign-out button to the client portal header (mobile + desktop), reusing

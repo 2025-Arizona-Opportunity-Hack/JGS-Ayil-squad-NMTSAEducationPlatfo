@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { UserManager } from "./UserManager";
@@ -19,6 +19,7 @@ import { AdminLayout } from "./admin/AdminLayout";
 import { OnboardingTour } from "./setup/OnboardingTour";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { resolveAdminTab } from "@/lib/adminTabs";
 
 export function AdminDashboard() {
   const userProfile = useQuery(api.users.getCurrentUserProfile);
@@ -32,6 +33,18 @@ export function AdminDashboard() {
     setActiveTab(value);
     localStorage.setItem("adminDashboardTab", value);
   };
+
+  // The persisted tab is shared across all users on this browser. Once the
+  // profile loads, drop back to an accessible tab if the stored one needs a
+  // permission this user lacks (otherwise the panel renders empty).
+  useEffect(() => {
+    if (!userProfile) return;
+    const resolved = resolveAdminTab(activeTab, userProfile.effectivePermissions);
+    if (resolved !== activeTab) {
+      setActiveTab(resolved);
+      localStorage.setItem("adminDashboardTab", resolved);
+    }
+  }, [userProfile, activeTab]);
 
   if (!userProfile) {
     return (
