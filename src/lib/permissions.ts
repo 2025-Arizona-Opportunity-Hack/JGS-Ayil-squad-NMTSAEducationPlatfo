@@ -86,6 +86,22 @@ export function hasAnyPermission(userPermissions: string[] | undefined, permissi
   return permissions.some(p => userPermissions.includes(p));
 }
 
+/**
+ * Whether a user should see the staff/admin dashboard (vs the client portal).
+ *
+ * Keyed on management capability, NOT on VIEW_ALL_CONTENT: that is a read
+ * permission also granted to client-facing roles (e.g. "professional"), so
+ * including it would misroute them into the admin dashboard.
+ */
+export function isAdminUser(permissions: string[] | undefined): boolean {
+  return hasAnyPermission(permissions, [
+    PERMISSIONS.CREATE_CONTENT,
+    PERMISSIONS.EDIT_CONTENT,
+    PERMISSIONS.VIEW_USERS,
+    PERMISSIONS.MANAGE_SITE_SETTINGS,
+  ]);
+}
+
 // Permission display names for UI
 export const PERMISSION_LABELS: Record<Permission, string> = {
   [PERMISSIONS.VIEW_ALL_CONTENT]: "View All Content",

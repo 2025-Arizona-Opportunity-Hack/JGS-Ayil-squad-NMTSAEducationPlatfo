@@ -34,6 +34,31 @@ describe("analytics.getContentViewCounts", () => {
     expect(result).toEqual({});
   });
 
+  // Every role must be able to open ContentManager (the default admin tab)
+  // without this query throwing and blanking the app. Roles without
+  // VIEW_ANALYTICS get {}; roles with it get real counts.
+  const ALL_ROLES = [
+    "owner",
+    "admin",
+    "editor",
+    "contributor",
+    "professional",
+    "parent",
+    "client",
+  ];
+  for (const role of ALL_ROLES) {
+    it(`does not throw for role "${role}"`, async () => {
+      const t = convexTest(schema);
+      const userId = await seedUser(t, role, `${role}@test.local`);
+
+      const result = await t
+        .withIdentity({ subject: userId })
+        .query(api.analytics.getContentViewCounts, {});
+
+      expect(typeof result).toBe("object");
+    });
+  }
+
   it("returns view counts for a user with VIEW_ANALYTICS (owner)", async () => {
     const t = convexTest(schema);
     const ownerId = await seedUser(t, "owner", "owner@test.local");

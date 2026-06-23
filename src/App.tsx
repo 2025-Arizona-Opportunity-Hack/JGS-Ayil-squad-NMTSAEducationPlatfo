@@ -10,7 +10,7 @@ import { SetupWizard } from "./components/setup/SetupWizard";
 import { Logo } from "./components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { hasAnyPermission, PERMISSIONS } from "@/lib/permissions";
+import { isAdminUser } from "@/lib/permissions";
 import { ClientLayout } from "./components/client/ClientLayout";
 import { HomePage } from "./pages/client/HomePage";
 import { BrowsePage } from "./pages/client/BrowsePage";
@@ -164,13 +164,7 @@ export default function App() {
     return <RoleSelection />;
   }
 
-  const isAdmin = hasAnyPermission(userProfile?.effectivePermissions, [
-    PERMISSIONS.CREATE_CONTENT,
-    PERMISSIONS.EDIT_CONTENT,
-    PERMISSIONS.VIEW_ALL_CONTENT,
-    PERMISSIONS.VIEW_USERS,
-    PERMISSIONS.MANAGE_SITE_SETTINGS,
-  ]);
+  const isAdmin = isAdminUser(userProfile?.effectivePermissions);
 
   if (isAdmin) {
     return <AdminDashboard />;
