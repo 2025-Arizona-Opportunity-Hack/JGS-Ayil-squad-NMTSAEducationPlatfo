@@ -3,6 +3,12 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.1.5 — 2026-06-22
+
+- Tests: add unit coverage for the changes that lacked it — `listInviteCodes` /
+  `listClientInvites` permission contracts (the queries that blanked the app),
+  the invite modals' skip-query-while-closed behavior, and the `SignOutButton`.
+
 ## 0.1.4 — 2026-06-22
 
 - Fix: the admin dashboard validates its persisted tab (`adminDashboardTab`,

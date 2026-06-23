@@ -8,16 +8,21 @@ import { Id } from "./_generated/dataModel";
 // Helper: seed an owner user + profile so we can act as the inviter.
 // Returns the userId we use as `subject` in withIdentity().
 async function seedOwner(t: ReturnType<typeof convexTest>) {
+  return await seedRole(t, "owner");
+}
+
+// Seed a user with an arbitrary role (for permission-contract tests).
+async function seedRole(t: ReturnType<typeof convexTest>, role: string) {
   return await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", {
-      email: "owner@test.local",
-      name: "Test Owner",
+      email: `${role}@test.local`,
+      name: `Test ${role}`,
     });
     await ctx.db.insert("userProfiles", {
       userId,
-      role: "owner",
+      role,
       firstName: "Test",
-      lastName: "Owner",
+      lastName: role,
       isActive: true,
     });
     return userId;
@@ -355,4 +360,34 @@ describe("clientInvites.deleteClientInvite", () => {
     const after = await t.run(async (ctx) => ctx.db.get(inviteId));
     expect(after).not.toBeNull();
   });
+});
+
+describe("clientInvites.listClientInvites (permission contract)", () => {
+  // Regression: read on mount by the always-rendered ClientInviteModal. Throws
+  // for users without VIEW_USERS or GENERATE_INVITE_CODES — which blanked the
+  // app for contributors/editors before the modal was permission-gated.
+  it("returns the invites for a privileged user (owner)", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedOwner(t);
+
+    const result = await t
+      .withIdentity({ subject: ownerId })
+      .query(api.clientInvites.listClientInvites, {});
+
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it.each(["contributor", "editor", "professional", "client"])(
+    "throws for %s (lacks VIEW_USERS and GENERATE_INVITE_CODES)",
+    async (role) => {
+      const t = convexTest(schema);
+      const userId = await seedRole(t, role);
+
+      await expect(
+        t
+          .withIdentity({ subject: userId })
+          .query(api.clientInvites.listClientInvites, {})
+      ).rejects.toThrow(/permission/i);
+    }
+  );
 });
