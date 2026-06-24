@@ -89,6 +89,7 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
                     <li key={value}>
                       <button
                         onClick={() => onTabChange(value)}
+                        data-tour={`tab-${value}`}
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors min-h-[44px]",

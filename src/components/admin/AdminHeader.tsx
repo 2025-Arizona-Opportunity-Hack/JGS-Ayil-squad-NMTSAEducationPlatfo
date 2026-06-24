@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { Menu } from "lucide-react";
+import { Menu, HelpCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Logo } from "../Logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,12 +12,13 @@ import { AdminSidebar } from "./AdminSidebar";
 
 interface AdminHeaderProps {
   onProfileClick: () => void;
+  onHelpClick: () => void;
   activeTab: string;
   onTabChange: (value: string) => void;
   sidebarPermissions: React.ComponentProps<typeof AdminSidebar>["permissions"];
 }
 
-export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPermissions }: AdminHeaderProps) {
+export function AdminHeader({ onProfileClick, onHelpClick, activeTab, onTabChange, sidebarPermissions }: AdminHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
@@ -60,6 +61,16 @@ export function AdminHeader({ onProfileClick, activeTab, onTabChange, sidebarPer
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onHelpClick}
+            aria-label="Help and guides"
+            className="min-w-[44px] min-h-[44px]"
+            data-tour="help-button"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </Button>
           <ThemeToggle />
           <Button
             variant="ghost"

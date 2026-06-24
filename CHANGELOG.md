@@ -3,6 +3,14 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.3.0 — 2026-06-23
+
+- Add: Help & Guides in the admin dashboard. A Help (?) button opens a launcher
+  with step-by-step guides for **uploading** and **sharing** content — each
+  available as a readable written guide and an interactive point-and-guide tour.
+  New staff get a one-time prompt pointing them to it. The existing welcome tour
+  was refactored onto the shared `GuidedTour` engine.
+
 ## 0.2.0 — 2026-06-23
 
 - Add: professionals can now recommend content from the client portal. A

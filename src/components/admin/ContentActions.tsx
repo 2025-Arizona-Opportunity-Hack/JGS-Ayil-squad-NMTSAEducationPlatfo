@@ -70,7 +70,7 @@ export function ContentActions({
               <Badge variant="secondary" className="ml-1">{selectedIds.length} selected</Badge>
             )}
           </div>
-          <Button onClick={onCreateContent} className="min-h-[44px]">
+          <Button onClick={onCreateContent} className="min-h-[44px]" data-tour="create-content">
             <Plus className="w-4 h-4 mr-2" />
             Add Content
           </Button>
