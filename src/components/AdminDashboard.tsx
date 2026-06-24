@@ -17,6 +17,11 @@ import { JoinRequests } from "./admin/JoinRequests";
 import { DebugTools } from "./admin/DebugTools";
 import { AdminLayout } from "./admin/AdminLayout";
 import { OnboardingTour } from "./setup/OnboardingTour";
+import { useGuides } from "./guides/useGuides";
+import { GuidesLauncher } from "./guides/GuidesLauncher";
+import { WrittenGuide } from "./guides/WrittenGuide";
+import { GuidedTour } from "./guides/GuidedTour";
+import { NewStaffPrompt } from "./guides/NewStaffPrompt";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { resolveAdminTab } from "@/lib/adminTabs";
@@ -28,6 +33,8 @@ export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem("adminDashboardTab") || "content";
   });
+
+  const guides = useGuides();
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -66,7 +73,7 @@ export function AdminDashboard() {
   const canGenerateInviteCodes = hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES);
 
   return (
-    <AdminLayout activeTab={activeTab} onTabChange={handleTabChange}>
+    <AdminLayout activeTab={activeTab} onTabChange={handleTabChange} onHelpClick={guides.openLauncher}>
       {/* Action buttons */}
       {canGenerateInviteCodes && (
         <div className="flex gap-2 mb-4">
@@ -102,6 +109,28 @@ export function AdminDashboard() {
 
       {/* Onboarding tour — auto-shows on first visit */}
       <OnboardingTour />
+
+      {/* Help & Guides */}
+      <GuidesLauncher
+        open={guides.launcherOpen}
+        onClose={guides.closeLauncher}
+        onReadSteps={guides.readSteps}
+        onStartTour={guides.startTour}
+      />
+      <WrittenGuide
+        guide={guides.writtenGuide}
+        open={guides.writtenGuide !== null}
+        onClose={guides.closeWritten}
+        onStartTour={
+          guides.writtenGuide
+            ? () => guides.startTour(guides.writtenGuide!.id)
+            : undefined
+        }
+      />
+      {guides.tourGuide && (
+        <GuidedTour stops={guides.tourGuide.tourStops} onClose={guides.closeTour} />
+      )}
+      <NewStaffPrompt onOpenGuides={guides.openLauncher} />
     </AdminLayout>
   );
 }

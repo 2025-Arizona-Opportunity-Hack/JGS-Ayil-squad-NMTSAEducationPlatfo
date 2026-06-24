@@ -10,10 +10,11 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 interface AdminLayoutProps {
   activeTab: string;
   onTabChange: (value: string) => void;
+  onHelpClick: () => void;
   children: React.ReactNode;
 }
 
-export function AdminLayout({ activeTab, onTabChange, children }: AdminLayoutProps) {
+export function AdminLayout({ activeTab, onTabChange, onHelpClick, children }: AdminLayoutProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
 
@@ -34,6 +35,7 @@ export function AdminLayout({ activeTab, onTabChange, children }: AdminLayoutPro
       <SkipToContent />
       <AdminHeader
         onProfileClick={() => setProfileOpen(true)}
+        onHelpClick={onHelpClick}
         activeTab={activeTab}
         onTabChange={onTabChange}
         sidebarPermissions={sidebarPermissions}
