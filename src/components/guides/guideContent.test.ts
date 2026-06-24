@@ -2,10 +2,19 @@ import { describe, it, expect } from "vitest";
 import { GUIDES } from "./guideContent";
 
 describe("GUIDES", () => {
-  it("includes the upload and share guides", () => {
+  it("includes all the expected guides", () => {
     const ids = GUIDES.map((g) => g.id);
     expect(ids).toContain("upload-content");
     expect(ids).toContain("share-content");
+    expect(ids).toContain("content-statuses");
+    expect(ids).toContain("pricing-store");
+    expect(ids).toContain("create-bundle");
+    expect(ids).toContain("write-article");
+  });
+
+  it("has unique guide ids", () => {
+    const ids = GUIDES.map((g) => g.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("every guide has a title, summary, written steps, and tour stops", () => {
