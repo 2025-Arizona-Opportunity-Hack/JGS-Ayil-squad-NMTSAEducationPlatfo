@@ -6,10 +6,12 @@ All notable changes are recorded here. Versioning follows the policy in
 ## 0.3.0 — 2026-06-23
 
 - Add: Help & Guides in the admin dashboard. A Help (?) button opens a launcher
-  with step-by-step guides for **uploading** and **sharing** content — each
-  available as a readable written guide and an interactive point-and-guide tour.
-  New staff get a one-time prompt pointing them to it. The existing welcome tour
-  was refactored onto the shared `GuidedTour` engine.
+  with step-by-step guides — each available as a readable written guide and an
+  interactive point-and-guide tour. New staff get a one-time prompt pointing
+  them to it. The existing welcome tour was refactored onto the shared
+  `GuidedTour` engine. Initial guides: **Upload content**, **Share content**,
+  **Content statuses & review**, **Pricing & the store**, **Create a bundle**,
+  and **Write an article**.
 
 ## 0.2.0 — 2026-06-23
 
