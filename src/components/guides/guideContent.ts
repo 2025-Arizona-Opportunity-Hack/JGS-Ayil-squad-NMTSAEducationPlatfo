@@ -16,8 +16,8 @@ export interface Guide {
 export const GUIDES: Guide[] = [
   {
     id: "upload-content",
-    title: "Upload content",
-    summary: "Add a new video, document, audio file, or article to the library.",
+    title: "Create content (all the fields)",
+    summary: "Add a video, audio file, document, image, or article — with what every field on the form means.",
     tourStops: [
       {
         target: "tab-content",
@@ -35,31 +35,74 @@ export const GUIDES: Guide[] = [
     ],
     writtenSteps: [
       {
-        title: "Open the Content tab",
-        detail: "In the left sidebar, click Content. This is where all uploaded content lives.",
-      },
-      {
-        title: "Click Create Content",
-        detail: "Use the Create Content button at the top of the content list to open the upload form.",
-      },
-      {
-        title: "Enter a title",
-        detail: "Give the content a clear title that staff and clients will recognize.",
-      },
-      {
-        title: "Choose the type and upload the file",
+        title: "Open the form",
         detail:
-          "Pick the content type (video, audio, document, or article) and select the file. Large files (over 500 MB) upload in chunks and can take a few minutes — keep the tab open until it finishes.",
+          "In the Content tab, click Create Content to open the 'Create New Content' form. The fields below appear top to bottom.",
       },
       {
-        title: "Set visibility",
+        title: "Title (required)",
         detail:
-          "Choose who can see it. Public content is visible to anyone with the link; otherwise it stays restricted.",
+          "The one required field, marked with a *. Use a clear name staff and clients will recognize — it's the headline shown everywhere the content appears.",
+      },
+      {
+        title: "Description",
+        detail:
+          "A short summary of what the content is and who it's for. Shown to clients on the content page. Optional, but strongly recommended.",
+      },
+      {
+        title: "Author Name",
+        detail:
+          "Who gets credit for the content. If you leave it blank it defaults to 'Neurological Music Therapy Services of Arizona'.",
+      },
+      {
+        title: "Attachment Type (required)",
+        detail:
+          "Pick the kind of content: Video, Audio, Image, PDF, or Article (rich text). Your choice changes the next field — e.g. Video shows a video file picker, while Article opens a text editor (see the 'Write an article' guide).",
+      },
+      {
+        title: "The file",
+        detail:
+          "For Video / Audio / Image / PDF, upload the file here. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. Articles have no file; you type the content in the editor instead.",
+      },
+      {
+        title: "External URL (optional)",
+        detail:
+          "Instead of uploading, you can point to a video or audio file already hosted somewhere else (for example YouTube) by pasting its link here.",
+      },
+      {
+        title: "Tags",
+        detail:
+          "Keywords that help you and clients find and group content. Type a tag and press Enter to add each one.",
+      },
+      {
+        title: "Make this content public",
+        detail:
+          "Checked = anyone with the link can view it. Unchecked = restricted, so only people you give access to (through sharing, a recommendation, or a purchase) can see it.",
+      },
+      {
+        title: "Availability — active vs. inactive",
+        detail:
+          "Under Availability Settings there's a 'Set content as in-active' box. Leave it unchecked to keep the content live. Check it to hide the content without deleting it — handy for things that aren't ready or are out of season.",
+      },
+      {
+        title: "Start date (optional)",
+        detail:
+          "Schedule when the content becomes available. Before this date clients won't see it, even if it's published.",
+      },
+      {
+        title: "End date (optional)",
+        detail:
+          "Schedule when the content expires. After this date it stops showing to clients.",
+      },
+      {
+        title: "Password protection (optional)",
+        detail:
+          "If you have permission, you can set a password viewers must enter to open the content — on top of the other access rules above. Leave it blank for no password.",
       },
       {
         title: "Save",
         detail:
-          "Click Save. You'll see a 'Content created successfully' confirmation and the item appears in the list.",
+          "Click Save to create the content. You'll see a 'Content created successfully' confirmation. New content starts as a Draft — see the 'Content statuses & review' guide for what happens next.",
       },
     ],
   },
@@ -122,39 +165,44 @@ export const GUIDES: Guide[] = [
     ],
     writtenSteps: [
       {
-        title: "Each item has a status",
+        title: "Where to see status",
         detail:
-          "In the Content tab, every piece of content shows a status: Draft, In review, Changes requested, Published, or Rejected. The status tells you what (if anything) needs to happen next.",
+          "In the Content tab, each item shows a status label. It tells you whether the content is still being worked on, waiting on someone, or live for clients. There are five statuses, explained below.",
       },
       {
-        title: "Draft = work in progress",
+        title: "Draft",
         detail:
-          "A draft is only visible to staff — it isn't live for clients yet. Keep editing until it's ready to be reviewed.",
+          "A brand-new or in-progress item. Visible only to staff — never to clients. Edit it as much as you like. A piece of content always starts here when you create it. When it's finished, submit it for review.",
       },
       {
-        title: "Submit for review",
+        title: "How to submit for review",
         detail:
-          "When a draft is ready, open the item's actions menu (the ⋯ button on its row) and choose Submit for review. This hands it to a reviewer.",
+          "On the item's row, open the ⋯ actions menu and choose Submit for review. This moves the item to 'In review' and hands it to a reviewer. Do this once the draft is complete.",
       },
       {
         title: "In review",
         detail:
-          "The item now waits for a reviewer (an editor or admin) to check it. You don't need to do anything while it's in review.",
+          "The content is waiting for a reviewer (an editor or admin) to check it. There's nothing for the author to do at this stage — the reviewer will either approve and publish it, request changes, or reject it.",
       },
       {
         title: "Changes requested",
         detail:
-          "If the reviewer wants edits, the status becomes Changes requested. Open the item, make the changes, and submit it for review again.",
+          "The reviewer wants edits before it can go live. Open the item, read any notes the reviewer left, make the changes, and submit for review again. It then goes back to 'In review'.",
       },
       {
-        title: "Published = live",
+        title: "Published",
         detail:
-          "Once approved and published, the content is live for the people you share it with. Reviewers publish from the same ⋯ actions menu using Approve / Publish.",
+          "Approved and live. Clients you've shared it with — or who purchased it — can now see it. Reviewers publish from the ⋯ menu via Approve / Publish. Note: a published item still needs to be active and within any start/end dates to actually appear to clients.",
       },
       {
         title: "Rejected",
         detail:
-          "If content isn't a fit, a reviewer may reject it. It stays in the list but won't be published — you can edit and resubmit, or archive it.",
+          "The reviewer decided it shouldn't be published. It stays in your list but isn't live. You can edit it and submit again, or archive it if it's no longer needed.",
+      },
+      {
+        title: "Who can do what",
+        detail:
+          "Contributors create drafts and submit them for review. Editors and admins do the reviewing — approving/publishing, requesting changes, or rejecting. Owners and admins can do everything.",
       },
     ],
   },

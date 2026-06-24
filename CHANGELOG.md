@@ -3,6 +3,14 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.3.1 — 2026-06-24
+
+- Improve: the "Create content" guide now explains every field on the form
+  (title, description, author, attachment type, file/external URL, tags,
+  public toggle, active/inactive, start/end dates, password). The "Content
+  statuses & review" guide now explains each status in depth and who acts at
+  each stage.
+
 ## 0.3.0 — 2026-06-23
 
 - Add: Help & Guides in the admin dashboard. A Help (?) button opens a launcher
