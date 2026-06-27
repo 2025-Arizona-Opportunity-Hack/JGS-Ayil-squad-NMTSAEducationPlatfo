@@ -935,7 +935,7 @@ export function ContentManager() {
                 )}
             </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="field-description">
                 <Label htmlFor="description">Description</Label>
                 <Controller
                   name="description"

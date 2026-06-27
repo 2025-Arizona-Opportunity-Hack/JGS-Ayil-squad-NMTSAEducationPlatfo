@@ -87,12 +87,12 @@ export const GUIDES: Guide[] = [
       {
         title: "Attachment Type (required)",
         detail:
-          "Pick the kind of content: Video, Audio, Image, PDF, or Article (rich text). Your choice changes the next field — e.g. Video shows a video file picker, while Article opens a text editor (see the 'Write an article' guide).",
+          "Pick the kind of file: Video, Audio, Image, or PDF. Your choice changes the next field — e.g. Video shows a video file picker, Audio shows an audio picker.",
       },
       {
         title: "The file",
         detail:
-          "For Video / Audio / Image / PDF, upload the file here. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. Articles have no file; you type the content in the editor instead.",
+          "Upload the file for the type you chose. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. For video and audio you can paste an External URL instead of uploading (next field).",
       },
       {
         title: "External URL (optional)",
@@ -315,44 +315,55 @@ export const GUIDES: Guide[] = [
   {
     id: "write-article",
     title: "Write an article",
-    summary: "Create text-based content with the built-in editor instead of uploading a file.",
+    summary: "Add formatted text, headings, and links — written in a content item's rich-text Description.",
     tourStops: [
       {
         target: "tab-content",
         title: "Start in Content",
-        description: "Open the Content tab.",
+        description: "Click Next to open the Content tab.",
         position: "right",
+        action: "click",
       },
       {
         target: "create-content",
-        title: "Create Content",
-        description: "Click Create Content, then choose the Article type to write with the editor.",
+        title: "Open the form",
+        description: "Next opens the create form, where the Description field is a full text editor.",
         position: "bottom",
+        action: "click",
+      },
+      {
+        target: "field-description",
+        title: "The Description is the editor",
+        description:
+          "This is where an article's text goes. It's a full rich-text editor — headings, bold, lists, and links. There's no separate 'Article' type; formatted writing lives here.",
+        position: "right",
       },
     ],
     writtenSteps: [
       {
-        title: "Open the Content tab and click Create Content",
-        detail: "This opens the same form you use to upload files.",
-      },
-      {
-        title: "Choose the Article type",
+        title: "There's no separate 'Article' type",
         detail:
-          "In the create form, pick Article (rich text) as the content type. This opens a text editor instead of a file picker.",
+          "In this app you don't pick an 'Article' content type. Instead, every piece of content has a rich-text Description, and that's where a formatted write-up goes.",
       },
       {
-        title: "Give it a title",
-        detail: "Use a clear title staff and clients will recognize.",
-      },
-      {
-        title: "Write your content",
+        title: "Open the create (or edit) form",
         detail:
-          "Use the editor to add text, headings, links, and formatting. There's no file to upload for an article.",
+          "From the Content tab, click Create Content for new content — or open an existing item's ⋯ menu and choose Edit to add text to it.",
       },
       {
-        title: "Set visibility and save",
+        title: "Add the required basics",
         detail:
-          "Choose who can see it and click Save. Like other content, an article can go through review before it's published.",
+          "Enter a Title and pick an Attachment Type (Video, Audio, Image, or PDF) with its file or link. These are still required even when the main value is the text.",
+      },
+      {
+        title: "Write in the Description editor",
+        detail:
+          "Use the Description field's toolbar to add headings, bold/italic text, lists, and links. This formatted write-up is what clients read on the content's page.",
+      },
+      {
+        title: "Save",
+        detail:
+          "Save the content. Your formatted text is stored with it and shown on its page. Like all content, it can go through review before it's published.",
       },
     ],
   },
