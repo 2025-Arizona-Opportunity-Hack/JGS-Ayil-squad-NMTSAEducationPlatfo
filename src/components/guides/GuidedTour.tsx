@@ -118,21 +118,36 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
       return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
     const gap = 12;
     const tooltipWidth = 320;
-    const viewportMargin = 16;
-    const clampLeft = (desiredLeft: number) => {
-      const maxLeft = window.innerWidth - tooltipWidth - viewportMargin;
-      return Math.max(viewportMargin, Math.min(desiredLeft, maxLeft));
-    };
+    const estHeight = 230; // rough tooltip height for off-screen clamping
+    const margin = 16;
+    const clamp = (v: number, min: number, max: number) =>
+      Math.max(min, Math.min(v, Math.max(min, max)));
+    const maxLeft = window.innerWidth - tooltipWidth - margin;
+    const maxTop = window.innerHeight - estHeight - margin;
+
+    let top: number;
+    let left: number;
     switch (stop.position) {
       case "right":
-        return { top: targetRect.top, left: targetRect.right + gap };
+        left = targetRect.right + gap;
+        top = targetRect.top;
+        break;
       case "left":
-        return { top: targetRect.top, right: window.innerWidth - targetRect.left + gap };
+        left = targetRect.left - tooltipWidth - gap;
+        top = targetRect.top;
+        break;
       case "bottom":
-        return { top: targetRect.bottom + gap, left: clampLeft(targetRect.left) };
+        left = targetRect.left;
+        top = targetRect.bottom + gap;
+        break;
       case "top":
-        return { bottom: window.innerHeight - targetRect.top + gap, left: clampLeft(targetRect.left) };
+      default:
+        left = targetRect.left;
+        top = targetRect.top - estHeight - gap;
+        break;
     }
+    // Always keep the tooltip on screen (both axes).
+    return { top: clamp(top, margin, maxTop), left: clamp(left, margin, maxLeft) };
   };
 
   return (
@@ -163,7 +178,10 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
         />
       </svg>
 
-      <div className="fixed z-[10000] w-80 max-w-[calc(100vw-2rem)]" style={getTooltipStyle()}>
+      <div
+        className="fixed z-[10000] w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto"
+        style={getTooltipStyle()}
+      >
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">

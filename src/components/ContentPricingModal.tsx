@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { useTourActive } from "./guides/TourActiveContext";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,9 @@ interface ContentPricingModalProps {
   onClose: () => void;
   contentId: Id<"content">;
   contentTitle: string;
+  // When true, this is a guided-tour demo: nothing is saved, and the internal
+  // pricing query is skipped (the example content id is not real).
+  demoMode?: boolean;
 }
 
 export function ContentPricingModal({
@@ -35,10 +39,15 @@ export function ContentPricingModal({
   onClose,
   contentId,
   contentTitle,
+  demoMode = false,
 }: ContentPricingModalProps) {
+  const tourActive = useTourActive();
   const setPricing = useMutation(api.pricing.setPricing);
   const removePricing = useMutation(api.pricing.removePricing);
-  const existingPricing = useQuery(api.pricing.getPricing, { contentId });
+  const existingPricing = useQuery(
+    api.pricing.getPricing,
+    demoMode ? "skip" : { contentId }
+  );
 
   const [price, setPrice] = useState(
     existingPricing ? (existingPricing.price / 100).toFixed(2) : ""
@@ -53,6 +62,10 @@ export function ContentPricingModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (demoMode) {
+      toast.info("This is just a tour — pricing isn't actually saved.");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -107,8 +120,13 @@ export function ContentPricingModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={isOpen} onOpenChange={onClose} modal={!tourActive}>
+      <DialogContent
+        className="sm:max-w-[500px]"
+        onInteractOutside={(e) => {
+          if (tourActive) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Set Content Pricing</DialogTitle>
           <DialogDescription>
@@ -117,7 +135,7 @@ export function ContentPricingModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="pricing-field-price">
             <Label htmlFor="price" className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Price (USD)
@@ -200,7 +218,7 @@ export function ContentPricingModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || demoMode} data-tour="pricing-field-save">
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
