@@ -14,6 +14,10 @@ export interface TourStop {
   title: string;
   description: string;
   position: "top" | "bottom" | "left" | "right";
+  // When set, clicking "Next" first clicks the target element (e.g. to open a
+  // modal or switch tabs) before advancing. The next stop then waits for its
+  // own target to appear.
+  action?: "click";
 }
 
 interface GuidedTourProps {
@@ -28,15 +32,42 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
 
   const stop = stops[currentStop];
 
+  // Locate the target for the current stop. The element may not exist yet (a
+  // modal it lives in might still be opening), so poll across a few animation
+  // frames before giving up and centering the tooltip.
   useEffect(() => {
     if (!stop) return;
-    const el = document.querySelector(`[data-tour="${stop.target}"]`);
-    if (el) {
-      setTargetRect(el.getBoundingClientRect());
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else {
-      setTargetRect(null);
-    }
+    let cancelled = false;
+    let frame = 0;
+    const maxFrames = 60; // ~1s at 60fps
+
+    const locate = () => {
+      if (cancelled) return;
+      const el = document.querySelector(`[data-tour="${stop.target}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTargetRect(el.getBoundingClientRect());
+        // Re-measure once after the open/scroll animation settles.
+        setTimeout(() => {
+          if (cancelled) return;
+          const settled = document.querySelector(`[data-tour="${stop.target}"]`);
+          if (settled) setTargetRect(settled.getBoundingClientRect());
+        }, 300);
+        return;
+      }
+      frame += 1;
+      if (frame < maxFrames) {
+        requestAnimationFrame(locate);
+      } else {
+        setTargetRect(null);
+      }
+    };
+
+    setTargetRect(null);
+    locate();
+    return () => {
+      cancelled = true;
+    };
   }, [stop]);
 
   useEffect(() => {
@@ -50,12 +81,19 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   }, [stop]);
 
   const handleNext = useCallback(() => {
+    // If this stop drives the UI, click its target (e.g. open a modal / switch
+    // tab) before advancing so the next stop's element exists to point at.
+    const current = stops[currentStop];
+    if (current?.action === "click") {
+      const el = document.querySelector(`[data-tour="${current.target}"]`);
+      if (el instanceof HTMLElement) el.click();
+    }
     setCurrentStop((prev) => {
       if (prev < stops.length - 1) return prev + 1;
       onClose();
       return prev;
     });
-  }, [stops.length, onClose]);
+  }, [stops, currentStop, onClose]);
 
   const handlePrev = useCallback(() => {
     setCurrentStop((prev) => (prev > 0 ? prev - 1 : prev));

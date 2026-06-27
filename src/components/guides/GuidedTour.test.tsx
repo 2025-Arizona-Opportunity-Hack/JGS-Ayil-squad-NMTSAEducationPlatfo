@@ -37,4 +37,25 @@ describe("GuidedTour", () => {
     await userEvent.click(screen.getByRole("button", { name: /close tour/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("clicks the target element when advancing from a stop with action 'click'", async () => {
+    const opener = document.createElement("button");
+    opener.setAttribute("data-tour", "opener");
+    const onOpenerClick = vi.fn();
+    opener.addEventListener("click", onOpenerClick);
+    document.body.appendChild(opener);
+
+    const stops: TourStop[] = [
+      { target: "opener", title: "Open it", description: "Opens a modal.", position: "bottom", action: "click" },
+      { target: "field", title: "A field", description: "Inside the modal.", position: "bottom" },
+    ];
+
+    render(<GuidedTour stops={stops} onClose={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    expect(onOpenerClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("A field")).toBeInTheDocument();
+
+    opener.remove();
+  });
 });
