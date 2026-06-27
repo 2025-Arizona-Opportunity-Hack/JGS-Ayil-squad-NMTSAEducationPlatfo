@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
+import { useTourActive } from "./guides/TourActiveContext";
 import { toast } from "sonner";
 import { 
   Dialog,
@@ -39,6 +40,8 @@ interface ThirdPartyShareModalProps {
   onClose: () => void;
   contentId: string;
   contentTitle: string;
+  // Guided-tour demo: nothing is created or emailed.
+  demoMode?: boolean;
 }
 
 export function ThirdPartyShareModal({
@@ -46,7 +49,9 @@ export function ThirdPartyShareModal({
   onClose,
   contentId,
   contentTitle,
+  demoMode = false,
 }: ThirdPartyShareModalProps) {
+  const tourActive = useTourActive();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -74,6 +79,10 @@ export function ThirdPartyShareModal({
   const expiresInDays = watch("expiresInDays");
 
   const onSubmit = async (data: ShareFormData) => {
+    if (demoMode) {
+      toast.info("This is just a tour — no link is created and no email is sent.");
+      return;
+    }
     setIsCreating(true);
     const toastId = toast.loading("Creating share link...");
 
@@ -123,8 +132,13 @@ export function ThirdPartyShareModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={isOpen} onOpenChange={handleClose} modal={!tourActive}>
+      <DialogContent
+        className="max-w-2xl"
+        onInteractOutside={(e) => {
+          if (tourActive) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Share with 3rd Party</DialogTitle>
           <DialogDescription>
@@ -158,7 +172,7 @@ export function ThirdPartyShareModal({
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="share-field-recipient">
               <Label htmlFor="recipientEmail">Recipient Email (optional)</Label>
               <Input
                 id="recipientEmail"
@@ -201,7 +215,7 @@ export function ThirdPartyShareModal({
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={isCreating} className="flex-1">
+              <Button type="submit" disabled={isCreating || demoMode} className="flex-1" data-tour="share-field-save">
                 {isCreating ? "Creating..." : "Create Share Link"}
               </Button>
               <Button

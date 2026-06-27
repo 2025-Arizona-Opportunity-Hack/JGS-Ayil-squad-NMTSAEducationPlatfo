@@ -3,6 +3,15 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.5.0 — 2026-06-26
+
+- Improve: the Pricing and Share tours now demonstrate the real dialogs using a
+  never-saved example item. A guided-tour "demo mode" disables the save buttons,
+  short-circuits the mutations, and skips the pricing lookup, so nothing is
+  created, priced, or emailed during a tour.
+- Fix: the tour tooltip no longer overflows off-screen — it clamps to both axes
+  and scrolls internally; the Guides launcher is height-capped with scroll.
+
 ## 0.4.0 — 2026-06-26
 
 - Improve: guided tours can now drive the UI. The "Create content" and "Write an

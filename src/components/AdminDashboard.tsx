@@ -23,6 +23,7 @@ import { WrittenGuide } from "./guides/WrittenGuide";
 import { GuidedTour } from "./guides/GuidedTour";
 import { NewStaffPrompt } from "./guides/NewStaffPrompt";
 import { TourActiveProvider } from "./guides/TourActiveContext";
+import { GuideDemoHost } from "./guides/GuideDemoHost";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { resolveAdminTab } from "@/lib/adminTabs";
@@ -143,6 +144,7 @@ export function AdminDashboard() {
       {guides.tourGuide && (
         <GuidedTour stops={guides.tourGuide.tourStops} onClose={handleTourClose} />
       )}
+      <GuideDemoHost activeTourId={guides.tourGuide?.id ?? null} />
       <NewStaffPrompt onOpenGuides={guides.openLauncher} />
     </AdminLayout>
     </TourActiveProvider>

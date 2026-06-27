@@ -157,18 +157,39 @@ export const GUIDES: Guide[] = [
     tourStops: [
       {
         target: "tab-content",
-        title: "Find your content",
+        title: "Sharing lives on your content",
         description:
-          "Next takes you to the Content tab. Open your item's ⋯ menu and choose Share to create a link.",
+          "In real use you open a content item's ⋯ menu and choose Share. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
       {
-        target: "tab-shareLinks",
-        title: "Manage share links",
+        target: "demo-example",
+        title: "An example item",
         description:
-          "Every link you create appears under the Shares tab, where you can copy or revoke it anytime.",
+          "Here's an example content item — just for this tour, nothing is saved or emailed.",
+        position: "top",
+      },
+      {
+        target: "demo-open-share",
+        title: "Open Share",
+        description: "Next clicks Share to open the real dialog with this example.",
+        position: "top",
+        action: "click",
+      },
+      {
+        target: "share-field-recipient",
+        title: "Who you're sharing with",
+        description:
+          "Optionally add the recipient's email and a message. You can also set how long the link works.",
         position: "right",
+      },
+      {
+        target: "share-field-save",
+        title: "Create the link",
+        description:
+          "This generates a shareable link to send. (Off here — example only.) Your links live under the Shares tab. Click Done.",
+        position: "top",
       },
     ],
     writtenSteps: [
@@ -259,17 +280,39 @@ export const GUIDES: Guide[] = [
     tourStops: [
       {
         target: "tab-content",
-        title: "Pricing starts here",
+        title: "Pricing lives on your content",
         description:
-          "Next takes you to the Content tab. Find the item you want to sell, open its ⋯ menu, and choose Set pricing.",
+          "In real use you open a content item's ⋯ menu and choose Set pricing. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
       {
-        target: "tab-orders",
-        title: "Track sales",
-        description: "Completed purchases show up under the Orders tab.",
+        target: "demo-example",
+        title: "An example item",
+        description:
+          "Here's an example content item — just for this tour, nothing is saved. In real use this would be one of your own items.",
+        position: "top",
+      },
+      {
+        target: "demo-open-pricing",
+        title: "Open Set Pricing",
+        description: "Next clicks Set pricing to open the real dialog with this example.",
+        position: "top",
+        action: "click",
+      },
+      {
+        target: "pricing-field-price",
+        title: "Set the price",
+        description:
+          "Enter what customers pay to unlock this content. You can also choose how long their access lasts below.",
         position: "right",
+      },
+      {
+        target: "pricing-field-save",
+        title: "Save it",
+        description:
+          "Saving makes it buyable in the Shop. (The button is off here — this is just an example.) Click Done and I'll close the demo.",
+        position: "top",
       },
     ],
     writtenSteps: [

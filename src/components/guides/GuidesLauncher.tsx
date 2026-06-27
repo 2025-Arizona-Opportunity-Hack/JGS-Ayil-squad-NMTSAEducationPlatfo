@@ -19,7 +19,7 @@ interface GuidesLauncherProps {
 export function GuidesLauncher({ open, onClose, onReadSteps, onStartTour }: GuidesLauncherProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Help & Guides</DialogTitle>
           <DialogDescription>
