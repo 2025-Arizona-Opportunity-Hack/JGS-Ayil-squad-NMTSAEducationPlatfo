@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { useTourActive } from "./guides/TourActiveContext";
 import { ContentFilters, type FilterState } from "./admin/ContentFilters";
 import { ContentList } from "./admin/ContentList";
 import { ContentActions } from "./admin/ContentActions";
@@ -86,6 +87,7 @@ const CHUNKED_UPLOAD_THRESHOLD_BYTES = 500 * 1024 * 1024; // 500 MB
 const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB per chunk — comfortably uploads in <2 min on typical broadband
 
 export function ContentManager() {
+  const tourActive = useTourActive();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
@@ -900,7 +902,7 @@ export function ContentManager() {
         // Don't close the dialog if the Google Drive picker is open
         if (!open && isPickerOpen) return;
         setShowCreateForm(open);
-      }} modal={!isPickerOpen}>
+      }} modal={!isPickerOpen && !tourActive}>
         <DialogContent
           className={cn(
             "max-w-5xl max-h-[90vh] overflow-y-auto",
@@ -908,12 +910,12 @@ export function ContentManager() {
           )}
           overlayClassName={isPickerOpen ? "pointer-events-none" : undefined}
           onPointerDownOutside={(e) => {
-            // Prevent closing when clicking outside if picker is open
-            if (isPickerOpen) e.preventDefault();
+            // Keep the dialog open when the picker is open, or while a guided
+            // tour is running (the tour tooltip lives outside the dialog).
+            if (isPickerOpen || tourActive) e.preventDefault();
           }}
           onInteractOutside={(e) => {
-            // Prevent any interaction closing if picker is open
-            if (isPickerOpen) e.preventDefault();
+            if (isPickerOpen || tourActive) e.preventDefault();
           }}
         >
           <DialogHeader>
@@ -921,7 +923,7 @@ export function ContentManager() {
             <DialogDescription>Add a new piece of content to your library</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { void handleFormSubmit(handleSubmit)(e); }} className="space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="field-title">
                 <Label htmlFor="title">Title *</Label>
                 <Input
                   id="title"
@@ -968,7 +970,7 @@ export function ContentManager() {
                 </p>
             </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="field-type">
                 <Label htmlFor="attachmentType">Attachment Type *</Label>
               <select
                   id="attachmentType"
@@ -1142,7 +1144,7 @@ export function ContentManager() {
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2" data-tour="field-visibility">
                 <Checkbox
                 id="isPublic"
                   {...register("isPublic")}
@@ -1276,7 +1278,7 @@ export function ContentManager() {
               )}
 
             <div className="flex gap-3 pt-6">
-              <Button type="submit" disabled={uploading}>
+              <Button type="submit" disabled={uploading} data-tour="field-save">
                 {uploading ? "Creating..." : "Create Content"}
               </Button>
               <Button

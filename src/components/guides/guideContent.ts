@@ -22,15 +22,45 @@ export const GUIDES: Guide[] = [
       {
         target: "tab-content",
         title: "Open Content",
-        description: "Everything you upload lives under the Content tab. Click here to open it.",
+        description: "Click Next and I'll open the Content tab — where all your content lives.",
         position: "right",
+        action: "click",
       },
       {
         target: "create-content",
-        title: "Create Content",
+        title: "Open the form",
         description:
-          "Click Create Content to open the upload form, then follow the written steps to fill it in.",
+          "Next opens the 'Create New Content' form so we can walk through it together.",
         position: "bottom",
+        action: "click",
+      },
+      {
+        target: "field-title",
+        title: "Title (required)",
+        description:
+          "Start with a clear title. It's the only required field, and it's the name people see everywhere.",
+        position: "right",
+      },
+      {
+        target: "field-type",
+        title: "Attachment type",
+        description:
+          "Pick what kind of file this is — Video, Audio, Image, or PDF. The file picker just below changes to match.",
+        position: "right",
+      },
+      {
+        target: "field-visibility",
+        title: "Who can see it",
+        description:
+          "Tick this to make the content public (anyone with the link). Leave it off to keep it restricted to people you give access to.",
+        position: "top",
+      },
+      {
+        target: "field-save",
+        title: "Save it",
+        description:
+          "When everything's filled in, this creates the content as a Draft. That's the whole flow — click Done and I'll tidy up.",
+        position: "top",
       },
     ],
     writtenSteps: [

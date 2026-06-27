@@ -22,6 +22,7 @@ import { GuidesLauncher } from "./guides/GuidesLauncher";
 import { WrittenGuide } from "./guides/WrittenGuide";
 import { GuidedTour } from "./guides/GuidedTour";
 import { NewStaffPrompt } from "./guides/NewStaffPrompt";
+import { TourActiveProvider } from "./guides/TourActiveContext";
 import { Button } from "@/components/ui/button";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { resolveAdminTab } from "@/lib/adminTabs";
@@ -39,6 +40,17 @@ export function AdminDashboard() {
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     localStorage.setItem("adminDashboardTab", value);
+  };
+
+  // Close the tour and, on the next tick (after the tour overlay unmounts),
+  // close any modal the tour opened by sending Escape to the top dialog layer.
+  const handleTourClose = () => {
+    guides.closeTour();
+    requestAnimationFrame(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      );
+    });
   };
 
   // The persisted tab is shared across all users on this browser. Once the
@@ -73,6 +85,7 @@ export function AdminDashboard() {
   const canGenerateInviteCodes = hasPermission(permissions, PERMISSIONS.GENERATE_INVITE_CODES);
 
   return (
+    <TourActiveProvider active={guides.tourGuide !== null}>
     <AdminLayout activeTab={activeTab} onTabChange={handleTabChange} onHelpClick={guides.openLauncher}>
       {/* Action buttons */}
       {canGenerateInviteCodes && (
@@ -128,9 +141,10 @@ export function AdminDashboard() {
         }
       />
       {guides.tourGuide && (
-        <GuidedTour stops={guides.tourGuide.tourStops} onClose={guides.closeTour} />
+        <GuidedTour stops={guides.tourGuide.tourStops} onClose={handleTourClose} />
       )}
       <NewStaffPrompt onOpenGuides={guides.openLauncher} />
     </AdminLayout>
+    </TourActiveProvider>
   );
 }
