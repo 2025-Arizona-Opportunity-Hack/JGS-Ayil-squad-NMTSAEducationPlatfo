@@ -3,6 +3,16 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.4.0 — 2026-06-26
+
+- Improve: guided tours can now drive the UI. The "Create content" and "Write an
+  article" tours open the create form and walk through its fields; "Create a
+  bundle" opens the Bundles tab and the new-bundle form; "Pricing" and "Share"
+  navigate to the Content tab and explain the per-item ⋯ action. A tour closes
+  any modal it opened when it finishes.
+- Fix: the "Write an article" guide now reflects that rich text lives in a
+  content item's Description — there is no separate "Article" attachment type.
+
 ## 0.3.1 — 2026-06-24
 
 - Improve: the "Create content" guide now explains every field on the form
