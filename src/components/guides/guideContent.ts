@@ -42,10 +42,24 @@ export const GUIDES: Guide[] = [
         position: "right",
       },
       {
+        target: "field-description",
+        title: "Description",
+        description:
+          "A rich-text editor for the write-up clients read — add headings, links, and formatting here. Optional but recommended.",
+        position: "right",
+      },
+      {
         target: "field-type",
         title: "Attachment type",
         description:
           "Pick what kind of file this is — Video, Audio, Image, or PDF. The file picker just below changes to match.",
+        position: "right",
+      },
+      {
+        target: "field-file",
+        title: "The file",
+        description:
+          "Upload the file here (or, for video/audio, paste an external link). Big files upload in chunks — give them a minute.",
         position: "right",
       },
       {
@@ -144,8 +158,10 @@ export const GUIDES: Guide[] = [
       {
         target: "tab-content",
         title: "Find your content",
-        description: "Open the Content tab and locate the item you want to share.",
+        description:
+          "Next takes you to the Content tab. Open your item's ⋯ menu and choose Share to create a link.",
         position: "right",
+        action: "click",
       },
       {
         target: "tab-shareLinks",
@@ -244,8 +260,10 @@ export const GUIDES: Guide[] = [
       {
         target: "tab-content",
         title: "Pricing starts here",
-        description: "Open the Content tab and find the item you want to sell.",
+        description:
+          "Next takes you to the Content tab. Find the item you want to sell, open its ⋯ menu, and choose Set pricing.",
         position: "right",
+        action: "click",
       },
       {
         target: "tab-orders",
@@ -287,8 +305,23 @@ export const GUIDES: Guide[] = [
     tourStops: [
       {
         target: "tab-contentGroups",
-        title: "Bundles live here",
-        description: "Open the Bundles tab to see and create bundles.",
+        title: "Open Bundles",
+        description: "Click Next to open the Bundles tab.",
+        position: "right",
+        action: "click",
+      },
+      {
+        target: "create-bundle-btn",
+        title: "Start a bundle",
+        description: "Next opens the new-bundle form right here on the page.",
+        position: "bottom",
+        action: "click",
+      },
+      {
+        target: "bundle-name",
+        title: "Name the bundle",
+        description:
+          "Give the bundle a name (and an optional description), then add content to it and Save. That's it — click Done.",
         position: "right",
       },
     ],

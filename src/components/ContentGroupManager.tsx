@@ -242,7 +242,7 @@ export function ContentGroupManager() {
               <CardTitle>Content Bundles</CardTitle>
               <CardDescription>Organize content into bundles for easier management</CardDescription>
             </div>
-            <Button onClick={() => setShowCreateForm(true)}>
+            <Button onClick={() => setShowCreateForm(true)} data-tour="create-bundle-btn">
               <Plus className="w-4 h-4 mr-1" />
               Create Bundle
             </Button>
@@ -256,7 +256,7 @@ export function ContentGroupManager() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-tour="bundle-name">
                     <Label htmlFor="groupName">Bundle Name</Label>
                     <Input
                       id="groupName"

@@ -990,7 +990,7 @@ export function ContentManager() {
             </div>
 
               {formAttachmentType === "video" && (
-                <div className="space-y-2">
+                <div className="space-y-2" data-tour="field-file">
                   <Label htmlFor="videoFile">Video File</Label>
                   <div className="flex gap-2">
                     <div className="flex-1">
