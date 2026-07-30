@@ -2,8 +2,10 @@ import {
   Folder, FolderTree, ExternalLink, Archive,
   Users, UsersRound, Mail,
   ShoppingCart, TrendingUp, ClipboardList,
-  Settings, Bug,
+  Settings, Bug, ListChecks,
 } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 
 interface SidebarItem {
@@ -11,6 +13,8 @@ interface SidebarItem {
   label: string;
   icon: typeof Folder;
   permission?: boolean;
+  badge?: number;
+  badgeLabel?: string;
 }
 
 interface SidebarGroup {
@@ -35,6 +39,19 @@ interface AdminSidebarProps {
 }
 
 export function AdminSidebar({ activeTab, onTabChange, permissions, className }: AdminSidebarProps) {
+  // Reactive setup-health count for the sidebar badge. Convex dedupes
+  // identical query+args subscriptions across call sites, so this shares
+  // its subscription with SetupHealthBanner/SetupHealth rather than opening
+  // a second one. Skipped entirely for users who can't manage site settings
+  // (getSetupHealth would just return null for them anyway).
+  const setupHealth = useQuery(
+    api.setupHealth.getSetupHealth,
+    permissions.canManageSiteSettings ? {} : "skip"
+  );
+  const setupIssueCount = setupHealth
+    ? setupHealth.counts.critical + setupHealth.counts.blocking
+    : 0;
+
   const groups: SidebarGroup[] = [
     {
       label: "Content",
@@ -64,6 +81,17 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
     {
       label: "System",
       items: [
+        {
+          value: "setup",
+          label: "Setup",
+          icon: ListChecks,
+          permission: permissions.canManageSiteSettings,
+          badge: setupIssueCount > 0 ? setupIssueCount : undefined,
+          badgeLabel:
+            setupIssueCount > 0
+              ? `${setupIssueCount} setup item${setupIssueCount === 1 ? "" : "s"} need attention`
+              : undefined,
+        },
         { value: "settings", label: "Settings", icon: Settings, permission: permissions.canManageSiteSettings },
         { value: "debug", label: "Debug", icon: Bug, permission: permissions.canManageSiteSettings },
       ],
@@ -83,7 +111,7 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
                 {group.label}
               </h3>
               <ul className="space-y-0.5" role="list">
-                {visibleItems.map(({ value, label, icon: Icon }) => {
+                {visibleItems.map(({ value, label, icon: Icon, badge, badgeLabel }) => {
                   const active = activeTab === value;
                   return (
                     <li key={value}>
@@ -100,7 +128,18 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
                         )}
                       >
                         <Icon className="w-4 h-4 shrink-0" />
-                        <span>{label}</span>
+                        <span className="flex-1 text-left">{label}</span>
+                        {badge ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-semibold"
+                            >
+                              {badge}
+                            </span>
+                            <span className="sr-only">{badgeLabel}</span>
+                          </>
+                        ) : null}
                       </button>
                     </li>
                   );

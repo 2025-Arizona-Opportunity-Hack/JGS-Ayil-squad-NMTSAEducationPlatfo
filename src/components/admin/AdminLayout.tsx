@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
+import { SetupHealthBanner } from "./SetupHealthBanner";
 import { SkipToContent } from "../SkipToContent";
 import { ProfileEditModal } from "../ProfileEditModal";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
@@ -40,6 +41,10 @@ export function AdminLayout({ activeTab, onTabChange, onHelpClick, children }: A
         onTabChange={onTabChange}
         sidebarPermissions={sidebarPermissions}
       />
+
+      {sidebarPermissions.canManageSiteSettings && (
+        <SetupHealthBanner onOpenSetup={() => onTabChange("setup")} />
+      )}
 
       <div className="flex">
         {/* Desktop sidebar — sticky, full height below header */}

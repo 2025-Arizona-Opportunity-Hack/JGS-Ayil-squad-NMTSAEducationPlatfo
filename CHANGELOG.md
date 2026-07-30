@@ -3,6 +3,28 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.8.0 — 2026-07-30
+
+- Add: **setup health checklist** for admins. Several deployment settings fail
+  silently — most notably a missing `ENVIRONMENT=production`, which redirects
+  every outbound email to `DEV_TEST_EMAIL` while Resend reports success — so a
+  half-configured instance looked healthy. Admins with `MANAGE_SITE_SETTINGS`
+  now get three surfaces: a persistent banner on every admin page (dismissible
+  for the session only; genuinely dangerous items not at all), a badged "Setup"
+  entry in the sidebar's System group, and a full checklist page.
+- Eleven checks, ranked by severity: `ALLOW_MOCK_PAYMENTS` enabled on a
+  production-looking deployment (critical — any user can unlock paid content
+  free); `ENVIRONMENT`, `MEDIA_URL_SECRET`, `SITE_URL`, email, and a Stripe key
+  without its webhook secret (blocking — buyers would be charged and receive
+  nothing); the `RESEND_DOMAIN`/`RESEND_FROM_EMAIL` split, `ORG_NAME`, and
+  incomplete site setup (recommended); SMS, payments, and Google Drive
+  (optional). Each check states what is broken now and the exact command to fix
+  it.
+- `getSetupHealth` returns **booleans and static prose only, never a value** —
+  a test asserts sentinel secrets appear nowhere in the response — and returns
+  `null` rather than throwing when the caller lacks permission, since a
+  throwing query in a render path blanks the whole admin app.
+
 ## 0.7.0 — 2026-07-28
 
 Multi-domain / white-label support, so the platform can run for organizations

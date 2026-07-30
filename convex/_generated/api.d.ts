@@ -33,6 +33,7 @@ import type * as purchaseRequests from "../purchaseRequests.js";
 import type * as recommendations from "../recommendations.js";
 import type * as router from "../router.js";
 import type * as setup from "../setup.js";
+import type * as setupHealth from "../setupHealth.js";
 import type * as siteSettings from "../siteSettings.js";
 import type * as sms from "../sms.js";
 import type * as stripe from "../stripe.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   recommendations: typeof recommendations;
   router: typeof router;
   setup: typeof setup;
+  setupHealth: typeof setupHealth;
   siteSettings: typeof siteSettings;
   sms: typeof sms;
   stripe: typeof stripe;

@@ -12,6 +12,7 @@ import { AnalyticsDashboard } from "./admin/AnalyticsDashboard";
 import { AdminOrders } from "./admin/AdminOrders";
 import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
+import { SetupHealth } from "./admin/SetupHealth";
 import { PurchaseRequests } from "./admin/PurchaseRequests";
 import { JoinRequests } from "./admin/JoinRequests";
 import { DebugTools } from "./admin/DebugTools";
@@ -107,6 +108,7 @@ export function AdminDashboard() {
       {activeTab === "purchaseRequests" && canViewPurchaseRequests && <PurchaseRequests />}
       {activeTab === "orders" && canViewOrders && <AdminOrders />}
       {activeTab === "archived" && canViewArchivedContent && <ArchivedContent />}
+      {activeTab === "setup" && canManageSiteSettings && <SetupHealth />}
       {activeTab === "settings" && canManageSiteSettings && <SiteSettings />}
       {activeTab === "debug" && canManageSiteSettings && <DebugTools />}
 
