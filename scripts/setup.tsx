@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Interactive CLI setup for NMTSA Education Platform.
+ * Interactive CLI setup for the Content Portal platform.
  *
  * Built with React Ink for a polished terminal UI experience.
  * Collects environment variables, writes .env files, optionally pushes to
@@ -141,7 +141,7 @@ const STEPS: StepDef[] = [
       "1. Go to resend.com and sign in (or create a free account)",
       '2. Click "API Keys" in the left sidebar',
       '3. Click "Create API Key"',
-      '4. Give it a name (e.g., "NMTSA Platform")',
+      '4. Give it a name (e.g., "Riverside Music Therapy")',
       "5. Copy the key (starts with re_)",
       "",
       'For the "From" email address:',
@@ -958,7 +958,7 @@ function SetupWizard({
     return (
       <Box flexDirection="column" padding={1}>
         <Box borderStyle="round" borderColor="cyan" paddingX={2}>
-          <Text bold color="cyan">NMTSA Education Platform Setup</Text>
+          <Text bold color="cyan">Content Portal Setup</Text>
         </Box>
         <Box marginTop={1} marginBottom={1}>
           <Text>
@@ -1088,7 +1088,7 @@ function SetupWizard({
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Header title="NMTSA Education Platform Setup" step={stepIndex + 1} totalSteps={totalSteps} />
+      <Header title="Content Portal Setup" step={stepIndex + 1} totalSteps={totalSteps} />
 
       <Box>
         {/* Step sidebar */}
@@ -1185,7 +1185,7 @@ function parseArgs() {
       forceProd = true;
     } else if (args[i] === "--help" || args[i] === "-h") {
       console.log(`
-  NMTSA Education Platform Setup
+  Content Portal Setup
 
   Usage:
     npm run setup                    Full setup wizard

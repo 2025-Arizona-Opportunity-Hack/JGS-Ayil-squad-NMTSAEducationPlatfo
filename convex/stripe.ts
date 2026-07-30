@@ -23,6 +23,16 @@ export const createCheckoutSessionAction = internalAction({
   },
   handler: async (_ctx, args) => {
     const stripe = getStripe();
+    // Unlike the email/SMS link fallbacks (see requireSiteUrl() in
+    // helpers.ts), this one is intentionally NOT converted to a hard
+    // failure: "localhost" can never resolve to another organization's
+    // domain, so it can't reproduce the cross-org leak this cluster fixes.
+    // Keeping it lets `npm run dev` exercise a full Stripe test-mode
+    // checkout without SITE_URL configured. If a production deployment is
+    // missing SITE_URL, the order still gets fulfilled via the webhook
+    // (keyed off orderId metadata, not this URL) — only the post-checkout
+    // browser redirect would be broken, which is a misconfiguration to fix,
+    // not a trust/security issue.
     const siteUrl = process.env.SITE_URL || "http://localhost:5173";
 
     const session = await stripe.checkout.sessions.create({

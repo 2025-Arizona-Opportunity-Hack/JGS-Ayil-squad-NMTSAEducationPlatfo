@@ -66,7 +66,7 @@ export function RecommendedContent() {
 
     try {
       // Create the order
-      const orderId = await createOrder({
+      const { orderId } = await createOrder({
         contentId: recommendation.contentId,
         pricingId: recommendation.pricing._id,
       });

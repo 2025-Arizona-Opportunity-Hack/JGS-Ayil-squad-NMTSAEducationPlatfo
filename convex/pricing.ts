@@ -122,6 +122,12 @@ export const listPricedContent = query({
 
         return {
           ...content,
+          // Never leak the plaintext password to a logged-in-but-unentitled
+          // caller (matches the convention used elsewhere, e.g.
+          // contentShares.ts). Note: `content` has no stored `fileUrl` field
+          // to begin with — the raw file is served only via authenticated/
+          // signed endpoints, so there is nothing else to strip here.
+          password: undefined,
           pricing,
           thumbnailUrl,
           hasAccess,

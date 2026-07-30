@@ -3,6 +3,7 @@ import { components } from "./_generated/api";
 import { internalAction, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { getOrgName, requireSiteUrl } from "./helpers";
 
 // Initialize Resend component
 // Disable built-in test mode since we handle dev/prod routing ourselves via getRecipient()
@@ -116,7 +117,7 @@ export const sendVerificationEmail = internalAction({
       return;
     }
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
 
     const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
 
@@ -163,8 +164,8 @@ export const sendInviteEmail = internalAction({
   },
   handler: async (ctx, args) => {
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     const inviteUrl = `${baseUrl}?invite=${args.inviteCode}`;
 
@@ -214,8 +215,8 @@ export const sendClientInviteEmail = internalAction({
   },
   handler: async (ctx, args) => {
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     const inviteUrl = `${baseUrl}?clientInvite=${args.inviteCode}`;
     const greeting = args.recipientFirstName ? `Hi ${args.recipientFirstName}` : "Hi there";
@@ -291,8 +292,8 @@ export const sendPurchaseApprovedEmail = internalAction({
 
     if (!userEmail || !content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
     const userName = userProfile ? `${userProfile.firstName}` : "there";
 
     await sendEmailWithLogging(ctx, "purchaseApproved", {
@@ -349,7 +350,7 @@ export const sendPurchaseDeniedEmail = internalAction({
 
     if (!userEmail || !content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
     const userName = userProfile ? `${userProfile.firstName}` : "there";
 
     await sendEmailWithLogging(ctx, "purchaseDenied", {
@@ -404,8 +405,8 @@ export const sendContentAccessGrantedEmail = internalAction({
 
     if (!userEmail || !content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
     const userName = userProfile ? `${userProfile.firstName}` : "there";
     const expiryText = args.expiresAt 
       ? `Access expires on ${new Date(args.expiresAt).toLocaleDateString()}.`
@@ -467,8 +468,8 @@ export const sendRecommendationEmail = internalAction({
 
     if (!content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     await sendEmailWithLogging(ctx, "recommendationSent", {
       from: `${orgName} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
@@ -521,8 +522,8 @@ export const sendContentStatusEmail = internalAction({
 
     if (!authorEmail || !content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
     const authorName = authorProfile ? `${authorProfile.firstName}` : "there";
 
     const statusConfig: Record<string, { color: string; title: string; message: string; icon: string }> = {
@@ -608,7 +609,7 @@ export const sendContentArchivedEmail = internalAction({
 
     if (!authorEmail || !content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
     const authorName = authorProfile ? `${authorProfile.firstName}` : "there";
 
     await sendEmailWithLogging(ctx, "contentArchived", {
@@ -658,8 +659,12 @@ export const sendJoinRequestApprovedEmail = internalAction({
       return;
     }
     const settings = await ctx.runQuery(internal.emails.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
 
+    // Mirrors joinRequests.ts's intentional dev-vs-prod split (see comments
+    // there): local dev always gets localhost regardless of SITE_URL, and
+    // this never falls back to another org's domain either way, so it's
+    // left as-is rather than switched to requireSiteUrl().
     const siteUrl = process.env.SITE_URL || "";
     const isProd = process.env.ENVIRONMENT === "production";
     const baseUrl = isProd && siteUrl ? siteUrl : "http://localhost:5173";

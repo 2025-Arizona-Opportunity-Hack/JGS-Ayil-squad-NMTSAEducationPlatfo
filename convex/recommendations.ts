@@ -1,8 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, validateEmail } from "./helpers";
-import { PERMISSIONS } from "./permissions";
+import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, checkContentAccess, validateEmail } from "./helpers";
+import { PERMISSIONS, hasPermission } from "./permissions";
 
 // Create a content recommendation
 export const createRecommendation = mutation({
@@ -14,11 +14,24 @@ export const createRecommendation = mutation({
   handler: async (ctx, args) => {
     validateEmail(args.recipientEmail);
 
-    const { userId, profile } = await requirePermission(ctx, PERMISSIONS.RECOMMEND_CONTENT);
+    const { userId, profile, permissions } = await requirePermission(ctx, PERMISSIONS.RECOMMEND_CONTENT);
 
     // Check if content exists
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new ConvexError("Content not found");
+
+    // The recommender must actually be able to access this content
+    // themselves — holding RECOMMEND_CONTENT alone must not let someone
+    // recommend (and thereby imply/leak knowledge of) content they have no
+    // entitlement to.
+    const isCreator = content.createdBy === userId;
+    const canViewAll = hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT);
+    if (!isCreator && !canViewAll) {
+      const hasAccess = await checkContentAccess(ctx, args.contentId, userId, profile.role);
+      if (!hasAccess) {
+        throw new ConvexError("You don't have access to this content");
+      }
+    }
 
     // Check if recipient user exists by email
     const recipientUser = await ctx.db
@@ -66,6 +79,10 @@ export const getMyRecommendations = query({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
+    // Recipient's profile — needed to evaluate contentAccess grants
+    // (role/group-based access checks need the recipient's role).
+    const recipientProfile = await getUserProfile(ctx, userId);
+
     // Enrich with content and recommender details
     const enrichedRecommendations = await Promise.all(
       recommendations.map(async (rec) => {
@@ -74,8 +91,8 @@ export const getMyRecommendations = query({
 
         const recommender = await getUserProfile(ctx, rec.recommendedBy);
 
-        // Check if user has purchased this content
-        const hasPurchased = await ctx.db
+        // Check if the recipient has a completed, non-expired order for this content
+        const order = await ctx.db
           .query("orders")
           .withIndex("by_user", (q) => q.eq("userId", userId))
           .filter((q) =>
@@ -85,6 +102,8 @@ export const getMyRecommendations = query({
             )
           )
           .first();
+        const hasValidOrder =
+          !!order && (!order.accessExpiresAt || order.accessExpiresAt > Date.now());
 
         // Check if content has pricing
         const pricing = await ctx.db
@@ -93,9 +112,20 @@ export const getMyRecommendations = query({
           .filter((q) => q.eq(q.field("isActive"), true))
           .first();
 
-        // Get file URLs (chunked-aware for large files)
+        // The paywall is enforced here, not just in the UI: only hand back
+        // a real fileUrl when the recipient is actually entitled — public
+        // unpriced content, an explicit contentAccess grant, or a completed
+        // non-expired order. `thumbnailUrl` is never the paid asset, so it's
+        // always returned.
+        const isPublicUnpriced =
+          !!content.isPublic && content.status === "published" && !pricing;
+        const hasContentAccess = recipientProfile
+          ? await checkContentAccess(ctx, rec.contentId, userId, recipientProfile.role)
+          : false;
+        const isEntitled = isPublicUnpriced || hasContentAccess || hasValidOrder;
+
         const [fileUrl, thumbnailUrl] = await Promise.all([
-          getContentFileUrl(ctx, content),
+          isEntitled ? getContentFileUrl(ctx, content) : Promise.resolve(null),
           content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
         ]);
 
@@ -107,7 +137,7 @@ export const getMyRecommendations = query({
             thumbnailUrl,
           },
           recommenderName: formatUserName(recommender),
-          hasPurchased: !!hasPurchased,
+          hasPurchased: !!order,
           pricing: pricing ? {
             _id: pricing._id,
             price: pricing.price,

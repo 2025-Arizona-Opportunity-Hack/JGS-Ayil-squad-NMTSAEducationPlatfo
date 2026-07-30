@@ -159,14 +159,19 @@ export const createUserProfile = mutation({
       }
     }
 
-    // Determine the role based on invite code or provided role
+    // Determine the role based on invite code or provided role.
+    // Self-service role selection (no invite code) is limited to "client" and
+    // "parent" — any other value, including a client-supplied "professional",
+    // falls back to "client". Privileged roles (professional, editor,
+    // contributor, admin, ...) may only be granted via a valid invite code
+    // below, since "professional" carries VIEW_ALL_CONTENT by default.
     let roleToAssign:
       | "admin"
       | "editor"
       | "contributor"
       | "client"
       | "parent"
-      | "professional" = args.role || "client";
+      | "professional" = args.role === "parent" ? "parent" : "client";
 
     // If invite code is provided, validate and use it
     if (args.inviteCode && args.inviteCode.trim() !== "") {
@@ -187,7 +192,13 @@ export const createUserProfile = mutation({
       if (staffInvite) {
         if (!staffInvite.isActive) throw new ConvexError("This invite code has been deactivated");
         if (staffInvite.expiresAt && staffInvite.expiresAt < Date.now()) throw new ConvexError("This invite code has expired");
+        const usesSoFar = staffInvite.currentUses ?? 0;
+        const maxUses = staffInvite.maxUses ?? 1;
+        if (usesSoFar >= maxUses) {
+          throw new ConvexError("This invite code has already been used or has reached its use limit");
+        }
         roleToAssign = staffInvite.role;
+        await ctx.db.patch(staffInvite._id, { currentUses: usesSoFar + 1 });
       } else if (clientInvite) {
         if (!clientInvite.isActive) throw new ConvexError("This invite code has been deactivated");
         if (clientInvite.usedBy) throw new ConvexError("This invite code has already been used");

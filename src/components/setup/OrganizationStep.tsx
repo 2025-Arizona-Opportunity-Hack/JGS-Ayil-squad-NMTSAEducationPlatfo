@@ -114,7 +114,7 @@ export function OrganizationStep({
             id="orgName"
             value={data.organizationName}
             onChange={(e) => updateData({ organizationName: e.target.value })}
-            placeholder="e.g., NMTSA Education"
+            placeholder="e.g., Riverside Music Therapy"
             autoFocus
           />
         </div>

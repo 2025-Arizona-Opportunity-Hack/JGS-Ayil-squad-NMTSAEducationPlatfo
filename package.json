@@ -1,7 +1,7 @@
 {
-  "name": "nmtsa-education-platform",
+  "name": "content-portal",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
@@ -15,6 +15,7 @@
     "setup:email": "npx tsx scripts/setup.tsx email",
     "setup:sms": "npx tsx scripts/setup.tsx sms",
     "setup:google": "npx tsx scripts/setup.tsx google",
+    "provision": "node scripts/provision-instance.mjs",
     "deploy": "npx vercel deploy --prod",
     "deploy:preview": "npx vercel deploy",
     "test": "vitest run",

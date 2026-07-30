@@ -19,6 +19,9 @@ export const createOrder = mutation({
     if (!pricing || !pricing.isActive) {
       throw new ConvexError("Pricing not found or inactive");
     }
+    if (pricing.contentId !== args.contentId) {
+      throw new ConvexError("Pricing does not match the specified content");
+    }
 
     // Check if user already has an active order for this content
     const existingOrder = await ctx.db
@@ -97,6 +100,17 @@ export const completeOrder = mutation({
     if (!order) throw new ConvexError("Order not found");
     if (order.userId !== userId) throw new ConvexError("Not authorized");
     if (order.status !== "pending") throw new ConvexError("Order already processed");
+
+    // This mutation is a client-triggerable "mark my own order paid" path with
+    // no Stripe verification, so it must never grant entitlement in
+    // production. It only exists for local/dev mock-payment flows, gated by
+    // an explicit env var. The real, signature-verified path is
+    // `completeOrderInternal`, driven by the Stripe webhook.
+    if (process.env.ALLOW_MOCK_PAYMENTS !== "true") {
+      throw new ConvexError(
+        "Mock payment completion is disabled. Payments must be completed via Stripe checkout."
+      );
+    }
 
     // Update order status
     await ctx.db.patch(args.orderId, {

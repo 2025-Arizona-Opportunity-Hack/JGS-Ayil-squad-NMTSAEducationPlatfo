@@ -267,3 +267,99 @@ export function validatePrice(price: number): void {
     throw new ConvexError("Price must be a positive integer (in cents)");
   }
 }
+
+// ─── Org branding helpers (C1) ──────────────────────────────────────
+//
+// This platform is deployed once per organization — its own Convex project,
+// its own domain (see docs/DEPLOYMENTS.md) — rather than as a shared
+// multi-tenant backend. That means any hardcoded first-organization name or
+// domain baked into this codebase would leak into *every other* org's
+// deployment the moment its own siteSettings/SITE_URL weren't configured
+// yet. These two helpers exist so every notification-building function
+// degrades to a neutral value instead.
+
+/**
+ * Get the organization's display name, never an org-specific hardcoded one.
+ *
+ * Most callers (the email/SMS actions in emails.ts/sms.ts) already fetch
+ * the `siteSettings` row via an internalQuery — actions don't have direct
+ * `ctx.db` access — so this takes that row (or null/undefined before setup
+ * has run) rather than a ctx, and falls back to the neutral "Content
+ * Portal" label.
+ */
+export function getOrgName(
+  settings: { organizationName?: string | null } | null | undefined
+): string {
+  return settings?.organizationName || "Content Portal";
+}
+
+/**
+ * Get the configured SITE_URL for this deployment, with any trailing
+ * slash stripped so callers can concatenate paths safely (`${url}/path`).
+ *
+ * Throws a ConvexError when SITE_URL is unset or empty instead of falling
+ * back to a default domain. Every deployment belongs to exactly one
+ * organization, so a missing SITE_URL is a misconfiguration, not something
+ * to paper over — silently emitting a password-reset/invite/verification
+ * link to some other organization's domain is worse than failing loudly.
+ */
+export function requireSiteUrl(): string {
+  const siteUrl = process.env.SITE_URL?.trim();
+  if (!siteUrl) {
+    throw new ConvexError(
+      "SITE_URL is not configured for this deployment. Set the SITE_URL " +
+        "environment variable (see docs/DEPLOYMENTS.md) before sending " +
+        "notifications that contain links."
+    );
+  }
+  return siteUrl.replace(/\/+$/, "");
+}
+
+// ─── Signed media URL helpers (A3) ──────────────────────────────────
+//
+// Media tags (<video src>, <audio src>) can't send an Authorization header,
+// so entitlement for the /api/serve-chunked HTTP action is proven with a
+// short-lived HMAC-signed URL instead: `sig` = HMAC-SHA256 over
+// `${contentId}:${exp}` keyed by MEDIA_URL_SECRET. Signing happens in the
+// `getSignedMediaUrl` action (content.ts); verification happens in the
+// `/api/serve-chunked` HTTP action (router.ts). Both run in the Convex
+// action runtime, which — unlike queries/mutations — exposes `crypto.subtle`.
+
+/**
+ * Compute the hex-encoded HMAC-SHA256 signature for a media URL.
+ */
+export async function computeMediaSignature(
+  contentId: string,
+  exp: number,
+  secret: string
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sigBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${contentId}:${exp}`)
+  );
+  return Array.from(new Uint8Array(sigBuffer), (b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+/**
+ * Constant-time-style comparison of two equal-length-checked strings. Never
+ * early-returns on the first differing byte, so it doesn't leak timing
+ * information about how many leading characters matched.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}

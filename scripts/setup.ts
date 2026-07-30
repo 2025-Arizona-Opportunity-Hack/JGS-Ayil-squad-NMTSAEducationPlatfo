@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Interactive CLI setup for NMTSA Education Platform.
+ * Interactive CLI setup for the Content Portal platform.
  *
  * Collects environment variables, writes .env files, optionally pushes to
  * Vercel/Netlify and triggers deployment.
@@ -187,7 +187,7 @@ function deployNetlify() {
 // ── Main flow ────────────────────────────────────────────────────────────────
 
 async function main() {
-  banner("NMTSA Education Platform Setup");
+  banner("Content Portal Setup");
 
   console.log("  This wizard will help you configure environment variables");
   console.log("  for your development or production environment.\n");

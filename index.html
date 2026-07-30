@@ -7,6 +7,19 @@
 
     <title>Content Portal</title>
 
+    <!--
+      Neutral default favicon (a plain document glyph, no org branding) so
+      there's no /favicon.ico 404 before siteSettings loads or for instances
+      that never upload a custom favicon. src/App.tsx swaps this out for the
+      configured siteSettings.faviconUrl at runtime when one is set.
+    -->
+    <link
+      id="favicon"
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233b82f6'/%3E%3Cpath d='M20 18h16a4 4 0 0 1 4 4v22l-8-6-8 6V22a4 4 0 0 1 4-4z' fill='%23ffffff'/%3E%3C/svg%3E"
+    />
+
     <meta property="og:image" content="/og-preview.png" />
 
     <!-- Apply cached theme color immediately to prevent flash -->

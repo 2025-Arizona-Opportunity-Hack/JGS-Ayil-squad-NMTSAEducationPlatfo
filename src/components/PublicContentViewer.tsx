@@ -87,13 +87,21 @@ export function PublicContentViewer() {
     }
   }, [result]);
 
-  // Grant access when password is correct
+  // Grant access when password is correct. The server (grantAccessAfterPassword)
+  // re-verifies the password itself — it's the authority here, not this
+  // client-side "we already got content back" check, which is just a signal
+  // for when to bother asking.
   useEffect(() => {
     if (result?.content && attemptedPassword && contentId) {
-      // Password was correct and we have content - grant permanent access
-      void grantAccess({ contentId: contentId as any }).catch((err) => {
+      const verifiedPassword = attemptedPassword;
+      // Password was correct (per the server, via getPublicContent) and we
+      // have content - grant permanent access so future visits skip the
+      // password prompt.
+      void grantAccess({ contentId: contentId as any, password: verifiedPassword }).catch((err) => {
         console.error("Failed to grant access:", err);
-        // Don't show error to user - they still have access via password
+        // Don't show a hard error here — the viewer can already see the
+        // content this visit via the password they entered; only the
+        // permanent-access grant (for future visits) failed.
       });
     }
   }, [result?.content, attemptedPassword, contentId, grantAccess]);

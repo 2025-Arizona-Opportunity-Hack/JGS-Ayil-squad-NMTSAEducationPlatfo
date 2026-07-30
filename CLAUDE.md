@@ -4,6 +4,19 @@ Content portal for NMTSA: staff manage/share therapy content; clients, parents,
 and professionals access it. Stack: **React + Vite** frontend, **Convex**
 backend (queries/mutations + auth), deployed on **Vercel**.
 
+## Local development
+
+- `npm run dev` runs Vite (http://localhost:5173) + `convex dev` against an
+  **anonymous local Convex backend** (see `.env.local`; no Convex account needed).
+- Convex Auth needs `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` set on the deployment
+  (`npx convex env list` to check; `npm run setup:auth` to regenerate).
+- **`MEDIA_URL_SECRET` is required** (any long random string, per deployment).
+  Signed media URLs fail closed without it, so non-public media stops serving.
+- `ALLOW_MOCK_PAYMENTS=true` enables the mock checkout in dev. **Never set it in
+  production** — it lets a user complete their own order without paying.
+- After a convex CLI update, the local backend may prompt interactively to
+  upgrade — answer it via `npx convex dev --once` in a real terminal.
+
 ## Versioning policy (REQUIRED)
 
 **Every change pushed to `main` must increment the version and be recorded.**
@@ -37,6 +50,46 @@ backend (queries/mutations + auth), deployed on **Vercel**.
   degrade gracefully in the query (`try { requirePermission } catch { return [] }`)
   or skip/gate the query for users who lack the permission. A top-level
   `ErrorBoundary` (`src/components/ErrorBoundary.tsx`) is the safety net.
+
+## Multi-organization deployments
+
+**One deployment serves one organization** — its own Convex project and its own
+Vercel project from this repo. NMTSA and `lms.ohack.dev` are separate instances.
+Full runbook: `docs/DEPLOYMENTS.md`; provision with `npm run provision`.
+
+- This is not a multi-tenant app. `siteSettings` is a single-row table read with
+  `.first()`, there is no `organizations` table, and `organizationId` is a
+  vestigial optional string. Don't add tenant scoping without a deliberate
+  project — `VITE_CONVEX_URL` is inlined at build time, so one frontend build
+  cannot serve two backends anyway.
+- **Never hardcode an organization name or URL.** Use `getOrgName(settings)` and
+  `requireSiteUrl()` from `convex/helpers.ts`. `requireSiteUrl()` throws when
+  `SITE_URL` is unset, deliberately: emitting a link to another org's domain is
+  worse than failing to send. The one exception is a `localhost` dev fallback,
+  which cannot leak across orgs.
+- The password-reset email in `convex/auth.ts` has no `ctx`, so its sender name
+  comes from the `ORG_NAME` env var, not `siteSettings`.
+- `ALLOWED_ORIGINS` (comma-separated) adds origins to one instance — that's how
+  you serve an apex/`www` alias, not a reason to create a new instance.
+
+## Security invariants
+
+Every exported Convex `query`/`mutation`/`action` is a **public endpoint** —
+authorization must be enforced inside the function, never in the UI. A 0.6.0
+audit found eleven holes where it wasn't; `convex/security.test.ts` is the
+regression suite, and these rules are what it enforces:
+
+- Never return a file URL (`getContentFileUrl`, `ctx.storage.getUrl`) without
+  first checking entitlement. Several leaks were "the UI hides the button".
+- `SHARE_CONTENT` is a default permission of **every** role, including client
+  and parent. It does not imply trust — gate third-party sharing of private
+  content on `SHARE_WITH_THIRD_PARTY`, and never allow it for priced content.
+- `professional` carries `VIEW_ALL_CONTENT`, so it must never be self-assignable
+  at signup; privileged roles come only from an admin-issued invite code.
+- Entitlement comes from a signature-verified Stripe webhook
+  (`completeOrderInternal`), never from a client-callable mutation.
+- Keep one copy of an access check. The group-access bypass existed because
+  `content.ts` held a divergent copy of `checkContentAccess`; `helpers.ts` owns it.
 
 ## Conventions
 

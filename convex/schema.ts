@@ -298,7 +298,11 @@ const applicationTables = {
     createdAt: v.number(),
     expiresAt: v.optional(v.number()),
     isActive: v.boolean(),
-    currentUses: v.optional(v.number()), // Legacy field for tracking usage
+    currentUses: v.optional(v.number()), // Number of times this code has been redeemed
+    // Redemption limit. Absent (undefined) means single-use by default —
+    // existing rows predating this field have neither `maxUses` nor
+    // `currentUses` set and must be treated as single-use with 0 uses so far.
+    maxUses: v.optional(v.number()),
   })
     .index("by_code", ["code"])
     .index("by_creator", ["createdBy"]),

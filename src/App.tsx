@@ -46,6 +46,19 @@ export default function App() {
     }
   }, [siteSettings?.organizationName]);
 
+  // Swap in the org's uploaded favicon when one is configured. Falls back to
+  // the neutral default `<link id="favicon">` already in index.html when
+  // siteSettings has no faviconUrl (e.g. before setup, or an org that never
+  // uploaded one), so there's never a broken/missing icon.
+  useEffect(() => {
+    if (!siteSettings?.faviconUrl) return;
+    const link =
+      document.getElementById("favicon") as HTMLLinkElement | null;
+    if (link && link.href !== siteSettings.faviconUrl) {
+      link.href = siteSettings.faviconUrl;
+    }
+  }, [siteSettings?.faviconUrl]);
+
   // Check if user just logged in and should be redirected to content
   useEffect(() => {
     if (user && userProfile) {

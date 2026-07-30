@@ -1,0 +1,1289 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { convexTest } from "convex-test";
+import schema from "./schema";
+import { api } from "./_generated/api";
+import { PERMISSIONS } from "./permissions";
+import { getEffectivePermissions } from "./permissions";
+
+// ─── Shared seeding helpers (mirrors convex/analytics.test.ts / inviteCodes.test.ts) ───
+
+async function seedUser(
+  t: ReturnType<typeof convexTest>,
+  role: string,
+  email: string,
+  profileOverrides: Record<string, unknown> = {}
+) {
+  return await t.run(async (ctx) => {
+    const userId = await ctx.db.insert("users", { email, name: "Test User" });
+    await ctx.db.insert("userProfiles", {
+      userId,
+      role,
+      firstName: "Test",
+      lastName: "User",
+      isActive: true,
+      ...profileOverrides,
+    });
+    return userId;
+  });
+}
+
+// A signup-flow user: only a `users` row, no `userProfiles` row yet, and no
+// email (so createUserProfile's "existing account with this email" /
+// "approved join request" branches are skipped and we can focus purely on
+// the role-selection contract under test).
+async function seedBareUser(t: ReturnType<typeof convexTest>, name: string) {
+  return await t.run(async (ctx) => ctx.db.insert("users", { name }));
+}
+
+// Compute the HMAC-SHA256 signature the way the A3 contract specifies, so we
+// can test router.ts's verification logic directly without depending on the
+// (not-yet-implemented) `getSignedMediaUrl` action.
+async function computeMediaSig(
+  contentId: string,
+  exp: number,
+  secret: string
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sigBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${contentId}:${exp}`)
+  );
+  return Array.from(new Uint8Array(sigBuffer), (b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLUSTER A — Content access
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("A1: grantAccessAfterPassword must verify the password server-side", () => {
+  it("grants no access when called without a password (current bare signature)", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a1-1@test.local");
+    const userId = await seedUser(t, "client", "client-a1-1@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Locked Content",
+        isPublic: false,
+        createdBy: ownerId,
+        password: "secret123",
+      })
+    );
+
+    try {
+      // This is exactly today's exported signature: `{ contentId }`. Once
+      // fixed, `password` becomes required, so this call should fail closed.
+      await t
+        .withIdentity({ subject: userId })
+        .mutation(api.content.grantAccessAfterPassword as any, { contentId });
+    } catch {
+      // Acceptable post-fix (missing required `password`).
+    }
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(rows.filter((r) => r.userId === userId)).toHaveLength(0);
+  });
+
+  it("grants no access when the supplied password is wrong", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a1-2@test.local");
+    const userId = await seedUser(t, "client", "client-a1-2@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Locked Content 2",
+        isPublic: false,
+        createdBy: ownerId,
+        password: "secret123",
+      })
+    );
+
+    try {
+      await t
+        .withIdentity({ subject: userId })
+        .mutation(api.content.grantAccessAfterPassword as any, {
+          contentId,
+          password: "totally-wrong-password",
+        });
+    } catch {
+      // Acceptable (wrong password should be rejected).
+    }
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(rows.filter((r) => r.userId === userId)).toHaveLength(0);
+  });
+
+  it("grants no access when the content has no password configured", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a1-3@test.local");
+    const userId = await seedUser(t, "client", "client-a1-3@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Not Actually Locked",
+        isPublic: false,
+        createdBy: ownerId,
+        // no `password` field set
+      })
+    );
+
+    try {
+      await t
+        .withIdentity({ subject: userId })
+        .mutation(api.content.grantAccessAfterPassword as any, {
+          contentId,
+          password: "anything-at-all",
+        });
+    } catch {
+      // Acceptable — nothing to verify, this endpoint must not become a
+      // generic access-granting primitive.
+    }
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(rows.filter((r) => r.userId === userId)).toHaveLength(0);
+  });
+
+  it("grants access (idempotently) when the correct password is supplied", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a1-4@test.local");
+    const userId = await seedUser(t, "client", "client-a1-4@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Locked Content 4",
+        isPublic: false,
+        createdBy: ownerId,
+        password: "correct-horse-battery-staple",
+      })
+    );
+
+    await t
+      .withIdentity({ subject: userId })
+      .mutation(api.content.grantAccessAfterPassword as any, {
+        contentId,
+        password: "correct-horse-battery-staple",
+      });
+
+    // Calling again with the correct password must not create a duplicate row.
+    await t
+      .withIdentity({ subject: userId })
+      .mutation(api.content.grantAccessAfterPassword as any, {
+        contentId,
+        password: "correct-horse-battery-staple",
+      });
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(rows.filter((r) => r.userId === userId)).toHaveLength(1);
+  });
+});
+
+describe("A2: group access must be scoped to the specific content", () => {
+  async function setupGroupScenario(t: ReturnType<typeof convexTest>) {
+    const ownerId = await seedUser(t, "owner", "owner-a2@test.local");
+    const memberId = await seedUser(t, "client", "member-a2@test.local");
+
+    const { contentXId, contentYId } = await t.run(async (ctx) => {
+      const contentXId = await ctx.db.insert("content", {
+        title: "Granted Content X",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      });
+      const contentYId = await ctx.db.insert("content", {
+        title: "Unrelated Content Y",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      });
+      const groupId = await ctx.db.insert("userGroups", {
+        name: "Group G",
+        createdBy: ownerId,
+        isActive: true,
+      });
+      await ctx.db.insert("userGroupMembers", {
+        userId: memberId,
+        groupId,
+        addedBy: ownerId,
+      });
+      // Group G is granted access to content X only.
+      await ctx.db.insert("contentAccess", {
+        contentId: contentXId,
+        userGroupId: groupId,
+        grantedBy: ownerId,
+        canShare: false,
+      });
+      return { contentXId, contentYId };
+    });
+
+    return { ownerId, memberId, contentXId, contentYId };
+  }
+
+  it("does not grant a group member access to unrelated content the group was never granted", async () => {
+    const t = convexTest(schema);
+    const { memberId, contentYId } = await setupGroupScenario(t);
+
+    const resultForY = await t
+      .withIdentity({ subject: memberId })
+      .query(api.content.getContent, { contentId: contentYId });
+
+    expect(resultForY).toBeNull();
+  });
+
+  it("still grants a group member access to the content actually granted to their group", async () => {
+    const t = convexTest(schema);
+    const { memberId, contentXId } = await setupGroupScenario(t);
+
+    const resultForX = await t
+      .withIdentity({ subject: memberId })
+      .query(api.content.getContent, { contentId: contentXId });
+
+    expect(resultForX).not.toBeNull();
+    expect(resultForX?.title).toBe("Granted Content X");
+  });
+});
+
+describe("A3: /api/serve-chunked must require a signed URL for protected content", () => {
+  const TEST_SECRET = "test-secret-for-media-urls";
+  const SECRET_BYTES = "TOP-SECRET-PAID-CONTENT-BYTES";
+  let originalSecret: string | undefined;
+
+  beforeEach(() => {
+    originalSecret = process.env.MEDIA_URL_SECRET;
+    process.env.MEDIA_URL_SECRET = TEST_SECRET;
+  });
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env.MEDIA_URL_SECRET;
+    else process.env.MEDIA_URL_SECRET = originalSecret;
+    vi.restoreAllMocks();
+  });
+
+  async function seedChunkedContent(t: ReturnType<typeof convexTest>) {
+    const ownerId = await seedUser(t, "owner", `owner-a3-${Math.random()}@test.local`);
+    const contentId = await t.run(async (ctx) => {
+      const blob = new Blob([SECRET_BYTES], { type: "video/mp4" });
+      const storageId = await ctx.storage.store(blob);
+      return await ctx.db.insert("content", {
+        title: "Paid Video",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        mimeType: "video/mp4",
+        chunks: [{ storageId, size: SECRET_BYTES.length }],
+      });
+    });
+    return { ownerId, contentId };
+  }
+
+  function stubStorageFetch() {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(SECRET_BYTES, { status: 200 }));
+  }
+
+  it("does not return the content bytes with a 200 when no sig/exp are present", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunkedContent(t);
+    stubStorageFetch();
+
+    const res = await t.fetch(`/api/serve-chunked/${contentId}`, { method: "GET" });
+
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it("rejects a request whose signature does not match", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunkedContent(t);
+    stubStorageFetch();
+
+    const exp = Date.now() + 15 * 60 * 1000;
+    const badSig = await computeMediaSig(contentId, exp, "not-the-real-secret");
+
+    const res = await t.fetch(
+      `/api/serve-chunked/${contentId}?exp=${exp}&sig=${badSig}`,
+      { method: "GET" }
+    );
+
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it("rejects a request whose exp has already passed, even with a correctly-keyed signature", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunkedContent(t);
+    stubStorageFetch();
+
+    const expiredExp = Date.now() - 60 * 1000;
+    const sig = await computeMediaSig(contentId, expiredExp, TEST_SECRET);
+
+    const res = await t.fetch(
+      `/api/serve-chunked/${contentId}?exp=${expiredExp}&sig=${sig}`,
+      { method: "GET" }
+    );
+
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it("fails closed when MEDIA_URL_SECRET is not configured, even with a well-formed signature", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunkedContent(t);
+    stubStorageFetch();
+
+    delete process.env.MEDIA_URL_SECRET;
+    const exp = Date.now() + 15 * 60 * 1000;
+    const sig = await computeMediaSig(contentId, exp, TEST_SECRET);
+
+    const res = await t.fetch(
+      `/api/serve-chunked/${contentId}?exp=${exp}&sig=${sig}`,
+      { method: "GET" }
+    );
+
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it("serves the content when given a validly signed URL from getSignedMediaUrl", async () => {
+    const t = convexTest(schema);
+    const { ownerId, contentId } = await seedChunkedContent(t);
+    stubStorageFetch();
+
+    // `getSignedMediaUrl` does not exist yet — this will fail to resolve
+    // until cluster-A implements it, which is expected/acceptable for now.
+    const signedUrl: string = await t
+      .withIdentity({ subject: ownerId })
+      .action((api.content as any).getSignedMediaUrl, { contentId });
+
+    const parsed = new URL(signedUrl, "http://localhost");
+    const res = await t.fetch(`${parsed.pathname}${parsed.search}`, {
+      method: "GET",
+    });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("A4: third-party sharing must not bypass pricing or privacy gates", () => {
+  it("denies sharing content with active pricing, even for the owner", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a4-1@test.local");
+    const contentId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("content", {
+        title: "Paid Course",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId: id,
+        price: 1999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+
+    const evaluation = await t
+      .withIdentity({ subject: ownerId })
+      .query(api.contentShares.canShareContent, { contentId });
+    expect(evaluation.canShare).toBe(false);
+    expect(evaluation.reason).toBe("Cannot share purchaseable content");
+
+    await expect(
+      t
+        .withIdentity({ subject: ownerId })
+        .mutation(api.contentShares.createThirdPartyShare, {
+          contentId,
+          recipientEmail: "friend@example.com",
+          expiresInDays: 7,
+        })
+    ).rejects.toThrow();
+
+    const shares = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentShares")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(shares).toHaveLength(0);
+  });
+
+  it("denies sharing private content for a role that only holds SHARE_CONTENT", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a4-2@test.local");
+    const clientId = await seedUser(t, "client", "client-a4-2@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Private Doc",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      })
+    );
+
+    const evaluation = await t
+      .withIdentity({ subject: clientId })
+      .query(api.contentShares.canShareContent, { contentId });
+    expect(evaluation.canShare).toBe(false);
+
+    await expect(
+      t
+        .withIdentity({ subject: clientId })
+        .mutation(api.contentShares.createThirdPartyShare, {
+          contentId,
+          recipientEmail: "friend@example.com",
+          expiresInDays: 7,
+        })
+    ).rejects.toThrow();
+
+    const shares = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentShares")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(shares).toHaveLength(0);
+  });
+
+  it("allows a role with SHARE_WITH_THIRD_PARTY (editor) to share private, unpriced content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a4-3@test.local");
+    const editorId = await seedUser(t, "editor", "editor-a4-3@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Private Doc 2",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      })
+    );
+
+    const result = await t
+      .withIdentity({ subject: editorId })
+      .mutation(api.contentShares.createThirdPartyShare, {
+        contentId,
+        recipientEmail: "friend@example.com",
+        expiresInDays: 7,
+      });
+    expect(result.shareId).toBeDefined();
+  });
+
+  it("allows any role with SHARE_CONTENT to share public, published, unpriced content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a4-4@test.local");
+    const clientId = await seedUser(t, "client", "client-a4-4@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Free Public Content",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      })
+    );
+
+    const result = await t
+      .withIdentity({ subject: clientId })
+      .mutation(api.contentShares.createThirdPartyShare, {
+        contentId,
+        recipientEmail: "friend@example.com",
+        expiresInDays: 7,
+      });
+    expect(result.shareId).toBeDefined();
+  });
+
+  it("re-checks pricing at read time and stops handing out the content once it becomes purchaseable", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a4-5@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Was Free",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      })
+    );
+
+    const { accessToken } = await t
+      .withIdentity({ subject: ownerId })
+      .mutation(api.contentShares.createThirdPartyShare, {
+        contentId,
+        recipientEmail: "friend@example.com",
+        expiresInDays: 7,
+      });
+
+    // Content becomes purchaseable *after* the share link was minted.
+    await t.withIdentity({ subject: ownerId }).mutation(api.pricing.setPricing, {
+      contentId,
+      price: 999,
+      currency: "USD",
+    });
+
+    const result = await t.query(api.contentShares.getContentByShareToken, {
+      accessToken,
+    });
+
+    expect(result.content).toBeNull();
+  });
+});
+
+describe("A5: recommendations must not leak fileUrl or bypass entitlement checks", () => {
+  it("createRecommendation refuses to recommend content the recommender cannot access", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a5-1@test.local");
+    // Custom permissions: RECOMMEND_CONTENT only, deliberately without
+    // VIEW_ALL_CONTENT, so the "can the recommender access this?" check is
+    // actually exercised (the only role with RECOMMEND_CONTENT by default —
+    // "professional" — also gets VIEW_ALL_CONTENT, which would trivially pass).
+    const recommenderId = await seedUser(
+      t,
+      "client",
+      "recommender-a5-1@test.local",
+      { permissions: [PERMISSIONS.RECOMMEND_CONTENT] }
+    );
+    const recipientId = await seedUser(t, "client", "recipient-a5-1@test.local");
+    const recipient = await t.run(async (ctx) => ctx.db.get(recipientId));
+
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Private Unlicensed Content",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      })
+    );
+
+    try {
+      await t
+        .withIdentity({ subject: recommenderId })
+        .mutation(api.recommendations.createRecommendation, {
+          contentId,
+          recipientEmail: recipient!.email!,
+        });
+    } catch {
+      // Acceptable — recommender has no access to this content.
+    }
+
+    const recs = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentRecommendations")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(recs).toHaveLength(0);
+  });
+
+  it("createRecommendation allows recommending content the recommender has explicit access to", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a5-2@test.local");
+    const recommenderId = await seedUser(
+      t,
+      "client",
+      "recommender-a5-2@test.local",
+      { permissions: [PERMISSIONS.RECOMMEND_CONTENT] }
+    );
+    const recipientId = await seedUser(t, "client", "recipient-a5-2@test.local");
+    const recipient = await t.run(async (ctx) => ctx.db.get(recipientId));
+
+    const contentId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("content", {
+        title: "Granted Content",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      });
+      await ctx.db.insert("contentAccess", {
+        contentId: id,
+        userId: recommenderId,
+        grantedBy: ownerId,
+        canShare: false,
+      });
+      return id;
+    });
+
+    const result = await t
+      .withIdentity({ subject: recommenderId })
+      .mutation(api.recommendations.createRecommendation, {
+        contentId,
+        recipientEmail: recipient!.email!,
+      });
+    expect(result.success).toBe(true);
+  });
+
+  it("getMyRecommendations withholds fileUrl for unpurchased paid content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a5-3@test.local");
+    const recommenderId = await seedUser(t, "professional", "recommender-a5-3@test.local");
+    const recipientId = await seedUser(t, "client", "recipient-a5-3@test.local");
+    const recipient = await t.run(async (ctx) => ctx.db.get(recipientId));
+
+    await t.run(async (ctx) => {
+      const blob = new Blob(["paid-video-bytes"]);
+      const fileId = await ctx.storage.store(blob);
+      const contentId = await ctx.db.insert("content", {
+        title: "Paid Video",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        attachmentType: "video",
+        fileId,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 1999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("contentRecommendations", {
+        contentId,
+        recommendedBy: recommenderId,
+        recipientEmail: recipient!.email!,
+        createdAt: Date.now(),
+        isActive: true,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: recipientId })
+      .query(api.recommendations.getMyRecommendations, {});
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.content.fileUrl).toBeNull();
+  });
+
+  it("getMyRecommendations returns a fileUrl once the recipient has purchased the content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a5-4@test.local");
+    const recommenderId = await seedUser(t, "professional", "recommender-a5-4@test.local");
+    const recipientId = await seedUser(t, "client", "recipient-a5-4@test.local");
+    const recipient = await t.run(async (ctx) => ctx.db.get(recipientId));
+
+    await t.run(async (ctx) => {
+      const blob = new Blob(["paid-video-bytes-2"]);
+      const fileId = await ctx.storage.store(blob);
+      const contentId = await ctx.db.insert("content", {
+        title: "Purchased Paid Video",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        attachmentType: "video",
+        fileId,
+      });
+      await ctx.db.insert("orders", {
+        userId: recipientId,
+        contentId,
+        amount: 1999,
+        currency: "USD",
+        status: "completed",
+        paymentMethod: "mock_payment",
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      });
+      await ctx.db.insert("contentRecommendations", {
+        contentId,
+        recommendedBy: recommenderId,
+        recipientEmail: recipient!.email!,
+        createdAt: Date.now(),
+        isActive: true,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: recipientId })
+      .query(api.recommendations.getMyRecommendations, {});
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.content.fileUrl).not.toBeNull();
+  });
+});
+
+describe("A6: thumbnail IDOR + SSRF", () => {
+  it("updateContentThumbnailId refuses a caller who is neither the creator nor an EDIT_CONTENT holder", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a6-1@test.local");
+    const attackerId = await seedUser(t, "client", "attacker-a6-1@test.local");
+
+    const { contentId, originalThumbnailId, maliciousThumbnailId } = await t.run(
+      async (ctx) => {
+        const originalThumbnailId = await ctx.storage.store(new Blob(["orig"]));
+        const maliciousThumbnailId = await ctx.storage.store(new Blob(["evil"]));
+        const contentId = await ctx.db.insert("content", {
+          title: "Victim Content",
+          isPublic: true,
+          createdBy: ownerId,
+          thumbnailId: originalThumbnailId,
+        });
+        return { contentId, originalThumbnailId, maliciousThumbnailId };
+      }
+    );
+
+    try {
+      await t
+        .withIdentity({ subject: attackerId })
+        .mutation(api.content.updateContentThumbnailId, {
+          contentId,
+          thumbnailId: maliciousThumbnailId,
+        });
+    } catch {
+      // Acceptable.
+    }
+
+    const content = await t.run(async (ctx) => ctx.db.get(contentId));
+    expect(content!.thumbnailId).toBe(originalThumbnailId);
+  });
+
+  it("updateContentThumbnailId allows the content creator to update their own thumbnail", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a6-2@test.local");
+    const { contentId, newThumbnailId } = await t.run(async (ctx) => {
+      const contentId = await ctx.db.insert("content", {
+        title: "My Content",
+        isPublic: true,
+        createdBy: ownerId,
+      });
+      const newThumbnailId = await ctx.storage.store(new Blob(["new"]));
+      return { contentId, newThumbnailId };
+    });
+
+    await t.withIdentity({ subject: ownerId }).mutation(api.content.updateContentThumbnailId, {
+      contentId,
+      thumbnailId: newThumbnailId,
+    });
+
+    const content = await t.run(async (ctx) => ctx.db.get(contentId));
+    expect(content!.thumbnailId).toBe(newThumbnailId);
+  });
+
+  it("updateContentThumbnailId allows a user with EDIT_CONTENT to update another user's content thumbnail", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a6-3@test.local");
+    const editorId = await seedUser(t, "editor", "editor-a6-3@test.local");
+    const { contentId, newThumbnailId } = await t.run(async (ctx) => {
+      const contentId = await ctx.db.insert("content", {
+        title: "Owner Content",
+        isPublic: true,
+        createdBy: ownerId,
+      });
+      const newThumbnailId = await ctx.storage.store(new Blob(["new2"]));
+      return { contentId, newThumbnailId };
+    });
+
+    await t.withIdentity({ subject: editorId }).mutation(api.content.updateContentThumbnailId, {
+      contentId,
+      thumbnailId: newThumbnailId,
+    });
+
+    const content = await t.run(async (ctx) => ctx.db.get(contentId));
+    expect(content!.thumbnailId).toBe(newThumbnailId);
+  });
+
+  it("generateThumbnailFromVideo must not be reachable by unauthenticated callers to trigger an outbound fetch (SSRF)", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a6-4@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", { title: "X", isPublic: true, createdBy: ownerId })
+    );
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 404 }));
+
+    try {
+      await t.action(api.generateThumbnail.generateThumbnailFromVideo, {
+        contentId,
+        videoUrl: "http://169.254.169.254/latest/meta-data/",
+      });
+    } catch {
+      // Acceptable: becoming `internalAction` means it's simply unresolvable
+      // from the public `api`.
+    }
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("updateContentThumbnail wrapper action does not let an unauthorized caller repoint another user's thumbnail", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a6-5@test.local");
+    const attackerId = await seedUser(t, "client", "attacker-a6-5@test.local");
+
+    const { contentId, originalThumbnailId, maliciousThumbnailId } = await t.run(
+      async (ctx) => {
+        const originalThumbnailId = await ctx.storage.store(new Blob(["orig2"]));
+        const maliciousThumbnailId = await ctx.storage.store(new Blob(["evil2"]));
+        const contentId = await ctx.db.insert("content", {
+          title: "Victim Content 2",
+          isPublic: true,
+          createdBy: ownerId,
+          thumbnailId: originalThumbnailId,
+        });
+        return { contentId, originalThumbnailId, maliciousThumbnailId };
+      }
+    );
+
+    try {
+      await t
+        .withIdentity({ subject: attackerId })
+        .action(api.generateThumbnail.updateContentThumbnail, {
+          contentId,
+          thumbnailId: maliciousThumbnailId,
+        });
+    } catch {
+      // Acceptable.
+    }
+
+    const content = await t.run(async (ctx) => ctx.db.get(contentId));
+    expect(content!.thumbnailId).toBe(originalThumbnailId);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLUSTER B — Purchase + identity
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("B1: completeOrder must not be a client-callable payment bypass", () => {
+  let originalFlag: string | undefined;
+
+  beforeEach(() => {
+    originalFlag = process.env.ALLOW_MOCK_PAYMENTS;
+    delete process.env.ALLOW_MOCK_PAYMENTS;
+  });
+
+  afterEach(() => {
+    if (originalFlag === undefined) delete process.env.ALLOW_MOCK_PAYMENTS;
+    else process.env.ALLOW_MOCK_PAYMENTS = originalFlag;
+  });
+
+  async function seedPendingOrder(
+    t: ReturnType<typeof convexTest>,
+    buyerId: any,
+    ownerId: any
+  ) {
+    return await t.run(async (ctx) => {
+      const contentId = await ctx.db.insert("content", {
+        title: "Paid Item",
+        isPublic: false,
+        createdBy: ownerId,
+      });
+      const orderId = await ctx.db.insert("orders", {
+        userId: buyerId,
+        contentId,
+        amount: 1999,
+        currency: "USD",
+        status: "pending",
+        paymentMethod: "stripe",
+        createdAt: Date.now(),
+      });
+      return { contentId, orderId };
+    });
+  }
+
+  it("refuses to mark an order completed when ALLOW_MOCK_PAYMENTS is unset (production posture)", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b1-1@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b1-1@test.local");
+    const { orderId } = await seedPendingOrder(t, buyerId, ownerId);
+
+    await expect(
+      t.withIdentity({ subject: buyerId }).mutation(api.orders.completeOrder, { orderId })
+    ).rejects.toThrow();
+
+    const order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.status).toBe("pending");
+
+    const access = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_user", (q) => q.eq("userId", buyerId))
+        .collect()
+    );
+    expect(access).toHaveLength(0);
+  });
+
+  it("still works when ALLOW_MOCK_PAYMENTS=true (explicit dev/test mock path)", async () => {
+    process.env.ALLOW_MOCK_PAYMENTS = "true";
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b1-2@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b1-2@test.local");
+    const { orderId } = await seedPendingOrder(t, buyerId, ownerId);
+
+    await t.withIdentity({ subject: buyerId }).mutation(api.orders.completeOrder, { orderId });
+
+    const order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.status).toBe("completed");
+
+    const access = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_user", (q) => q.eq("userId", buyerId))
+        .collect()
+    );
+    expect(access.length).toBeGreaterThan(0);
+  });
+
+  it("still refuses a caller who does not own the order, regardless of the flag", async () => {
+    process.env.ALLOW_MOCK_PAYMENTS = "true";
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b1-3@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b1-3@test.local");
+    const attackerId = await seedUser(t, "client", "attacker-b1-3@test.local");
+    const { orderId } = await seedPendingOrder(t, buyerId, ownerId);
+
+    await expect(
+      t.withIdentity({ subject: attackerId }).mutation(api.orders.completeOrder, { orderId })
+    ).rejects.toThrow();
+
+    const order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.status).toBe("pending");
+  });
+});
+
+describe("B2: createOrder must not allow price substitution across content items", () => {
+  it("refuses an order when pricingId belongs to a different content item", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b2-1@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b2-1@test.local");
+
+    const { cheapPricingId, expensiveContentId } = await t.run(async (ctx) => {
+      const cheapContentId = await ctx.db.insert("content", {
+        title: "Cheap Item",
+        isPublic: false,
+        createdBy: ownerId,
+      });
+      const cheapPricingId = await ctx.db.insert("contentPricing", {
+        contentId: cheapContentId,
+        price: 100,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      const expensiveContentId = await ctx.db.insert("content", {
+        title: "Expensive Item",
+        isPublic: false,
+        createdBy: ownerId,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId: expensiveContentId,
+        price: 19900,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("purchaseRequests", {
+        userId: buyerId,
+        contentId: expensiveContentId,
+        status: "approved",
+        createdAt: Date.now(),
+      });
+      return { cheapPricingId, expensiveContentId };
+    });
+
+    await expect(
+      t.withIdentity({ subject: buyerId }).mutation(api.orders.createOrder, {
+        contentId: expensiveContentId,
+        pricingId: cheapPricingId,
+      })
+    ).rejects.toThrow();
+
+    const orders = await t.run(async (ctx) =>
+      ctx.db
+        .query("orders")
+        .withIndex("by_content", (q) => q.eq("contentId", expensiveContentId))
+        .collect()
+    );
+    expect(orders).toHaveLength(0);
+  });
+
+  it("creates the order with the correct amount when pricingId matches contentId", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b2-2@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b2-2@test.local");
+
+    const { pricingId, contentId } = await t.run(async (ctx) => {
+      const contentId = await ctx.db.insert("content", {
+        title: "Item",
+        isPublic: false,
+        createdBy: ownerId,
+      });
+      const pricingId = await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 500,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("purchaseRequests", {
+        userId: buyerId,
+        contentId,
+        status: "approved",
+        createdAt: Date.now(),
+      });
+      return { pricingId, contentId };
+    });
+
+    const { orderId } = await t
+      .withIdentity({ subject: buyerId })
+      .mutation(api.orders.createOrder, { contentId, pricingId });
+
+    const order = await t.run(async (ctx) => ctx.db.get(orderId));
+    expect(order!.amount).toBe(500);
+    expect(order!.contentId).toBe(contentId);
+  });
+});
+
+describe("B3: signup must not allow self-selecting a privileged role", () => {
+  it("does not grant the professional role (VIEW_ALL_CONTENT) via a self-selected role", async () => {
+    const t = convexTest(schema);
+    const userId = await seedBareUser(t, "New Signup 1");
+
+    try {
+      await t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+        role: "professional",
+      });
+    } catch {
+      // Acceptable — self-service signup must not grant `professional`.
+    }
+
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    );
+
+    if (profile) {
+      const perms = getEffectivePermissions(profile);
+      expect(profile.role).not.toBe("professional");
+      expect(perms).not.toContain(PERMISSIONS.VIEW_ALL_CONTENT);
+    }
+  });
+
+  it("still allows self-selecting the client role", async () => {
+    const t = convexTest(schema);
+    const userId = await seedBareUser(t, "New Signup 2");
+
+    await t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+      role: "client",
+    });
+
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    );
+    expect(profile!.role).toBe("client");
+  });
+
+  it("still allows obtaining the professional role through a valid client invite code", async () => {
+    const t = convexTest(schema);
+    const adminId = await seedUser(t, "owner", "owner-b3-3@test.local");
+    const userId = await seedBareUser(t, "New Signup 3");
+
+    const code = "PROINV123";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("clientInvites", {
+        code,
+        role: "professional",
+        createdBy: adminId,
+        createdAt: Date.now(),
+        isActive: true,
+      });
+    });
+
+    await t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+      inviteCode: code,
+    });
+
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    );
+    expect(profile!.role).toBe("professional");
+  });
+});
+
+describe("B4: staff invite codes must default to single-use", () => {
+  it("allows exactly one redemption and refuses a second, unrelated user from reusing the same code", async () => {
+    const t = convexTest(schema);
+    const adminId = await seedUser(t, "owner", "owner-b4-1@test.local");
+    const code = "STAFF1USE";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("inviteCodes", {
+        code,
+        role: "editor",
+        createdBy: adminId,
+        createdAt: Date.now(),
+        isActive: true,
+        // `maxUses` / `currentUses` intentionally omitted: relies on the
+        // "default single-use when unset" contract, and schema.ts is not
+        // modified by this test file.
+      });
+    });
+
+    const user1 = await seedBareUser(t, "First Redeemer");
+    await t.withIdentity({ subject: user1 }).mutation(api.users.createUserProfile, {
+      inviteCode: code,
+    });
+    const profile1 = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", user1))
+        .unique()
+    );
+    expect(profile1!.role).toBe("editor");
+
+    const user2 = await seedBareUser(t, "Second Redeemer");
+    try {
+      await t.withIdentity({ subject: user2 }).mutation(api.users.createUserProfile, {
+        inviteCode: code,
+      });
+    } catch {
+      // Acceptable — the code should already be exhausted.
+    }
+
+    const profile2 = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", user2))
+        .unique()
+    );
+    expect(!profile2 || profile2.role !== "editor").toBe(true);
+  });
+
+  it("increments currentUses on a successful redemption", async () => {
+    const t = convexTest(schema);
+    const adminId = await seedUser(t, "owner", "owner-b4-2@test.local");
+    const code = "STAFF1USEB";
+    const inviteCodeId = await t.run(async (ctx) =>
+      ctx.db.insert("inviteCodes", {
+        code,
+        role: "contributor",
+        createdBy: adminId,
+        createdAt: Date.now(),
+        isActive: true,
+      })
+    );
+
+    const user1 = await seedBareUser(t, "Redeemer");
+    await t.withIdentity({ subject: user1 }).mutation(api.users.createUserProfile, {
+      inviteCode: code,
+    });
+
+    const invite = await t.run(async (ctx) => ctx.db.get(inviteCodeId));
+    expect(invite!.currentUses ?? 0).toBe(1);
+  });
+});
+
+describe("B5: listPricedContent must not leak content.password or an unpurchased fileUrl", () => {
+  it("never includes the plaintext password for priced content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b5-1@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b5-1@test.local");
+
+    await t.run(async (ctx) => {
+      const contentId = await ctx.db.insert("content", {
+        title: "Priced + Password Protected",
+        isPublic: false,
+        createdBy: ownerId,
+        password: "supersecret123",
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: buyerId })
+      .query(api.pricing.listPricedContent, {});
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.password).toBeFalsy();
+    // Defense in depth: whatever shape the fix ends up with, a non-purchaser
+    // must never receive a playable/downloadable fileUrl.
+    expect((result[0] as any).fileUrl ?? null).toBeNull();
+  });
+
+  it("still returns price, currency, and thumbnail info for a non-owner", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-b5-2@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-b5-2@test.local");
+
+    await t.run(async (ctx) => {
+      const thumbnailId = await ctx.storage.store(new Blob(["thumb"]));
+      const contentId = await ctx.db.insert("content", {
+        title: "Priced Content",
+        isPublic: false,
+        createdBy: ownerId,
+        thumbnailId,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 1234,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: buyerId })
+      .query(api.pricing.listPricedContent, {});
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.pricing.price).toBe(1234);
+    expect(result[0]!.thumbnailUrl).not.toBeNull();
+    // `hasAccess` is `existingOrder && (...)`, which short-circuits to a
+    // falsy `null`/`undefined` (not strictly `false`) when there's no order —
+    // assert falsiness rather than the exact primitive.
+    expect(result[0]!.hasAccess).toBeFalsy();
+  });
+});

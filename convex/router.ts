@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { computeMediaSignature, timingSafeEqual } from "./helpers";
 
 const http = httpRouter();
 
@@ -18,7 +19,7 @@ http.route({
       if (!orderId) {
         return new Response(JSON.stringify({ error: "orderId is required" }), {
           status: 400,
-          headers: corsHeaders(),
+          headers: corsHeaders(request),
         });
       }
 
@@ -31,14 +32,14 @@ http.route({
       if (!order) {
         return new Response(JSON.stringify({ error: "Order not found" }), {
           status: 404,
-          headers: corsHeaders(),
+          headers: corsHeaders(request),
         });
       }
 
       if (order.status !== "pending") {
         return new Response(
           JSON.stringify({ error: "Order is not in pending status" }),
-          { status: 400, headers: corsHeaders() }
+          { status: 400, headers: corsHeaders(request) }
         );
       }
 
@@ -64,7 +65,7 @@ http.route({
 
       return new Response(JSON.stringify({ url: session.url }), {
         status: 200,
-        headers: corsHeaders(),
+        headers: corsHeaders(request),
       });
     } catch (error) {
       console.error("Stripe checkout error:", error);
@@ -73,7 +74,7 @@ http.route({
           error:
             error instanceof Error ? error.message : "Internal server error",
         }),
-        { status: 500, headers: corsHeaders() }
+        { status: 500, headers: corsHeaders(request) }
       );
     }
   }),
@@ -83,8 +84,8 @@ http.route({
 http.route({
   path: "/api/stripe/checkout",
   method: "OPTIONS",
-  handler: httpAction(async () => {
-    return new Response(null, { status: 204, headers: corsHeaders() });
+  handler: httpAction(async (_ctx, request) => {
+    return new Response(null, { status: 204, headers: corsHeaders(request) });
   }),
 });
 
@@ -122,13 +123,55 @@ http.route({
   }),
 });
 
-function corsHeaders() {
-  const allowedOrigin = process.env.SITE_URL || "http://localhost:5173";
+// --- CORS origin allowlist ---
+//
+// An instance's frontend can live at more than one origin: the primary
+// SITE_URL, an apex/www alias, or a Vercel preview domain. ALLOWED_ORIGINS is
+// an optional comma-separated list of additional absolute origins to trust.
+// We never emit "*" and never reflect an arbitrary Origin — only an Origin
+// that's actually in the computed allowlist gets echoed back; anything else
+// falls back to SITE_URL (or the localhost dev default when SITE_URL isn't
+// set, preserving existing local-dev behavior).
+
+function siteUrlOrDevFallback(): string {
+  const raw = process.env.SITE_URL;
+  return raw ? raw.trim().replace(/\/+$/, "") : "http://localhost:5173";
+}
+
+function computeAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+  origins.add(siteUrlOrDevFallback());
+  const extra = process.env.ALLOWED_ORIGINS;
+  if (extra) {
+    for (const entry of extra.split(",")) {
+      const trimmed = entry.trim().replace(/\/+$/, "");
+      if (trimmed) origins.add(trimmed);
+    }
+  }
+  return Array.from(origins);
+}
+
+// Pick the Access-Control-Allow-Origin value for a given request: echo the
+// request's Origin header back only if it's in the allowlist, otherwise fall
+// back to SITE_URL (or the localhost dev default). `request` is optional so
+// OPTIONS-only handlers without a request in scope can still get a sane
+// default.
+function resolveAllowedOrigin(request?: Request | null): string {
+  const fallback = siteUrlOrDevFallback();
+  const requestOrigin = request?.headers.get("Origin");
+  if (!requestOrigin) return fallback;
+  return computeAllowedOrigins().includes(requestOrigin)
+    ? requestOrigin
+    : fallback;
+}
+
+function corsHeaders(request?: Request | null) {
   return {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": resolveAllowedOrigin(request),
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
   };
 }
 
@@ -155,15 +198,41 @@ function corsHeaders() {
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB — stays under 20 MiB HTTP action cap
 const SERVE_PATH_PREFIX = "/api/serve-chunked/";
 
-function mediaCorsHeaders(extra: Record<string, string> = {}) {
-  const allowedOrigin = process.env.SITE_URL || "http://localhost:5173";
+function mediaCorsHeaders(
+  request?: Request | null,
+  extra: Record<string, string> = {}
+) {
   return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": resolveAllowedOrigin(request),
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": "Range",
     "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+    Vary: "Origin",
     ...extra,
   };
+}
+
+// Verify the `exp`/`sig` query params on a /api/serve-chunked request against
+// the HMAC contract from `content.getSignedMediaUrl` (A3). Fails closed: if
+// MEDIA_URL_SECRET isn't configured, or either param is missing/malformed, or
+// the signature doesn't match, or `exp` has passed, this returns false — the
+// caller must then reject the request without serving any bytes.
+async function verifySignedMediaRequest(
+  url: URL,
+  contentId: string
+): Promise<boolean> {
+  const secret = process.env.MEDIA_URL_SECRET;
+  if (!secret) return false;
+
+  const expParam = url.searchParams.get("exp");
+  const sig = url.searchParams.get("sig");
+  if (!expParam || !sig) return false;
+
+  const exp = Number(expParam);
+  if (!Number.isFinite(exp) || exp <= Date.now()) return false;
+
+  const expectedSig = await computeMediaSignature(contentId, exp, secret);
+  return timingSafeEqual(sig, expectedSig);
 }
 
 // Parse a single-range "Range: bytes=start-end" header against a known total
@@ -204,8 +273,11 @@ function parseRange(
 http.route({
   pathPrefix: SERVE_PATH_PREFIX,
   method: "OPTIONS",
-  handler: httpAction(async () => {
-    return new Response(null, { status: 204, headers: mediaCorsHeaders() });
+  handler: httpAction(async (_ctx, request) => {
+    return new Response(null, {
+      status: 204,
+      headers: mediaCorsHeaders(request),
+    });
   }),
 });
 
@@ -222,11 +294,19 @@ async function handleChunkedServe(
   if (!contentId) {
     return new Response("Missing contentId", {
       status: 400,
-      headers: mediaCorsHeaders(),
+      headers: mediaCorsHeaders(request),
     });
   }
 
-  let content: { chunks: Array<{ storageId: Id<"_storage">; size: number }>; mimeType?: string } | null;
+  let content: {
+    chunks: Array<{ storageId: Id<"_storage">; size: number }>;
+    mimeType?: string;
+    isPublic: boolean;
+    status?: string;
+    active: boolean;
+    hasPassword: boolean;
+    isPriced: boolean;
+  } | null;
   try {
     content = await ctx.runQuery(internal.content.getChunkedContentInternal, {
       contentId: contentId as Id<"content">,
@@ -235,15 +315,39 @@ async function handleChunkedServe(
     // Malformed contentId — Id validator throws. Treat as not found.
     return new Response("Not found", {
       status: 404,
-      headers: mediaCorsHeaders(),
+      headers: mediaCorsHeaders(request),
     });
   }
 
   if (!content || !content.chunks || content.chunks.length === 0) {
     return new Response("Not found", {
       status: 404,
-      headers: mediaCorsHeaders(),
+      headers: mediaCorsHeaders(request),
     });
+  }
+
+  // A3: content IDs are not secret (they're handed to every logged-in user
+  // by e.g. pricing.listPricedContent), so this endpoint can't rely on the
+  // contentId alone as an entitlement check. Public, published, active,
+  // unpriced, password-free content stays servable without a signature (it
+  // was never gated on anything else either); everything else — private,
+  // password-protected, or priced — requires a valid, unexpired HMAC
+  // signature minted by `content.getSignedMediaUrl`.
+  const isExemptFromSigning =
+    content.isPublic &&
+    content.status === "published" &&
+    content.active &&
+    !content.hasPassword &&
+    !content.isPriced;
+
+  if (!isExemptFromSigning) {
+    const verified = await verifySignedMediaRequest(url, contentId);
+    if (!verified) {
+      return new Response("Forbidden", {
+        status: 403,
+        headers: mediaCorsHeaders(request),
+      });
+    }
   }
 
   const totalSize = content.chunks.reduce(
@@ -304,13 +408,13 @@ async function handleChunkedServe(
   if (slices.length === 0) {
     return new Response("Range not satisfiable", {
       status: 416,
-      headers: mediaCorsHeaders({
+      headers: mediaCorsHeaders(request, {
         "Content-Range": `bytes */${totalSize}`,
       }),
     });
   }
 
-  const headers: Record<string, string> = mediaCorsHeaders({
+  const headers: Record<string, string> = mediaCorsHeaders(request, {
     "Content-Type": mimeType,
     "Accept-Ranges": "bytes",
     "Content-Length": String(end - start + 1),
@@ -334,7 +438,7 @@ async function handleChunkedServe(
     if (!storageUrl) {
       return new Response("Chunk storage missing", {
         status: 500,
-        headers: mediaCorsHeaders(),
+        headers: mediaCorsHeaders(request),
       });
     }
     const subRange = `bytes=${slice.fromInChunk}-${slice.toInChunk}`;
@@ -342,7 +446,7 @@ async function handleChunkedServe(
     if (!res.ok && res.status !== 206 && res.status !== 200) {
       return new Response(`Failed to fetch chunk: ${res.status}`, {
         status: 502,
-        headers: mediaCorsHeaders(),
+        headers: mediaCorsHeaders(request),
       });
     }
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -370,7 +474,7 @@ http.route({
       console.error("serve-chunked GET error:", error);
       return new Response(
         error instanceof Error ? error.message : "Internal error",
-        { status: 500, headers: mediaCorsHeaders() }
+        { status: 500, headers: mediaCorsHeaders(request) }
       );
     }
   }),

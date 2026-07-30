@@ -1,43 +1,40 @@
 import { action } from "./_generated/server";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { api } from "./_generated/api";
 
-// Action to generate thumbnail on-demand
-// This runs on the Convex backend and can process video files
+// Dead code today (nothing in src/ calls it). Previously this was a *public*
+// action that would fetch() any caller-supplied `videoUrl` with no auth and
+// no host allowlist — a blind SSRF / bandwidth-burn primitive (an attacker
+// could point it at internal/cloud-metadata addresses). Server-side video
+// processing was never actually implemented here (the fetched blob was
+// immediately discarded and this always returned null) — client-side
+// generation in VideoThumbnail.tsx is the real implementation.
+//
+// The ideal fix is `internalAction` (not client-reachable at all), but that
+// would remove this export from `api.generateThumbnail` entirely, which
+// `security.test.ts` references directly (un-cast) — since that test file is
+// contract and off-limits to edit, this stays a public `action`. What
+// actually closes the SSRF hole is removing the outbound fetch itself: the
+// handler below performs no network I/O regardless of who calls it, so
+// there's nothing left to exploit.
 export const generateThumbnailFromVideo = action({
   args: {
     contentId: v.id("content"),
     videoUrl: v.string(),
   },
-  handler: async (ctx, args) => {
-    try {
-      // Fetch the video file
-      const response = await fetch(args.videoUrl);
-      if (!response.ok) {
-        throw new ConvexError("Failed to fetch video");
-      }
-
-      const videoBlob = await response.blob();
-      
-      // For now, we'll return null since server-side video processing
-      // requires additional dependencies. The client-side generation
-      // in ContentManager.tsx will handle this.
-      
-      // In a production environment, you would:
-      // 1. Use a video processing library like ffmpeg
-      // 2. Extract frame at specific timestamp
-      // 3. Upload thumbnail to storage
-      // 4. Update content record with thumbnailId
-
-      return null;
-    } catch (error) {
-      console.error("Error generating thumbnail:", error);
-      return null;
-    }
+  handler: async () => {
+    return null;
   },
 });
 
-// Helper mutation to update content with generated thumbnail
+// Helper action to update content with a generated thumbnail. Same
+// public-vs-internal constraint as above (kept `action` so
+// `api.generateThumbnail.updateContentThumbnail` keeps type-checking against
+// security.test.ts). The IDOR this used to enable is closed at the source:
+// `updateContentThumbnailId` (content.ts) now requires the caller be the
+// content's creator or hold EDIT_CONTENT, so this wrapper can no longer be
+// used to repoint another user's thumbnail — it just forwards to a mutation
+// that will throw for an unauthorized caller.
 export const updateContentThumbnail = action({
   args: {
     contentId: v.id("content"),

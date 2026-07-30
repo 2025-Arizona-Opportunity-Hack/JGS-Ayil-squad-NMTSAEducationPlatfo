@@ -51,7 +51,7 @@ export function MockPaymentModal({
 
     try {
       // Create the order
-      const orderId = await createOrder({
+      const { orderId } = await createOrder({
         contentId,
         pricingId,
       });

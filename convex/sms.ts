@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { SMS_ENABLED, assertSmsEnabled } from "./featureFlags";
+import { getOrgName, requireSiteUrl } from "./helpers";
 
 // Initialize Twilio component lazily to avoid startup errors when credentials are missing
 let _twilio: ReturnType<typeof createTwilio> | null = null;
@@ -134,7 +135,7 @@ export const sendVerificationSms = internalAction({
   handler: async (ctx, args) => {
     if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
 
     await getTwilio().sendMessage(ctx, {
       to: args.phoneNumber,
@@ -305,8 +306,8 @@ export const sendContentAccessSms = internalAction({
     
     if (!content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
@@ -326,8 +327,8 @@ export const sendInviteSms = internalAction({
   handler: async (ctx, args) => {
     if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     const inviteUrl = `${baseUrl}?invite=${args.inviteCode}`;
 
@@ -349,8 +350,8 @@ export const sendClientInviteSms = internalAction({
   handler: async (ctx, args) => {
     if (!SMS_ENABLED) return;
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     const inviteUrl = `${baseUrl}?clientInvite=${args.inviteCode}`;
 
@@ -397,8 +398,8 @@ export const sendRecommendationSms = internalAction({
     
     if (!content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
@@ -434,8 +435,8 @@ export const sendPurchaseApprovedSms = internalAction({
     
     if (!content) return;
 
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
-    const baseUrl = process.env.SITE_URL || "https://nmtsa.com";
+    const orgName = getOrgName(settings);
+    const baseUrl = requireSiteUrl();
 
     await getTwilio().sendMessage(ctx, {
       to: profile.phoneNumber,
@@ -460,7 +461,7 @@ export const sendContentStatusSms = internalAction({
     }
 
     const settings = await ctx.runQuery(internal.sms.getSiteSettings);
-    const orgName = settings?.organizationName || "NMTSA Education Platform";
+    const orgName = getOrgName(settings);
 
     const statusMessages: Record<string, string> = {
       published: `Your content "${args.contentTitle}" has been published!`,

@@ -1,9 +1,9 @@
-import { query, mutation, internalQuery } from "./_generated/server";
+import { query, mutation, internalQuery, action } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
-import { getContentFileUrl } from "./helpers";
-import { internal } from "./_generated/api";
+import { getContentFileUrl, checkContentAccess, computeMediaSignature } from "./helpers";
+import { internal, api } from "./_generated/api";
 
 // Create content (as draft)
 export const createContent = mutation({
@@ -367,49 +367,11 @@ function isContentAvailable(content: any): boolean {
   return true;
 }
 
-// Helper function to check content access
-async function checkContentAccess(ctx: any, contentId: any, userId: any, userRole: string) {
-  // Check direct user access
-  const userAccess = await ctx.db
-    .query("contentAccess")
-    .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
-    .filter((q: any) => q.eq(q.field("userId"), userId))
-    .first();
-
-  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > Date.now())) {
-    return true;
-  }
-
-  // Check role-based access
-  const roleAccess = await ctx.db
-    .query("contentAccess")
-    .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
-    .filter((q: any) => q.eq(q.field("role"), userRole))
-    .first();
-
-  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > Date.now())) {
-    return true;
-  }
-
-  // Check user group access
-  const userGroups = await ctx.db
-    .query("userGroupMembers")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
-
-  for (const membership of userGroups) {
-    const groupAccess = await ctx.db
-      .query("contentAccess")
-      .withIndex("by_group", (q: any) => q.eq("userGroupId", membership.groupId))
-      .first();
-
-    if (groupAccess && (!groupAccess.expiresAt || groupAccess.expiresAt > Date.now())) {
-      return true;
-    }
-  }
-
-  return false;
-}
+// Note: content access checking now lives solely in ./helpers (checkContentAccess),
+// imported above. The divergent local copy that used to live here filtered the
+// `by_group` query only on `userGroupId` (no `contentId` filter), which let a
+// group granted access to content X see unrelated content Y too. Consolidated
+// to the one correct implementation (A2).
 
 // Grant content access
 export const grantContentAccess = mutation({
@@ -480,10 +442,58 @@ export const getChunkedContentInternal = internalQuery({
     const content = await ctx.db.get(args.contentId);
     if (!content) return null;
     if (!content.chunks || content.chunks.length === 0) return null;
+
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+
     return {
       chunks: content.chunks,
       mimeType: content.mimeType,
+      // Signature-exemption fields (A3): the HTTP action only serves bytes
+      // without a valid HMAC signature when content is public, published,
+      // active, unpriced, and has no password gate.
+      isPublic: !!content.isPublic,
+      status: content.status,
+      active: !!content.active,
+      hasPassword: !!content.password,
+      isPriced: !!activePricing,
     };
+  },
+});
+
+// Short-lived, HMAC-signed URL for /api/serve-chunked (A3). Media tags
+// (<video src>, <audio src>) can't send an Authorization header, so
+// entitlement for protected/priced/private chunked content is proven via a
+// signed query string instead. This must be an `action` (not a query or
+// mutation) because signing requires `crypto.subtle`, which the action
+// runtime exposes and the query/mutation runtime does not.
+export const getSignedMediaUrl = action({
+  args: { contentId: v.id("content") },
+  handler: async (ctx, args): Promise<string> => {
+    // Reuse the exact same entitlement logic as `getContent`: it returns
+    // null for anyone who isn't authorized to view this content, and the
+    // full record (including permission-gated fileUrl) for anyone who is.
+    const content: unknown = await ctx.runQuery(api.content.getContent, {
+      contentId: args.contentId,
+    });
+    if (!content) {
+      throw new ConvexError("You don't have access to this content");
+    }
+
+    const secret = process.env.MEDIA_URL_SECRET;
+    if (!secret) {
+      // Fail closed: never fall back to serving unsigned when signing
+      // itself isn't configured.
+      throw new ConvexError("Media URL signing is not configured");
+    }
+
+    const exp = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const sig = await computeMediaSignature(args.contentId, exp, secret);
+    const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+    return `${siteUrl}/api/serve-chunked/${args.contentId}?exp=${exp}&sig=${sig}`;
   },
 });
 
@@ -1028,6 +1038,22 @@ export const updateContentThumbnailId = mutation({
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new ConvexError("Content not found");
 
+    // Only the content creator or an EDIT_CONTENT holder may repoint the
+    // thumbnail — otherwise any logged-in user could deface any content
+    // (IDOR) by pointing it at an arbitrary storage id.
+    if (content.createdBy !== userId) {
+      const profile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique();
+      const permissions = profile ? getEffectivePermissions(profile) : [];
+      if (!hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)) {
+        throw new ConvexError(
+          "You don't have permission to update this content's thumbnail"
+        );
+      }
+    }
+
     // Update thumbnail
     await ctx.db.patch(args.contentId, {
       thumbnailId: args.thumbnailId,
@@ -1035,10 +1061,13 @@ export const updateContentThumbnailId = mutation({
   },
 });
 
-// Grant access to a user after successful password verification
+// Grant access to a user after successful password verification.
+// The password is verified server-side here — this must never become a
+// generic "grant me access" primitive callable with just a contentId.
 export const grantAccessAfterPassword = mutation({
   args: {
     contentId: v.id("content"),
+    password: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -1046,6 +1075,14 @@ export const grantAccessAfterPassword = mutation({
 
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new ConvexError("Content not found");
+
+    if (!content.password) {
+      throw new ConvexError("This content does not require a password");
+    }
+
+    if (args.password !== content.password) {
+      throw new ConvexError("Incorrect password");
+    }
 
     // Check if user already has access
     const existingAccess = await ctx.db
