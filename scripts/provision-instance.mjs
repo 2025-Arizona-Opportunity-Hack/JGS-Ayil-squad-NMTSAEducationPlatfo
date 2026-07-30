@@ -15,6 +15,14 @@
  *   MEDIA_URL_SECRET  32 random bytes (hex) — required since v0.6.0;
  *                     signed media URLs fail closed without it
  *   SITE_URL          the value passed to --site-url
+ *   ENVIRONMENT       "production", but ONLY when --prod is passed
+ *
+ * ENVIRONMENT is easy to miss and fails silently in the worst way: without
+ * it, `getRecipient()` in convex/emails.ts redirects EVERY outbound email to
+ * DEV_TEST_EMAIL (default test@example.com), and join-request/invite links
+ * fall back to http://localhost:5173. A production instance therefore looks
+ * configured — Resend key present, sends "succeeding" — while no real user
+ * ever receives mail. So we set it here rather than leaving it to a checklist.
  *
  * The RSA/JWKS generation mirrors `generateAuthKeys()` in scripts/setup.tsx
  * exactly (same algorithm/params/JWK fields) so keys are indistinguishable
@@ -177,6 +185,13 @@ export async function main(argv) {
   console.log(`\nProvisioning Convex ${target} deployment for: ${siteUrl}\n`);
   console.log("This will set on that deployment:");
   console.log("  SITE_URL          =", siteUrl);
+  if (prod) {
+    console.log("  ENVIRONMENT       = production");
+  } else {
+    console.log(
+      "  ENVIRONMENT       = <not set — dev mode redirects all email to DEV_TEST_EMAIL>"
+    );
+  }
   console.log("  MEDIA_URL_SECRET  = <generated — 32 random bytes, hex>");
   console.log(
     "  JWT_PRIVATE_KEY   = <generated — RSA-2048 PKCS8>" +
@@ -218,6 +233,12 @@ export async function main(argv) {
   try {
     convexEnvSet("SITE_URL", siteUrl, prodFlag);
     console.log("  done: SITE_URL");
+    if (prod) {
+      // Only for --prod: on a dev deployment the localhost link fallback and
+      // the DEV_TEST_EMAIL redirect are the behavior you actually want.
+      convexEnvSet("ENVIRONMENT", "production", prodFlag);
+      console.log("  done: ENVIRONMENT (production)");
+    }
     convexEnvSet("MEDIA_URL_SECRET", mediaUrlSecret, prodFlag);
     console.log("  done: MEDIA_URL_SECRET");
     convexEnvSet("JWT_PRIVATE_KEY", privateKey, prodFlag);

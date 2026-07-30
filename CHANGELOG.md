@@ -36,8 +36,16 @@ beyond NMTSA (e.g. `lms.ohack.dev`). **One deployment serves one organization**
 - Improve: neutral default favicon (ends the `/favicon.ico` 404) plus dynamic
   favicon from `siteSettings.faviconUrl`; generic org placeholder in the setup
   wizard; package renamed to `content-portal`.
+- Fix: `npm run provision --prod` now also sets `ENVIRONMENT=production`.
+  Forgetting it fails silently in the worst way — `getRecipient()` redirects
+  **every** outbound email to `DEV_TEST_EMAIL` and invite/verification links
+  fall back to `localhost:5173`, so an instance looks healthy while no real
+  user receives mail. Documented in the env matrix with a new "Enabling email"
+  section covering Resend domain verification and the
+  `RESEND_DOMAIN` vs `RESEND_FROM_EMAIL` split.
 - Docs: `.env.example` now documents `MEDIA_URL_SECRET`, `ORG_NAME`,
-  `ALLOWED_ORIGINS`, and the production warning on `ALLOW_MOCK_PAYMENTS`.
+  `ALLOWED_ORIGINS`, `ENVIRONMENT`, `DEV_TEST_EMAIL`, and the production
+  warning on `ALLOW_MOCK_PAYMENTS`.
 
 ## 0.6.0 — 2026-07-27
 
