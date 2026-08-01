@@ -1647,6 +1647,7 @@ export function ContentManager() {
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}
+          isContentPublic={!!selectedContent.isPublic}
         />
       )}
 

@@ -29,6 +29,9 @@ interface ContentPricingModalProps {
   onClose: () => void;
   contentId: Id<"content">;
   contentTitle: string;
+  // When set, the content is marked Public — pricing it paywalls the media
+  // behind a purchase page, which deserves an explicit heads-up.
+  isContentPublic?: boolean;
   // When true, this is a guided-tour demo: nothing is saved, and the internal
   // pricing query is skipped (the example content id is not real).
   demoMode?: boolean;
@@ -39,6 +42,7 @@ export function ContentPricingModal({
   onClose,
   contentId,
   contentTitle,
+  isContentPublic = false,
   demoMode = false,
 }: ContentPricingModalProps) {
   const tourActive = useTourActive();
@@ -135,6 +139,17 @@ export function ContentPricingModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isContentPublic && (
+            <div
+              role="note"
+              className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100"
+            >
+              This content is marked <strong>Public</strong>. Once priced,
+              visitors will see a preview page with a purchase button instead
+              of the full content — only buyers and staff can view it.
+            </div>
+          )}
+
           <div className="space-y-2" data-tour="pricing-field-price">
             <Label htmlFor="price" className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
@@ -196,6 +211,11 @@ export function ContentPricingModal({
               How long will customers have access after purchase?
             </p>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Setting a price also disables third-party share links for this
+            content.
+          </p>
 
           <DialogFooter className="gap-2">
             {existingPricing && (

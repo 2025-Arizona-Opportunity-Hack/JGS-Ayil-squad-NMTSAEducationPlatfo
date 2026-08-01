@@ -81,6 +81,11 @@ regression suite, and these rules are what it enforces:
 
 - Never return a file URL (`getContentFileUrl`, `ctx.storage.getUrl`) without
   first checking entitlement. Several leaks were "the UI hides the button".
+- Content with **active pricing** is served only to entitled viewers (creator,
+  `VIEW_ALL_CONTENT`, or a `contentAccess` grant). On priced content,
+  `isPublic` means "the purchase/preview page is public", never "the media is
+  free" — `getPublicContent` returns a `requiresPurchase` preview instead, and
+  neither passwords (`grantAccessAfterPassword`) nor share links bypass it.
 - `SHARE_CONTENT` is a default permission of **every** role, including client
   and parent. It does not imply trust — gate third-party sharing of private
   content on `SHARE_WITH_THIRD_PARTY`, and never allow it for priced content.

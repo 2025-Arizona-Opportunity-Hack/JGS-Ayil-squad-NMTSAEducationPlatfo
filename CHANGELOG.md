@@ -3,6 +3,27 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.9.0 — 2026-07-31
+
+- Feature: **priced content is now paywalled on `/view/` links.**
+  `getPublicContent` no longer serves content with active pricing to anyone
+  who isn't entitled (creator, `VIEW_ALL_CONTENT`, or a `contentAccess` grant
+  from a completed purchase) — previously `isPublic` won and the paid media
+  was served free to anonymous visitors. Unentitled viewers now get a
+  purchase page (title/description/price preview, no file URL) with the full
+  request-to-purchase → Stripe checkout flow inline (`PurchasePaywall`);
+  anonymous visitors are prompted to log in first. Private priced content
+  still reveals nothing to anonymous visitors. `grantAccessAfterPassword`
+  also refuses priced content, so a password set before pricing can't become
+  a free permanent entitlement. Regression tests: cluster A7 in
+  `convex/security.test.ts`.
+- The pricing modal now warns when pricing **Public** content (visitors will
+  see a purchase page, not the full content) and notes that pricing disables
+  third-party share links.
+- The third-party share dialog now checks `canShareContent` up front and
+  explains why sharing is unavailable (e.g. priced content) instead of
+  failing with a permission error on submit.
+
 ## 0.8.2 — 2026-07-31
 
 - Fix: **published media rendered no player** on public `/view/` links, share

@@ -62,25 +62,66 @@ export const getPublicContent = query({
 
     // Try to get authenticated user
     const userId = await getAuthUserId(ctx);
-    let hasAccess = false;
 
-    if (content.isPublic) {
-      hasAccess = true;
-    } else if (userId) {
+    // Entitlement independent of the public flag: creator, VIEW_ALL_CONTENT,
+    // or an explicit contentAccess grant (which is what a completed purchase
+    // writes via completeOrderInternal).
+    let entitled = false;
+    if (userId) {
       const userProfile = await getUserProfile(ctx, userId);
       if (userProfile) {
         const perms = getEffectivePermissions(userProfile);
-        // Users with VIEW_ALL_CONTENT, content creators, or users with content access
-        if (
+        entitled =
           content.createdBy === userId ||
-          hasPermission(perms, PERMISSIONS.VIEW_ALL_CONTENT)
-        ) {
-          hasAccess = true;
-        } else {
-          hasAccess = await checkContentAccess(ctx, args.contentId, userId, userProfile.role);
-        }
+          hasPermission(perms, PERMISSIONS.VIEW_ALL_CONTENT) ||
+          (await checkContentAccess(ctx, args.contentId, userId, userProfile.role));
       }
     }
+
+    // Paywall gate: content with active pricing is served only to entitled
+    // viewers, regardless of isPublic or password. On priced content,
+    // `isPublic` means "the preview page is public", never "the media is
+    // free". The password path is also bypassed so knowing a password set
+    // before pricing was added cannot skip the purchase.
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+
+    if (activePricing && !entitled) {
+      // Private priced content stays invisible to anonymous visitors — no
+      // preview metadata until they log in.
+      if (!content.isPublic && !userId) {
+        return { requiresPassword: false, requiresAuth: true, content: null };
+      }
+      const thumbnailUrl = content.thumbnailId
+        ? await ctx.storage.getUrl(content.thumbnailId)
+        : null;
+      return {
+        requiresPassword: false,
+        requiresAuth: !userId,
+        requiresPurchase: true,
+        content: null,
+        // Storefront metadata only — never fileUrl/externalUrl/body.
+        preview: {
+          title: content.title,
+          description: content.description ?? null,
+          type: deriveContentType(content.attachmentType, content.type),
+          thumbnailUrl,
+          authorName: content.authorName ?? null,
+          publishedAt: content.publishedAt ?? null,
+        },
+        pricing: {
+          pricingId: activePricing._id,
+          price: activePricing.price,
+          currency: activePricing.currency,
+          accessDuration: activePricing.accessDuration ?? null,
+        },
+      };
+    }
+
+    let hasAccess = entitled || !!content.isPublic;
 
     // If still no access, check password
     if (!hasAccess) {

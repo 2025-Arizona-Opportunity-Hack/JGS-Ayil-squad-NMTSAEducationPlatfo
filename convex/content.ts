@@ -1054,6 +1054,17 @@ export const grantAccessAfterPassword = mutation({
     const content = await ctx.db.get(args.contentId);
     if (!content) throw new ConvexError("Content not found");
 
+    // Priced content must be purchased — a password (e.g. one set before
+    // pricing was added) must never turn into a permanent free entitlement.
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    if (activePricing) {
+      throw new ConvexError("This content must be purchased");
+    }
+
     if (!content.password) {
       throw new ConvexError("This content does not require a password");
     }

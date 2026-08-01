@@ -874,6 +874,154 @@ describe("A6: thumbnail IDOR + SSRF", () => {
   });
 });
 
+describe("A7: priced content must be paywalled in getPublicContent", () => {
+  // Public + priced content: the page is public, the media is not.
+  async function seedPricedContent(
+    t: ReturnType<typeof convexTest>,
+    ownerId: any,
+    overrides: Record<string, unknown> = {}
+  ) {
+    return await t.run(async (ctx) => {
+      const id = await ctx.db.insert("content", {
+        title: "Paid Video",
+        description: "A video for sale",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        ...overrides,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId: id,
+        price: 200,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+  }
+
+  it("returns a purchase-required preview (no content/fileUrl) to anonymous visitors of public priced content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-1@test.local");
+    const contentId = await seedPricedContent(t, ownerId);
+
+    const res: any = await t.query(api.publicContent.getPublicContent, {
+      contentId,
+    });
+
+    expect(res.requiresPurchase).toBe(true);
+    expect(res.requiresAuth).toBe(true); // must log in before buying
+    expect(res.content).toBeNull();
+    expect(res.pricing.price).toBe(200);
+    expect(res.preview.title).toBe("Paid Video");
+    expect(JSON.stringify(res)).not.toContain("fileUrl");
+  });
+
+  it("returns purchase-required to a logged-in user without entitlement", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-2@test.local");
+    const clientId = await seedUser(t, "client", "client-a7-2@test.local");
+    const contentId = await seedPricedContent(t, ownerId);
+
+    const res: any = await t
+      .withIdentity({ subject: clientId })
+      .query(api.publicContent.getPublicContent, { contentId });
+
+    expect(res.requiresPurchase).toBe(true);
+    expect(res.requiresAuth).toBe(false);
+    expect(res.content).toBeNull();
+  });
+
+  it("serves priced content to a user with a contentAccess grant (i.e. a purchaser)", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-3@test.local");
+    const buyerId = await seedUser(t, "client", "buyer-a7-3@test.local");
+    const contentId = await seedPricedContent(t, ownerId);
+    await t.run(async (ctx) => {
+      // What completeOrderInternal writes after a verified Stripe payment.
+      await ctx.db.insert("contentAccess", {
+        contentId,
+        userId: buyerId,
+        grantedBy: buyerId,
+        canShare: false,
+      });
+    });
+
+    const res: any = await t
+      .withIdentity({ subject: buyerId })
+      .query(api.publicContent.getPublicContent, { contentId });
+
+    expect(res.content).not.toBeNull();
+    expect(res.content.title).toBe("Paid Video");
+  });
+
+  it("serves priced content to its creator", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-4@test.local");
+    const contentId = await seedPricedContent(t, ownerId);
+
+    const res: any = await t
+      .withIdentity({ subject: ownerId })
+      .query(api.publicContent.getPublicContent, { contentId });
+
+    expect(res.content).not.toBeNull();
+  });
+
+  it("does not leak preview metadata of private priced content to anonymous visitors", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-5@test.local");
+    const contentId = await seedPricedContent(t, ownerId, { isPublic: false });
+
+    const res: any = await t.query(api.publicContent.getPublicContent, {
+      contentId,
+    });
+
+    expect(res.requiresAuth).toBe(true);
+    expect(res.content).toBeNull();
+    expect(res.preview).toBeUndefined();
+    expect(JSON.stringify(res)).not.toContain("Paid Video");
+  });
+
+  it("does not let a correct password bypass the paywall — neither in the query nor via grantAccessAfterPassword", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-a7-6@test.local");
+    const clientId = await seedUser(t, "client", "client-a7-6@test.local");
+    const contentId = await seedPricedContent(t, ownerId, {
+      isPublic: false,
+      password: "letmein",
+    });
+
+    const res: any = await t
+      .withIdentity({ subject: clientId })
+      .query(api.publicContent.getPublicContent, {
+        contentId,
+        password: "letmein",
+      });
+    expect(res.requiresPurchase).toBe(true);
+    expect(res.content).toBeNull();
+
+    await expect(
+      t
+        .withIdentity({ subject: clientId })
+        .mutation(api.content.grantAccessAfterPassword, {
+          contentId,
+          password: "letmein",
+        })
+    ).rejects.toThrow();
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db
+        .query("contentAccess")
+        .withIndex("by_content", (q) => q.eq("contentId", contentId))
+        .collect()
+    );
+    expect(rows.filter((r) => r.userId === clientId)).toHaveLength(0);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════
 // CLUSTER B — Purchase + identity
 // ═══════════════════════════════════════════════════════════════════════

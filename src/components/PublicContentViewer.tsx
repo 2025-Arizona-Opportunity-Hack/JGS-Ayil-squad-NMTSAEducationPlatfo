@@ -6,6 +6,7 @@ import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Ta
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
 import { Logo } from "./Logo";
+import { PurchasePaywall } from "./PurchasePaywall";
 import { RecommendButton } from "./RecommendButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -226,6 +227,21 @@ export function PublicContentViewer() {
           </DialogContent>
         </Dialog>
       </>
+    );
+  }
+
+  // Paywall: priced content the viewer isn't entitled to. Checked before the
+  // auth wall so anonymous visitors see the purchase page (with a login CTA)
+  // rather than a dead-end "Authentication Required".
+  if (result && "requiresPurchase" in result && result.requiresPurchase && contentId) {
+    return (
+      <PurchasePaywall
+        contentId={contentId}
+        preview={result.preview}
+        pricing={result.pricing}
+        requiresAuth={!!result.requiresAuth}
+        onGoToLogin={handleGoToLogin}
+      />
     );
   }
 
