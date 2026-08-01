@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, checkContentAccess, validateEmail } from "./helpers";
+import { requirePermission, requireAuth, formatUserName, getUserProfile, getStorageUrls, getContentFileUrl, checkContentAccess, validateEmail, deriveContentType } from "./helpers";
 import { PERMISSIONS, hasPermission } from "./permissions";
 
 // Create a content recommendation
@@ -133,6 +133,8 @@ export const getMyRecommendations = query({
           ...rec,
           content: {
             ...content,
+            // Derived, not stored — RecommendedContent switches on it.
+            type: deriveContentType(content.attachmentType, content.type),
             fileUrl,
             thumbnailUrl,
           },

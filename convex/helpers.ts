@@ -363,3 +363,36 @@ export function timingSafeEqual(a: string, b: string): boolean {
   }
   return mismatch === 0;
 }
+
+/**
+ * Map the stored `attachmentType` to the `type` discriminator the viewer
+ * components switch on ("video" | "audio" | "document" | "article").
+ *
+ * The database stores `attachmentType`; `content.type` is a derived field that
+ * queries attach on the way out. Any query whose result is rendered by
+ * PublicContentViewer / SharedContentViewer / RecommendedContent MUST run its
+ * content through this, or those components fall through every `type === ...`
+ * branch and render the metadata with no player at all — which is exactly the
+ * bug this was extracted to fix. Previously the mapping was duplicated inline
+ * in two `content.ts` queries and simply missing from the other three.
+ */
+export function deriveContentType(
+  attachmentType?: string | null,
+  existingType?: string | null
+): string {
+  if (!attachmentType) return existingType || "article";
+  switch (attachmentType) {
+    case "video":
+      return "video";
+    case "audio":
+      return "audio";
+    case "pdf":
+      return "document";
+    case "image":
+      return "document";
+    case "richtext":
+      return "article";
+    default:
+      return "article";
+  }
+}

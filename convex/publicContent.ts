@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getUserProfile, getContentFileUrl, formatUserName, checkContentAccess } from "./helpers";
+import { getUserProfile, getContentFileUrl, formatUserName, checkContentAccess, deriveContentType } from "./helpers";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Get public content by ID (no auth required for public content)
@@ -112,6 +112,9 @@ export const getPublicContent = query({
       requiresAuth: false,
       content: {
         ...content,
+        // Viewers switch on `type`, which is derived rather than stored.
+        // Without this the player never renders. See deriveContentType.
+        type: deriveContentType(content.attachmentType, content.type),
         fileUrl,
         thumbnailUrl,
         creatorName,

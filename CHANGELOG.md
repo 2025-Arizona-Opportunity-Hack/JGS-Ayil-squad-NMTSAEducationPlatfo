@@ -3,6 +3,22 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.8.2 — 2026-07-31
+
+- Fix: **published media rendered no player** on public `/view/` links, share
+  links, and recommendations — the page showed title, description and tags with
+  the video/audio/document silently missing and no error anywhere. The database
+  stores `attachmentType`, while the viewer components switch on `content.type`,
+  a field that is *derived* on the way out of a query. Three queries
+  (`publicContent.getPublicContent`, `contentShares.getContentByShareToken`,
+  `recommendations.getMyRecommendations`) never applied that derivation, so
+  `type` was `undefined` and every `type === ...` branch fell through.
+- The mapping had been duplicated inline in two `content.ts` queries and was
+  missing from the rest. It is now one exported `deriveContentType()` in
+  `convex/helpers.ts` used by all five call sites, with
+  `convex/contentType.test.ts` pinning each of the three previously-broken
+  queries. Pre-existing bug, not a regression from the 0.6.0–0.8.1 work.
+
 ## 0.8.1 — 2026-07-31
 
 - Docs: `docs/DEPLOYMENTS.md` gains a "Shipping a change to an existing

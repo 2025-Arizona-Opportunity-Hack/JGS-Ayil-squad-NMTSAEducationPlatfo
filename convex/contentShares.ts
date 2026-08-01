@@ -7,6 +7,7 @@ import {
   getUserProfile,
   formatUserName,
   getContentFileUrl,
+  deriveContentType,
 } from "./helpers";
 import {
   getEffectivePermissions,
@@ -164,6 +165,8 @@ export const getContentByShareToken = query({
       error: null,
       content: {
         ...content,
+        // Derived, not stored — SharedContentViewer switches on it.
+        type: deriveContentType(content.attachmentType, content.type),
         ...urls,
         creatorName,
         password: undefined,

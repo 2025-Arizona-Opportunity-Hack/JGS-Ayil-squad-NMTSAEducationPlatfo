@@ -2,7 +2,7 @@ import { query, mutation, internalQuery, action } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
-import { getContentFileUrl, checkContentAccess, computeMediaSignature } from "./helpers";
+import { getContentFileUrl, checkContentAccess, computeMediaSignature, deriveContentType } from "./helpers";
 import { internal, api } from "./_generated/api";
 
 // Create content (as draft)
@@ -274,21 +274,10 @@ export const listContent = query({
       const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
 
       // Map attachmentType to legacy type field for frontend compatibility
-      const getTypeFromAttachmentType = (attachmentType?: string): string => {
-        if (!attachmentType) return content.type || "article";
-        switch (attachmentType) {
-          case "video": return "video";
-          case "audio": return "audio";
-          case "pdf": return "document";
-          case "image": return "document";
-          case "richtext": return "article";
-          default: return "article";
-        }
-      };
 
       const contentWithNames = {
         ...content,
-        type: getTypeFromAttachmentType(content.attachmentType),
+        type: deriveContentType(content.attachmentType, content.type),
         fileUrl,
         thumbnailUrl,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
@@ -582,19 +571,8 @@ export const getContent = query({
     }
 
     // Map attachmentType to legacy type field for frontend compatibility
-    const getTypeFromAttachmentType = (attachmentType?: string): string => {
-      if (!attachmentType) return content.type || "article";
-      switch (attachmentType) {
-        case "video": return "video";
-        case "audio": return "audio";
-        case "pdf": return "document";
-        case "image": return "document";
-        case "richtext": return "article";
-        default: return "article";
-      }
-    };
 
-    const contentType = getTypeFromAttachmentType(content.attachmentType);
+    const contentType = deriveContentType(content.attachmentType, content.type);
 
     // Users with VIEW_ALL_CONTENT permission can see all content
     const permissions = getEffectivePermissions(profile);
