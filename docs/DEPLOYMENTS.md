@@ -264,6 +264,77 @@ channel. Password resets are also dead.
 
 `npm run setup:email` walks through steps 3 interactively if you prefer.
 
+## Shipping a change to an existing instance
+
+From that instance's checkout (e.g. `~/dev/ohack-lms`):
+
+```bash
+cd ~/dev/ohack-lms
+git pull
+npx convex deploy          # backend functions -> that project's PROD deployment
+npx vercel deploy --prod   # rebuild + ship the frontend
+```
+
+Both are needed whenever backend functions changed; the Vercel build alone will
+not update Convex. **Read the URL `convex deploy` prints and confirm it is the
+deployment you expect** before deploying the frontend — see the traps below for
+why that is not a formality.
+
+### Trap 1: the Vercel CLI rewrites `.env.local`
+
+`npx vercel link` and `npx vercel env pull` both **overwrite `.env.local`** in
+the checkout (they add `VERCEL_OIDC_TOKEN` and friends). That file is also
+where Convex stores `CONVEX_DEPLOYMENT`, so a Vercel command can silently
+repoint or drop your Convex linkage. After running any `vercel` CLI command in
+an instance checkout, re-check it before deploying:
+
+```bash
+sed -n 's/^CONVEX_DEPLOYMENT=//p' .env.local
+# expect e.g. dev:keen-cormorant-351 # team: <team>, project: <project>
+```
+
+### Trap 2: always pass `--team` when linking a Convex project
+
+```bash
+npx convex dev --once --configure existing --team <team> --project <project>
+```
+
+Omitting `--team` can resolve to a different team and **silently create a
+duplicate, auto-suffixed project** (`ohack-lms-0b9af`) with its own empty
+production deployment. `convex deploy` then cheerfully deploys your functions
+to that empty deployment — no error, no env vars, and the real site keeps
+serving the old code. This has happened once already.
+
+### Verifying you are pointed at the right deployment
+
+The provisioned production deployment is the one that has your env vars. Check
+without changing anything:
+
+```bash
+npx convex env list --deployment <project>:prod   # expect SITE_URL, JWKS,
+                                                  # JWT_PRIVATE_KEY,
+                                                  # MEDIA_URL_SECRET,
+                                                  # ENVIRONMENT, ORG_NAME
+```
+
+An empty result means you are looking at the wrong (unprovisioned) deployment.
+Note that `convex deploy` does **not** accept `--deployment`; it always targets
+the production deployment of whichever project the checkout is linked to. So
+the fix is to correct the linkage (Trap 2), not to flag the deploy command.
+
+You can also confirm what the live site is actually built against — the
+`VITE_CONVEX_URL` is baked into the bundle:
+
+```bash
+JS=$(curl -s https://<domain> | grep -oE '/assets/[^"]+\.js' | head -1)
+curl -s "https://<domain>$JS" | grep -oE 'https://[a-z-]+-[0-9]+\.convex\.cloud' | sort -u
+```
+
+(`happy-otter-123.convex.cloud` showing up is harmless — it is the example URL
+inside Convex's own "invalid deployment address" error message, not a backend
+you are talking to. Its presence *alone*, with no other Convex URL, means
+`VITE_CONVEX_URL` was unset at build time.)
+
 ## Adding another domain to an existing instance
 
 If you just need a second hostname for an instance that already

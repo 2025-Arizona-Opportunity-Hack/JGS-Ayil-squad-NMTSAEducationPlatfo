@@ -3,6 +3,17 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.8.1 — 2026-07-31
+
+- Docs: `docs/DEPLOYMENTS.md` gains a "Shipping a change to an existing
+  instance" section, plus two traps hit while deploying `lms.ohack.dev`:
+  the Vercel CLI (`vercel link` / `vercel env pull`) **rewrites `.env.local`**,
+  which is where Convex keeps `CONVEX_DEPLOYMENT`, so it can silently repoint
+  the linkage; and omitting `--team` when linking a Convex project can create a
+  duplicate auto-suffixed project whose empty production deployment then
+  happily receives your functions while the real site serves stale code.
+  Documents how to verify the target deployment before and after deploying.
+
 ## 0.8.0 — 2026-07-30
 
 - Add: **setup health checklist** for admins. Several deployment settings fail
