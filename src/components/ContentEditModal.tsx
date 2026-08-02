@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { AlertCircle, Calendar as CalendarIcon, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ContentEditModalProps {
@@ -54,9 +54,14 @@ interface ContentEditModalProps {
     reviewerName?: string;
     password?: string;
   };
+  // Title of the active quiz attached to this content, if any. Quizzes are
+  // authored in the Quizzes tab (separate MANAGE_QUIZZES permission), so the
+  // editor only surfaces that one exists.
+  quizTitle?: string | null;
+  onOpenQuizzes?: () => void;
 }
 
-export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalProps) {
+export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQuizzes }: ContentEditModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -194,6 +199,30 @@ export function ContentEditModal({ isOpen, onClose, content }: ContentEditModalP
             Update the content details below. Fields marked with * are required.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Attached quiz note */}
+        {quizTitle && (
+          <div className="p-3 border rounded-lg flex items-start gap-3 bg-muted/40">
+            <ClipboardCheck className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" aria-hidden="true" />
+            <p className="text-sm">
+              This content has a quiz:{" "}
+              <span className="font-medium">{quizTitle}</span>. Questions,
+              settings, and results are managed in the{" "}
+              {onOpenQuizzes ? (
+                <button
+                  type="button"
+                  className="underline underline-offset-2 font-medium text-primary hover:text-primary/80"
+                  onClick={onOpenQuizzes}
+                >
+                  Quizzes tab
+                </button>
+              ) : (
+                <span className="font-medium">Quizzes tab</span>
+              )}
+              .
+            </p>
+          </div>
+        )}
 
         {/* Review Notes Alert */}
         {(content.status === "changes_requested" || content.status === "rejected") && content.reviewNotes && (

@@ -9,6 +9,7 @@ import { Logo } from "./Logo";
 import { PurchasePaywall } from "./PurchasePaywall";
 import { RecommendButton } from "./RecommendButton";
 import { QuizPanel } from "./quiz/QuizPanel";
+import { QuizSignInNudge } from "./quiz/QuizSignInNudge";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -590,10 +591,14 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {/* Quiz (renders nothing when no quiz exists for this content
-              or the viewer isn't signed in / entitled) */}
+          {/* Quiz (renders nothing when no quiz exists for this content or
+              the viewer isn't entitled). Signed-out visitors get a sign-in
+              nudge instead, so they know the quiz exists. */}
           {isSignedIn && contentId && (
             <QuizPanel contentId={contentId as any} />
+          )}
+          {!isSignedIn && contentId && content.quiz && (
+            <QuizSignInNudge contentId={contentId} quiz={content.quiz} />
           )}
 
           {/* Description Content */}

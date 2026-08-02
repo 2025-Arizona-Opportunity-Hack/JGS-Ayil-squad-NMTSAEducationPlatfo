@@ -100,7 +100,9 @@ export function AdminDashboard() {
       )}
 
       {/* Tab content — render based on activeTab */}
-      {activeTab === "content" && <ContentManager />}
+      {activeTab === "content" && (
+        <ContentManager onNavigateToQuizzes={() => handleTabChange("quizzes")} />
+      )}
       {activeTab === "shareLinks" && <ShareLinksManager />}
       {activeTab === "contentGroups" && canManageContentGroups && <ContentGroupManager />}
       {activeTab === "quizzes" && canManageQuizzes && <QuizManagement />}

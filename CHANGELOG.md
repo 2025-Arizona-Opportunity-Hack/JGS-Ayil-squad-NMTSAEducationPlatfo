@@ -3,6 +3,20 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.13.0 — 2026-08-02
+
+- Feature: **quiz discoverability**.
+  - Signed-out visitors on `/view/` content that has a quiz now see a
+    "sign in to take the quiz" card (quiz title, question count, passing
+    score) in the same slot where the quiz renders after signing in, with
+    return-to-content replay after login/signup. `getPublicContent` exposes a
+    summary (`title`/`questionCount`/`passingScore`) only on content the
+    viewer is already allowed to see — never on paywalled previews or private
+    content, and never any question data.
+  - Admin content list rows show a clickable **Quiz** badge (jumps to the
+    Quizzes tab) and the content edit modal notes the attached quiz, for
+    users with `MANAGE_QUIZZES`.
+
 ## 0.12.0 — 2026-08-02
 
 - Feature: **signup & purchase friction toggles** — two new instance-level

@@ -875,3 +875,90 @@ describe("quiz authoring permissions and validation", () => {
     expect(question!.isActive).toBe(false);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Public quiz summary (signed-out nudge on /view/)
+// ═══════════════════════════════════════════════════════════════════
+
+describe("getPublicContent quiz summary", () => {
+  it("tells anonymous visitors a quiz exists on public content — summary only, no answers", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner@x.test");
+    const contentId = await seedContent(t, ownerId);
+    const quizId = await seedQuiz(t, ownerId, { contentId });
+    await seedQuestion(t, quizId);
+    await seedQuestion(t, quizId, { order: 2 });
+    // Soft-deleted questions don't count toward the advertised size
+    await seedQuestion(t, quizId, { order: 3, isActive: false });
+
+    const result = await t.query(api.publicContent.getPublicContent, {
+      contentId,
+    });
+
+    expect(result.content).not.toBeNull();
+    expect((result.content as any).quiz).toEqual({
+      title: "Comprehension Check",
+      questionCount: 2,
+      passingScore: 70,
+    });
+    expect(findKeyDeep(result, "correctOptionIds")).toBe(false);
+    expect(findKeyDeep(result, "explanation")).toBe(false);
+  });
+
+  it("returns quiz: null when the quiz is inactive or absent", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner@x.test");
+    const withInactive = await seedContent(t, ownerId);
+    const inactiveQuiz = await seedQuiz(t, ownerId, { contentId: withInactive }, { isActive: false });
+    await seedQuestion(t, inactiveQuiz);
+    const withoutQuiz = await seedContent(t, ownerId);
+
+    const inactive = await t.query(api.publicContent.getPublicContent, {
+      contentId: withInactive,
+    });
+    const none = await t.query(api.publicContent.getPublicContent, {
+      contentId: withoutQuiz,
+    });
+
+    expect((inactive.content as any).quiz).toBeNull();
+    expect((none.content as any).quiz).toBeNull();
+  });
+
+  it("never mentions the quiz on paywalled or private content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner@x.test");
+
+    // Public but priced → preview branch, no quiz key
+    const pricedContent = await seedContent(t, ownerId);
+    const pricedQuiz = await seedQuiz(t, ownerId, { contentId: pricedContent });
+    await seedQuestion(t, pricedQuiz);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentPricing", {
+        contentId: pricedContent,
+        price: 500,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+    });
+
+    // Private → requiresAuth with zero metadata
+    const privateContent = await seedContent(t, ownerId, { isPublic: false });
+    const privateQuiz = await seedQuiz(t, ownerId, { contentId: privateContent });
+    await seedQuestion(t, privateQuiz);
+
+    const priced = await t.query(api.publicContent.getPublicContent, {
+      contentId: pricedContent,
+    });
+    const priv = await t.query(api.publicContent.getPublicContent, {
+      contentId: privateContent,
+    });
+
+    expect((priced as any).requiresPurchase).toBe(true);
+    expect(findKeyDeep(priced, "quiz")).toBe(false);
+    expect(priv.requiresAuth).toBe(true);
+    expect(priv.content).toBeNull();
+    expect(findKeyDeep(priv, "quiz")).toBe(false);
+  });
+});

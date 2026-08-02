@@ -28,10 +28,12 @@ import {
   DollarSign,
   BarChart3,
   MoreVertical,
+  ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -63,6 +65,7 @@ export interface ContentItem {
 }
 
 interface ContentListActions {
+  onOpenQuizzes?: () => void;
   onPreview: (item: ContentItem) => void;
   onReview: (item: ContentItem) => void;
   onSubmitForReview: (contentId: string) => void;
@@ -95,6 +98,7 @@ interface ContentListProps {
   copiedId: string | null;
   viewCounts: Record<string, number> | undefined;
   allPricing: any[] | undefined;
+  allQuizzes: any[] | undefined;
   effectivePermissions: string[] | undefined;
   actions: ContentListActions;
   pagination: PaginationState;
@@ -133,6 +137,7 @@ export function ContentList({
   copiedId,
   viewCounts,
   allPricing,
+  allQuizzes,
   effectivePermissions,
   actions,
   pagination,
@@ -344,6 +349,34 @@ export function ContentList({
                             <Lock className="w-2.5 h-2.5" /> Password
                           </Badge>
                         )}
+                        {(() => {
+                          // listQuizzes returns [] without MANAGE_QUIZZES, so
+                          // this self-gates on permission.
+                          const quiz = allQuizzes?.find(
+                            (q: any) => q.contentId === item._id
+                          );
+                          if (!quiz) return null;
+                          // Real <button> (not a Badge div) so it's keyboard
+                          // and screen-reader operable.
+                          return (
+                            <button
+                              type="button"
+                              className={cn(
+                                badgeVariants({ variant: "outline" }),
+                                "gap-1 text-[10px] h-5 px-2 font-semibold border-violet-500 text-violet-600 dark:text-violet-400 cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-950 transition-colors"
+                              )}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                actions.onOpenQuizzes?.();
+                              }}
+                              aria-label={`Quiz attached: ${quiz.title}. Open the Quizzes tab to manage it.`}
+                              title={`Quiz: ${quiz.title} — manage in the Quizzes tab`}
+                            >
+                              <ClipboardCheck className="w-2.5 h-2.5" aria-hidden="true" />
+                              Quiz
+                            </button>
+                          );
+                        })()}
                       </div>
 
                       {/* Line 2: Dates */}

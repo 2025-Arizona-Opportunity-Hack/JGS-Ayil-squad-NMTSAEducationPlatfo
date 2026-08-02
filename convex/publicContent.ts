@@ -171,6 +171,27 @@ export const getPublicContent = query({
     ]);
     const creatorName = formatUserName(await getUserProfile(ctx, content.createdBy));
 
+    // Quiz presence is safe to surface to anyone allowed to see the content
+    // itself (it drives the signed-out "sign in to take the quiz" nudge).
+    // Summary fields only — questions stay behind quizzes.getQuizForContent.
+    const activeQuiz = await ctx.db
+      .query("quizzes")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    let quiz: { title: string; questionCount: number; passingScore: number } | null = null;
+    if (activeQuiz) {
+      const questions = await ctx.db
+        .query("quizQuestions")
+        .withIndex("by_quiz", (q) => q.eq("quizId", activeQuiz._id))
+        .collect();
+      quiz = {
+        title: activeQuiz.title,
+        questionCount: questions.filter((q) => q.isActive !== false).length,
+        passingScore: activeQuiz.passingScore,
+      };
+    }
+
     return {
       requiresPassword: false,
       requiresAuth: false,
@@ -183,6 +204,7 @@ export const getPublicContent = query({
         thumbnailUrl,
         creatorName,
         password: undefined,
+        quiz,
       },
     };
   },
