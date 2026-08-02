@@ -94,7 +94,31 @@ regression suite, and these rules are what it enforces:
 - Entitlement comes from a signature-verified Stripe webhook
   (`completeOrderInternal`), never from a client-callable mutation.
 - Keep one copy of an access check. The group-access bypass existed because
-  `content.ts` held a divergent copy of `checkContentAccess`; `helpers.ts` owns it.
+  `content.ts` held a divergent copy of `checkContentAccess`; `helpers.ts` owns it
+  (and `checkGroupAccess` for bundles).
+- **Quiz answers are secrets.** `quizQuestions.correctOptionIds`/`explanation`
+  reach clients only via `getQuizForEditing` (gated on `MANAGE_QUIZZES`, which
+  is deliberately separate from `EDIT_CONTENT`) or reveal-shaped grading
+  results. Learner queries go through the `sanitizeQuestion` whitelist in
+  `convex/quizzes.ts` — never spread a question doc. Grading is server-side
+  only. Regression cluster C1 in `convex/security.test.ts`.
+- The `allowPublicSignup` site setting relaxes the join-request gate only —
+  the role clamp in `users.createUserProfile` (code-less signups →
+  client/parent) must stay intact. `autoApprovePurchases` removes the
+  purchase-approval step only — entitlement still comes exclusively from the
+  Stripe webhook. Cluster D tests both.
+- `api/meta.ts` (unfurl bots) may only source metadata from queries an
+  anonymous visitor can call (`getPublicContent`, `getContentByShareToken`,
+  `getSiteSettings`) so publication/paywall/privacy gates apply verbatim.
+
+## SEO / unfurling
+
+The app is a client-rendered SPA; `vercel.json` rewrites known unfurl-bot
+user agents on `/view/:id` and `/share/:token` to `api/meta.ts`, which serves
+per-content Open Graph tags. Google et al. keep the SPA and get titles from
+`src/lib/usePageMeta.ts`. `/sitemap.xml` + `/robots.txt` are Vercel functions
+(`api/`), per-domain at request time — never hardcode a domain there. Share
+pages are always `noindex`.
 
 ## Conventions
 
