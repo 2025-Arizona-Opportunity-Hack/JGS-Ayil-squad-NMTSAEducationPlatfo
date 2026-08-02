@@ -1591,3 +1591,200 @@ describe("C1: quiz answers must never reach the client", () => {
     ).rejects.toThrow(/access/i);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLUSTER D — Signup & purchase friction toggles
+// ═══════════════════════════════════════════════════════════════════════
+//
+// allowPublicSignup / autoApprovePurchases (siteSettings) relax the invite
+// and purchase-request gates. These tests pin the two guarantees that must
+// survive the relaxation: OFF preserves today's behavior exactly, and ON
+// never opens a privilege-escalation path.
+
+describe("D1: allowPublicSignup", () => {
+  async function seedEmailUser(t: ReturnType<typeof convexTest>, email: string) {
+    // A users row WITH an email (password-signup shape) but no profile —
+    // the email is what triggers the join-request gate in createUserProfile.
+    return await t.run(async (ctx) => ctx.db.insert("users", { email, name: "New User" }));
+  }
+
+  function seedSettings(t: ReturnType<typeof convexTest>, overrides: Record<string, unknown>) {
+    return t.run(async (ctx) => {
+      const ownerId = await ctx.db.insert("users", { name: "Owner" });
+      await ctx.db.insert("siteSettings", {
+        organizationName: "Test Org",
+        setupCompleted: true,
+        ...overrides,
+      });
+      return ownerId;
+    });
+  }
+
+  it("OFF (default): code-less signup without an approved join request still fails", async () => {
+    const t = convexTest(schema);
+    await seedSettings(t, {}); // no allowPublicSignup field at all
+    const userId = await seedEmailUser(t, "walkin-d1-off@test.local");
+
+    await expect(
+      t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+        firstName: "Walk",
+        lastName: "In",
+        role: "client",
+      })
+    ).rejects.toThrow(/approved join request/i);
+  });
+
+  it("ON: code-less signup succeeds and lands on the client role", async () => {
+    const t = convexTest(schema);
+    await seedSettings(t, { allowPublicSignup: true });
+    const userId = await seedEmailUser(t, "walkin-d1-on@test.local");
+
+    await t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+      firstName: "Walk",
+      lastName: "In",
+      role: "client",
+    });
+
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    );
+    expect(profile).not.toBeNull();
+    expect(profile!.role).toBe("client");
+  });
+
+  it("ON: a forged 'professional' role is still clamped to client", async () => {
+    const t = convexTest(schema);
+    await seedSettings(t, { allowPublicSignup: true });
+    const userId = await seedEmailUser(t, "walkin-d1-forge@test.local");
+
+    await t.withIdentity({ subject: userId }).mutation(api.users.createUserProfile, {
+      firstName: "Sneaky",
+      lastName: "User",
+      role: "professional",
+    });
+
+    const profile = await t.run(async (ctx) =>
+      ctx.db
+        .query("userProfiles")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    );
+    expect(profile!.role).toBe("client");
+    expect(getEffectivePermissions(profile!)).not.toContain(
+      PERMISSIONS.VIEW_ALL_CONTENT
+    );
+  });
+});
+
+describe("D2: autoApprovePurchases", () => {
+  async function seedPricedContent(t: ReturnType<typeof convexTest>) {
+    return await t.run(async (ctx) => {
+      const ownerId = await ctx.db.insert("users", { name: "Owner" });
+      await ctx.db.insert("userProfiles", {
+        userId: ownerId,
+        role: "owner",
+        firstName: "O",
+        lastName: "W",
+        isActive: true,
+      });
+      const contentId = await ctx.db.insert("content", {
+        title: "Priced Video",
+        isPublic: true,
+        createdBy: ownerId,
+        status: "published",
+        active: true,
+      });
+      const pricingId = await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 1999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      return { ownerId, contentId, pricingId };
+    });
+  }
+
+  it("OFF (default): createOrder without an approved request still fails", async () => {
+    const t = convexTest(schema);
+    const { contentId, pricingId } = await seedPricedContent(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("siteSettings", {
+        organizationName: "Test Org",
+        setupCompleted: true,
+      });
+    });
+    const buyerId = await seedUser(t, "client", "buyer-d2-off@test.local");
+
+    await expect(
+      t.withIdentity({ subject: buyerId }).mutation(api.orders.createOrder, {
+        contentId,
+        pricingId,
+      })
+    ).rejects.toThrow(/approved purchase request/i);
+  });
+
+  it("ON: createOrder succeeds and records an auto-approved request for audit", async () => {
+    const t = convexTest(schema);
+    const { contentId, pricingId } = await seedPricedContent(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("siteSettings", {
+        organizationName: "Test Org",
+        setupCompleted: true,
+        autoApprovePurchases: true,
+      });
+    });
+    const buyerId = await seedUser(t, "client", "buyer-d2-on@test.local");
+
+    const { orderId } = await t
+      .withIdentity({ subject: buyerId })
+      .mutation(api.orders.createOrder, { contentId, pricingId });
+    expect(orderId).toBeDefined();
+
+    const order = await t.run(async (ctx) => ctx.db.get(orderId));
+    // Still a PENDING order — payment completion remains webhook-verified;
+    // the toggle only removes the admin-approval step, never the payment.
+    expect(order!.status).toBe("pending");
+    expect(order!.amount).toBe(1999);
+
+    const requests = await t.run(async (ctx) =>
+      ctx.db
+        .query("purchaseRequests")
+        .withIndex("by_user_content", (q) =>
+          q.eq("userId", buyerId).eq("contentId", contentId)
+        )
+        .collect()
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0].status).toBe("approved");
+    expect(requests[0].adminNotes).toMatch(/auto-approved/i);
+  });
+
+  it("ON: entitlement still requires a completed order (no contentAccess yet)", async () => {
+    const t = convexTest(schema);
+    const { contentId, pricingId } = await seedPricedContent(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("siteSettings", {
+        organizationName: "Test Org",
+        setupCompleted: true,
+        autoApprovePurchases: true,
+      });
+    });
+    const buyerId = await seedUser(t, "client", "buyer-d2-ent@test.local");
+
+    await t
+      .withIdentity({ subject: buyerId })
+      .mutation(api.orders.createOrder, { contentId, pricingId });
+
+    // The pending (unpaid) order must not unlock the media
+    const result = await t
+      .withIdentity({ subject: buyerId })
+      .query(api.publicContent.getPublicContent, { contentId });
+    expect((result as { requiresPurchase?: boolean }).requiresPurchase).toBe(true);
+    expect(result.content).toBeNull();
+  });
+});

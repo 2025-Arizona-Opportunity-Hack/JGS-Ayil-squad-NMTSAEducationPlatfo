@@ -43,8 +43,11 @@ export const createOrder = mutation({
       throw new ConvexError("You already have access to this content");
     }
 
-    // Check for approved purchase request
-    const approvedRequest = await ctx.db
+    // Check for approved purchase request. When the autoApprovePurchases
+    // site setting is on, self-serve checkout is allowed: an approved
+    // request row is auto-created so downstream bookkeeping
+    // (purchaseCompletedAt, admin reporting) works unchanged.
+    let approvedRequest = await ctx.db
       .query("purchaseRequests")
       .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
@@ -53,9 +56,22 @@ export const createOrder = mutation({
       .first();
 
     if (!approvedRequest) {
-      throw new ConvexError(
-        "You need an approved purchase request to buy this content. Please request permission first."
-      );
+      const settings = await ctx.db.query("siteSettings").first();
+      if (!settings?.autoApprovePurchases) {
+        throw new ConvexError(
+          "You need an approved purchase request to buy this content. Please request permission first."
+        );
+      }
+      const autoRequestId = await ctx.db.insert("purchaseRequests", {
+        userId,
+        contentId: args.contentId,
+        status: "approved",
+        adminNotes: "Auto-approved (self-serve purchases enabled)",
+        createdAt: Date.now(),
+        reviewedAt: Date.now(),
+      });
+      approvedRequest = await ctx.db.get(autoRequestId);
+      if (!approvedRequest) throw new ConvexError("Failed to create request");
     }
 
     // Check if the approved request has already been used

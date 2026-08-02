@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { redirectToStripeCheckout } from "@/lib/checkout";
@@ -81,6 +82,11 @@ export function PurchasePaywall({
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+
+  // Public settings — drives the "Sign up to purchase" CTA for anonymous
+  // visitors when the instance allows public self-signup.
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
 
   const createOrder = useMutation(api.orders.createOrder);
   const createPurchaseRequest = useMutation(
@@ -130,15 +136,32 @@ export function PurchasePaywall({
     }
   };
 
+  const handleGoToSignup = () => {
+    sessionStorage.setItem("returnToContent", contentId);
+    void navigate("/?signup=true");
+  };
+
   const renderCta = () => {
     if (requiresAuth) {
+      const allowSignup = !!siteSettings?.allowPublicSignup;
       return (
         <div className="space-y-2">
-          <Button className="w-full" onClick={onGoToLogin}>
-            Log in to purchase
-          </Button>
+          {allowSignup ? (
+            <>
+              <Button className="w-full" onClick={handleGoToSignup}>
+                Sign up to purchase
+              </Button>
+              <Button className="w-full" variant="outline" onClick={onGoToLogin}>
+                Log in
+              </Button>
+            </>
+          ) : (
+            <Button className="w-full" onClick={onGoToLogin}>
+              Log in to purchase
+            </Button>
+          )}
           <p className="text-xs text-muted-foreground text-center">
-            You'll return to this page after logging in.
+            You'll return to this page afterwards.
           </p>
         </div>
       );
@@ -156,10 +179,13 @@ export function PurchasePaywall({
     if (purchaseStatus.canPurchase) {
       return (
         <div className="space-y-2">
-          <Badge className="w-full justify-center bg-green-100 text-green-800 hover:bg-green-100">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
-            Request Approved
-          </Badge>
+          {/* Self-serve mode has no request round-trip, so no badge */}
+          {purchaseStatus.requestStatus !== "auto" && (
+            <Badge className="w-full justify-center bg-green-100 text-green-800 hover:bg-green-100">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Request Approved
+            </Badge>
+          )}
           <Button
             className="w-full"
             onClick={() => void handleBuy()}

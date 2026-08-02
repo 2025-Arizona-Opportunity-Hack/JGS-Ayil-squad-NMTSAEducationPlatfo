@@ -135,7 +135,10 @@ export const createUserProfile = mutation({
         }
       }
 
-      // Check for approved join request (unless they have an invite code)
+      // Check for approved join request (unless they have an invite code).
+      // When the allowPublicSignup site setting is on, code-less signups are
+      // permitted without a join request — the role clamp below still forces
+      // them to client/parent, so no privilege is reachable this way.
       if (!args.inviteCode) {
         const joinRequest = await ctx.db
           .query("joinRequests")
@@ -144,13 +147,14 @@ export const createUserProfile = mutation({
           .first();
 
         if (!joinRequest || joinRequest.status !== "approved") {
-          throw new ConvexError(
-            "You need an approved join request to create an account. Please request access first or contact support."
-          );
-        }
-
-        // Mark join request as account created
-        if (!joinRequest.accountCreatedAt) {
+          const settings = await ctx.db.query("siteSettings").first();
+          if (!settings?.allowPublicSignup) {
+            throw new ConvexError(
+              "You need an approved join request to create an account. Please request access first or contact support."
+            );
+          }
+        } else if (!joinRequest.accountCreatedAt) {
+          // Mark join request as account created
           await ctx.db.patch(joinRequest._id, {
             accountCreatedAt: Date.now(),
             userId: userId,

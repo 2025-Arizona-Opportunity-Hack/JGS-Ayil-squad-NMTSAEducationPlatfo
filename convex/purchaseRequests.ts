@@ -326,6 +326,17 @@ export const canPurchaseContent = query({
       }
     }
 
+    // Self-serve mode: with autoApprovePurchases on, anyone who can see the
+    // paywall may buy directly — no request/approval round-trip.
+    const settings = await ctx.db.query("siteSettings").first();
+    if (settings?.autoApprovePurchases) {
+      return {
+        canPurchase: true,
+        reason: "Purchases are enabled for this content",
+        requestStatus: "auto",
+      };
+    }
+
     // Check for approved purchase request
     const approvedRequest = await ctx.db
       .query("purchaseRequests")

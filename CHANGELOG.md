@@ -3,6 +3,34 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.12.0 — 2026-08-02
+
+- Feature: **signup & purchase friction toggles** — two new instance-level
+  settings in the admin Site Settings "Access & Signup" card, both **off by
+  default** (existing instances unchanged):
+  - `allowPublicSignup` — anyone can create an account without an invite
+    code or admin-approved join request. The invite-code field on the Sign
+    Up form becomes optional (a supplied code is still validated and still
+    grants its role). The server-side role clamp is untouched: code-less
+    signups can only ever be `client`/`parent` — `professional`
+    (`VIEW_ALL_CONTENT`) and staff roles still require an invite code.
+    Caveat noted in the admin UI: these accounts skip the join-request
+    email-verification step.
+  - `autoApprovePurchases` — signed-in users can buy priced content
+    directly; `createOrder` auto-creates an approved purchase request for
+    audit/reporting continuity instead of requiring an admin approval
+    round-trip. Payment completion is still webhook-verified — the toggle
+    never grants entitlement, only removes the approval step.
+- The paywall for anonymous visitors now offers **"Sign up to purchase"**
+  (when public signup is on) alongside log-in, both preserving the
+  return-to-content redirect; `/?signup=true` deep-links to the Sign Up tab.
+- Together with 0.11.0 this completes the search-to-purchase funnel:
+  find content in search → preview + price → sign up → pay → watch →
+  (0.10.0) take the quiz.
+- Regression cluster D in `convex/security.test.ts`: toggles off = existing
+  behavior byte-for-byte; toggles on = no privilege escalation, no payment
+  bypass.
+
 ## 0.11.0 — 2026-08-02
 
 - Feature: **SEO + link unfurling.** Link-preview bots (Slack, iMessage,

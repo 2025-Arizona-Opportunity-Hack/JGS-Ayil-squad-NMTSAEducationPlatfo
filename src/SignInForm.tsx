@@ -23,6 +23,10 @@ import { JoinRequestForm } from "./components/JoinRequestForm";
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
+  // Public settings — when allowPublicSignup is on, the invite code becomes
+  // optional (the server still clamps code-less signups to client/parent).
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  const allowPublicSignup = !!siteSettings?.allowPublicSignup;
   const [flow, setFlow] = useState<"signIn" | "signUp" | "joinRequest" | "forgotPassword" | "resetPassword">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +56,12 @@ export function SignInForm() {
       toast.success("Invite code applied!", {
         description: `Using invite code: ${inviteParam.toUpperCase()}`,
       });
+    }
+    // ?signup=true (e.g. "Sign up to purchase" on a paywall) opens the
+    // Sign Up tab directly
+    if (params.get('signup') === 'true') {
+      setFlow('signUp');
+      window.history.replaceState({}, '', window.location.pathname);
     }
     // Handle password reset URL (from email link)
     const resetCodeParam = params.get('code');
@@ -457,9 +467,11 @@ export function SignInForm() {
                 e.preventDefault();
                 setError(null);
 
-                // Require a valid invite code (unless bootstrap mode)
+                // Require a valid invite code (unless bootstrap mode or the
+                // instance allows public signup — then the code is optional
+                // but still validated when one was entered)
                 if (!bootstrapNeeded) {
-                  if (!inviteCode) {
+                  if (!inviteCode && !allowPublicSignup) {
                     toast.error("Invite code required", {
                       description: "Please enter an invite code to create an account.",
                     });
@@ -468,7 +480,7 @@ export function SignInForm() {
                   }
 
                   // Validate invite code before proceeding
-                  if (!inviteCodeValidation?.valid) {
+                  if (inviteCode && !inviteCodeValidation?.valid) {
                     toast.error("Invalid invite code", {
                       description: inviteCodeValidation?.message || "Please check your invite code and try again.",
                     });
@@ -589,10 +601,12 @@ export function SignInForm() {
                 )}
               </div>
 
-              {/* Invite Code - Required for sign up */}
+              {/* Invite Code - required unless public signup is enabled */}
               {!bootstrapNeeded && (
                 <div className="space-y-2">
-                  <Label htmlFor="inviteCode">Invite Code *</Label>
+                  <Label htmlFor="inviteCode">
+                    {allowPublicSignup ? "Invite Code (optional)" : "Invite Code *"}
+                  </Label>
                   <Input
                     id="inviteCode"
                     type="text"
@@ -600,9 +614,13 @@ export function SignInForm() {
                     onChange={(e) =>
                       setInviteCode(e.target.value.toUpperCase())
                     }
-                    placeholder="Enter your invite code"
+                    placeholder={
+                      allowPublicSignup
+                        ? "Have an invite code? Enter it here"
+                        : "Enter your invite code"
+                    }
                     maxLength={8}
-                    required
+                    required={!allowPublicSignup}
                     className="font-mono"
                   />
                   {inviteCode.length >= 6 && inviteCodeValidation && (

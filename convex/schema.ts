@@ -11,6 +11,15 @@ const applicationTables = {
     logoId: v.optional(v.id("_storage")),
     faviconId: v.optional(v.id("_storage")),
     primaryColor: v.optional(v.string()),
+    // Access & signup toggles. Both default off (undefined = current
+    // behavior) so existing instances are unchanged until an admin opts in.
+    // allowPublicSignup: anyone may create an account without an invite
+    // code or approved join request; the server-side role clamp in
+    // users.createUserProfile still forces such accounts to client/parent.
+    allowPublicSignup: v.optional(v.boolean()),
+    // autoApprovePurchases: createOrder no longer requires an
+    // admin-approved purchase request first (self-serve checkout).
+    autoApprovePurchases: v.optional(v.boolean()),
     setupCompleted: v.boolean(),
     setupCompletedAt: v.optional(v.number()),
     setupCompletedBy: v.optional(v.id("users")),
