@@ -15,6 +15,7 @@ import { ClientLayout } from "./components/client/ClientLayout";
 import { HomePage } from "./pages/client/HomePage";
 import { BrowsePage } from "./pages/client/BrowsePage";
 import { BundlesPage } from "./pages/client/BundlesPage";
+import { BundleDetailPage } from "./pages/client/BundleDetailPage";
 import { ShopPage } from "./pages/client/ShopPage";
 import { OrdersPage } from "./pages/client/OrdersPage";
 import { SharesPage } from "./pages/client/SharesPage";
@@ -190,6 +191,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="browse" element={<BrowsePage />} />
         <Route path="bundles" element={<BundlesPage />} />
+        <Route path="bundles/:groupId" element={<BundleDetailPage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="shares" element={<SharesPage />} />

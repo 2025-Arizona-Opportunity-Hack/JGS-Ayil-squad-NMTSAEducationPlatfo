@@ -14,6 +14,7 @@ import { ArchivedContent } from "./admin/ArchivedContent";
 import { SiteSettings } from "./admin/SiteSettings";
 import { SetupHealth } from "./admin/SetupHealth";
 import { PurchaseRequests } from "./admin/PurchaseRequests";
+import { QuizManagement } from "./admin/QuizManagement";
 import { JoinRequests } from "./admin/JoinRequests";
 import { DebugTools } from "./admin/DebugTools";
 import { AdminLayout } from "./admin/AdminLayout";
@@ -77,6 +78,7 @@ export function AdminDashboard() {
 
   const permissions = userProfile.effectivePermissions;
   const canManageContentGroups = hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+  const canManageQuizzes = hasPermission(permissions, PERMISSIONS.MANAGE_QUIZZES);
   const canViewUsers = hasPermission(permissions, PERMISSIONS.VIEW_USERS);
   const canManageUserGroups = hasPermission(permissions, PERMISSIONS.MANAGE_USER_GROUPS);
   const canViewAnalytics = hasPermission(permissions, PERMISSIONS.VIEW_ANALYTICS);
@@ -101,6 +103,7 @@ export function AdminDashboard() {
       {activeTab === "content" && <ContentManager />}
       {activeTab === "shareLinks" && <ShareLinksManager />}
       {activeTab === "contentGroups" && canManageContentGroups && <ContentGroupManager />}
+      {activeTab === "quizzes" && canManageQuizzes && <QuizManagement />}
       {activeTab === "joinRequests" && canViewUsers && <JoinRequests />}
       {activeTab === "users" && canViewUsers && <UserManager />}
       {activeTab === "userGroups" && canManageUserGroups && <UserGroupManager />}

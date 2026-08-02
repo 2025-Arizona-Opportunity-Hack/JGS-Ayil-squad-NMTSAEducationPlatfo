@@ -2,7 +2,7 @@ import {
   Folder, FolderTree, ExternalLink, Archive,
   Users, UsersRound, Mail,
   ShoppingCart, TrendingUp, ClipboardList,
-  Settings, Bug, ListChecks,
+  Settings, Bug, ListChecks, ClipboardCheck,
 } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -28,6 +28,7 @@ interface AdminSidebarProps {
   className?: string;
   permissions: {
     canManageContentGroups: boolean;
+    canManageQuizzes: boolean;
     canViewUsers: boolean;
     canManageUserGroups: boolean;
     canViewAnalytics: boolean;
@@ -58,6 +59,7 @@ export function AdminSidebar({ activeTab, onTabChange, permissions, className }:
       items: [
         { value: "content", label: "Content", icon: Folder },
         { value: "contentGroups", label: "Bundles", icon: FolderTree, permission: permissions.canManageContentGroups },
+        { value: "quizzes", label: "Quizzes", icon: ClipboardCheck, permission: permissions.canManageQuizzes },
         { value: "shareLinks", label: "Shares", icon: ExternalLink },
         { value: "archived", label: "Archived", icon: Archive, permission: permissions.canViewArchivedContent },
       ],

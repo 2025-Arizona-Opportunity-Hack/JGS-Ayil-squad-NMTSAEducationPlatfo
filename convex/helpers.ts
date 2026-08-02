@@ -235,6 +235,67 @@ export async function checkContentAccess(
   return false;
 }
 
+/**
+ * Check whether a user has access to a content group (bundle) through any
+ * of the three access patterns: direct user, role-based, or user-group.
+ *
+ * This is the single canonical copy (like checkContentAccess above) — do
+ * not duplicate it in feature modules.
+ */
+export async function checkGroupAccess(
+  ctx: QueryCtx,
+  groupId: Id<"contentGroups">,
+  userId: Id<"users">,
+  userRole: string
+): Promise<boolean> {
+  const now = Date.now();
+
+  // Check direct user access
+  const userAccess = await ctx.db
+    .query("contentGroupAccess")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("groupId"), groupId))
+    .first();
+
+  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > now)) {
+    return true;
+  }
+
+  // Check role-based access
+  const roleAccess = await ctx.db
+    .query("contentGroupAccess")
+    .withIndex("by_group", (q) => q.eq("groupId", groupId))
+    .filter((q) => q.eq(q.field("role"), userRole))
+    .first();
+
+  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > now)) {
+    return true;
+  }
+
+  // Check user group access
+  const userGroups = await ctx.db
+    .query("userGroupMembers")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  for (const membership of userGroups) {
+    const groupAccess = await ctx.db
+      .query("contentGroupAccess")
+      .withIndex("by_group", (q) => q.eq("groupId", groupId))
+      .filter((q) => q.eq(q.field("userGroupId"), membership.groupId))
+      .first();
+
+    if (
+      groupAccess &&
+      (!groupAccess.expiresAt || groupAccess.expiresAt > now)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // ─── Validation Helpers ─────────────────────────────────────────────
 
 /**

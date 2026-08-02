@@ -22,6 +22,7 @@ export function AdminLayout({ activeTab, onTabChange, onHelpClick, children }: A
   const permissions = userProfile?.effectivePermissions;
   const sidebarPermissions = {
     canManageContentGroups: hasPermission(permissions, PERMISSIONS.MANAGE_CONTENT_GROUPS),
+    canManageQuizzes: hasPermission(permissions, PERMISSIONS.MANAGE_QUIZZES),
     canViewUsers: hasPermission(permissions, PERMISSIONS.VIEW_USERS),
     canManageUserGroups: hasPermission(permissions, PERMISSIONS.MANAGE_USER_GROUPS),
     canViewAnalytics: hasPermission(permissions, PERMISSIONS.VIEW_ANALYTICS),

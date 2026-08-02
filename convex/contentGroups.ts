@@ -1,7 +1,26 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requirePermission, requireAuth, formatUserName, getUserName, getStorageUrls } from "./helpers";
 import { PERMISSIONS } from "./permissions";
+import { Doc } from "./_generated/dataModel";
+
+/**
+ * Canonical ordering for bundle items. `order` was historically optional
+ * (rows added via addContentToGroup before it defaulted), so sort those
+ * legacy rows last, tie-broken by insertion time. Every reader of
+ * contentGroupItems must use this rather than relying on index order,
+ * where undefined sorts first.
+ */
+export function sortGroupItems<T extends Pick<Doc<"contentGroupItems">, "order" | "_creationTime">>(
+  items: T[]
+): T[] {
+  return [...items].sort(
+    (a, b) =>
+      (a.order ?? Number.MAX_SAFE_INTEGER) -
+        (b.order ?? Number.MAX_SAFE_INTEGER) ||
+      a._creationTime - b._creationTime
+  );
+}
 
 // Create content group (bundle)
 export const createContentGroup = mutation({
@@ -136,10 +155,12 @@ export const getContentGroupWithItems = query({
     const group = await ctx.db.get(args.groupId);
     if (!group) return null;
 
-    const groupItems = await ctx.db
-      .query("contentGroupItems")
-      .withIndex("by_group_order", (q) => q.eq("groupId", args.groupId))
-      .collect();
+    const groupItems = sortGroupItems(
+      await ctx.db
+        .query("contentGroupItems")
+        .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+        .collect()
+    );
 
     const contentItems = [];
     for (const item of groupItems) {
@@ -181,12 +202,80 @@ export const addContentToGroup = mutation({
       throw new ConvexError("Content is already in this group");
     }
 
+    // Default to the end of the list — an undefined order would make
+    // "the final item" (which can carry the bundle quiz) ambiguous.
+    let order = args.order;
+    if (order === undefined) {
+      const existingItems = await ctx.db
+        .query("contentGroupItems")
+        .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+        .collect();
+      order =
+        existingItems.reduce((max, item) => Math.max(max, item.order || 0), 0) +
+        1;
+    }
+
     return await ctx.db.insert("contentGroupItems", {
       groupId: args.groupId,
       contentId: args.contentId,
       addedBy: userId,
-      order: args.order,
+      order,
     });
+  },
+});
+
+// Reorder items in a group. Normalizes order to 1..n, which also backfills
+// legacy rows whose order was never set.
+export const reorderGroupItems = mutation({
+  args: {
+    groupId: v.id("contentGroups"),
+    orderedItemIds: v.array(v.id("contentGroupItems")),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, PERMISSIONS.MANAGE_CONTENT_GROUPS);
+
+    const items = await ctx.db
+      .query("contentGroupItems")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+    const byId = new Map(items.map((item) => [item._id, item]));
+    if (
+      args.orderedItemIds.length !== items.length ||
+      !args.orderedItemIds.every((id) => byId.has(id))
+    ) {
+      throw new ConvexError(
+        "orderedItemIds must contain every item of this group exactly once"
+      );
+    }
+
+    for (let i = 0; i < args.orderedItemIds.length; i++) {
+      await ctx.db.patch(args.orderedItemIds[i], { order: i + 1 });
+    }
+  },
+});
+
+// One-time backfill: assign an order to legacy group items that predate
+// order becoming required-in-practice. Run via `npx convex run`.
+export const backfillGroupItemOrder = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const groups = await ctx.db.query("contentGroups").collect();
+    let patched = 0;
+    for (const group of groups) {
+      const items = sortGroupItems(
+        await ctx.db
+          .query("contentGroupItems")
+          .withIndex("by_group", (q) => q.eq("groupId", group._id))
+          .collect()
+      );
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].order !== i + 1) {
+          await ctx.db.patch(items[i]._id, { order: i + 1 });
+          patched++;
+        }
+      }
+    }
+    return { patched };
   },
 });
 

@@ -9,6 +9,7 @@ const TAB_REQUIRED_PERMISSION: Record<string, Permission | null> = {
   content: null,
   shareLinks: null,
   contentGroups: PERMISSIONS.MANAGE_CONTENT_GROUPS,
+  quizzes: PERMISSIONS.MANAGE_QUIZZES,
   joinRequests: PERMISSIONS.VIEW_USERS,
   users: PERMISSIONS.VIEW_USERS,
   userGroups: PERMISSIONS.MANAGE_USER_GROUPS,

@@ -1435,3 +1435,159 @@ describe("B5: listPricedContent must not leak content.password or an unpurchased
     expect(result[0]!.hasAccess).toBeFalsy();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLUSTER C — Quizzes
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Flagship regressions only — the full behavioral matrix lives in
+// convex/quizzes.test.ts. The invariant: correct answers exist ONLY in
+// quizQuestions.correctOptionIds and must never reach a learner-facing
+// payload; grading is server-side.
+
+describe("C1: quiz answers must never reach the client", () => {
+  function findKeyDeep(value: unknown, key: string): boolean {
+    if (value === null || typeof value !== "object") return false;
+    if (Array.isArray(value)) {
+      return value.some((item) => findKeyDeep(item, key));
+    }
+    return Object.entries(value as Record<string, unknown>).some(
+      ([k, nested]) => k === key || findKeyDeep(nested, key)
+    );
+  }
+
+  async function seedQuizFixture(t: ReturnType<typeof convexTest>) {
+    const ownerId = await seedUser(t, "owner", `owner-c1-${Math.random()}@test.local`);
+    const clientId = await seedUser(t, "client", `client-c1-${Math.random()}@test.local`);
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Training",
+        isPublic: true,
+        createdBy: ownerId,
+        status: "published",
+        active: true,
+        attachmentType: "video",
+      })
+    );
+    const quizId = await t.run(async (ctx) =>
+      ctx.db.insert("quizzes", {
+        title: "Check",
+        contentId,
+        passingScore: 70,
+        isActive: true,
+        createdBy: ownerId,
+      })
+    );
+    const questionId = await t.run(async (ctx) =>
+      ctx.db.insert("quizQuestions", {
+        quizId,
+        order: 1,
+        prompt: "Q1",
+        kind: "single",
+        options: [
+          { id: "a", text: "Right" },
+          { id: "b", text: "Wrong" },
+        ],
+        correctOptionIds: ["a"],
+        explanation: "Because.",
+        isActive: true,
+      })
+    );
+    return { ownerId, clientId, contentId, quizId, questionId };
+  }
+
+  it("the learner fetch payload contains no correctOptionIds/explanation key", async () => {
+    const t = convexTest(schema);
+    const { clientId, contentId } = await seedQuizFixture(t);
+
+    const payload = await t
+      .withIdentity({ subject: clientId })
+      .query(api.quizzes.getQuizForContent, { contentId });
+
+    expect(payload).not.toBeNull();
+    expect(findKeyDeep(payload, "correctOptionIds")).toBe(false);
+    expect(findKeyDeep(payload, "explanation")).toBe(false);
+  });
+
+  it("a client cannot pull answers through the editing query", async () => {
+    const t = convexTest(schema);
+    const { clientId, quizId } = await seedQuizFixture(t);
+
+    const payload = await t
+      .withIdentity({ subject: clientId })
+      .query(api.quizzes.getQuizForEditing, { quizId });
+    expect(payload).toBeNull();
+  });
+
+  it("grading is server-side: the client's own correctness claims are ignored", async () => {
+    const t = convexTest(schema);
+    const { clientId, quizId, questionId } = await seedQuizFixture(t);
+
+    // The mutation validator only accepts selectedOptionIds — but even a
+    // well-formed wrong answer must be graded wrong server-side.
+    const result = await t
+      .withIdentity({ subject: clientId })
+      .mutation(api.quizzes.submitQuizAttempt, {
+        quizId,
+        answers: [{ questionId, selectedOptionIds: ["b"] }],
+      });
+    expect(result.score).toBe(0);
+    expect(result.passed).toBe(false);
+
+    const attempts = await t.run(async (ctx) =>
+      ctx.db
+        .query("quizAttempts")
+        .withIndex("by_quiz", (q) => q.eq("quizId", quizId))
+        .collect()
+    );
+    expect(attempts[0].passed).toBe(false);
+  });
+
+  it("an unentitled learner cannot submit attempts on private content", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-c1-priv@test.local");
+    const clientId = await seedUser(t, "client", "client-c1-priv@test.local");
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Private Training",
+        isPublic: false,
+        createdBy: ownerId,
+        status: "published",
+        active: true,
+      })
+    );
+    const quizId = await t.run(async (ctx) =>
+      ctx.db.insert("quizzes", {
+        title: "Private Check",
+        contentId,
+        passingScore: 70,
+        isActive: true,
+        createdBy: ownerId,
+      })
+    );
+    const questionId = await t.run(async (ctx) =>
+      ctx.db.insert("quizQuestions", {
+        quizId,
+        order: 1,
+        prompt: "Q1",
+        kind: "single",
+        options: [
+          { id: "a", text: "Right" },
+          { id: "b", text: "Wrong" },
+        ],
+        correctOptionIds: ["a"],
+        isActive: true,
+      })
+    );
+
+    await expect(
+      t.withIdentity({ subject: clientId }).mutation(
+        api.quizzes.submitQuizAttempt,
+        {
+          quizId,
+          answers: [{ questionId, selectedOptionIds: ["a"] }],
+        }
+      )
+    ).rejects.toThrow(/access/i);
+  });
+});

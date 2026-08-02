@@ -444,6 +444,94 @@ const applicationTables = {
     .index("by_recipient_user", ["recipientUserId"])
     .index("by_active", ["isActive"]),
 
+  // Quizzes — attached to exactly one of contentId | groupId (mutation-enforced)
+  quizzes: defineTable({
+    contentId: v.optional(v.id("content")),
+    groupId: v.optional(v.id("contentGroups")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    passingScore: v.number(), // percent 0-100
+    maxAttempts: v.optional(v.number()), // undefined = unlimited
+    shuffleQuestions: v.optional(v.boolean()),
+    // What learners see after submitting: score only, per-question
+    // right/wrong, or full correct answers + explanations
+    revealAnswers: v.optional(
+      v.union(
+        v.literal("none"),
+        v.literal("correctness"),
+        v.literal("full")
+      )
+    ),
+    requireContentCompletion: v.optional(v.boolean()),
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_content", ["contentId"])
+    .index("by_group", ["groupId"]),
+
+  // Quiz questions. correctOptionIds must NEVER be returned to learners —
+  // only getQuizForEditing (MANAGE_QUIZZES) and server-side grading read it.
+  quizQuestions: defineTable({
+    quizId: v.id("quizzes"),
+    order: v.number(),
+    prompt: v.string(),
+    kind: v.union(
+      v.literal("single"),
+      v.literal("multi"),
+      v.literal("trueFalse")
+    ),
+    options: v.array(v.object({ id: v.string(), text: v.string() })),
+    correctOptionIds: v.array(v.string()),
+    explanation: v.optional(v.string()),
+    points: v.optional(v.number()), // default 1
+    // Soft-delete: questions referenced by attempts are deactivated, not
+    // removed, so old attempts stay interpretable
+    isActive: v.optional(v.boolean()),
+  })
+    .index("by_quiz", ["quizId"])
+    .index("by_quiz_order", ["quizId", "order"]),
+
+  // Quiz attempts — one fully-graded row per submission
+  quizAttempts: defineTable({
+    quizId: v.id("quizzes"),
+    userId: v.id("users"),
+    attemptNumber: v.number(), // 1-based per (quizId, userId)
+    submittedAt: v.number(),
+    answers: v.array(
+      v.object({
+        questionId: v.id("quizQuestions"),
+        selectedOptionIds: v.array(v.string()),
+        correct: v.boolean(),
+      })
+    ),
+    score: v.number(), // percent 0-100
+    pointsEarned: v.number(),
+    pointsPossible: v.number(),
+    passed: v.boolean(),
+    // Learner -> staff feedback left after the attempt
+    learnerFeedback: v.optional(v.string()),
+    learnerFeedbackAt: v.optional(v.number()),
+  })
+    .index("by_quiz", ["quizId"])
+    .index("by_user", ["userId"])
+    .index("by_quiz_user", ["quizId", "userId"]),
+
+  // Per-user content progress (watch percentage / completion)
+  contentProgress: defineTable({
+    contentId: v.id("content"),
+    userId: v.id("users"),
+    maxProgress: v.number(), // 0..1, monotonically increasing
+    completed: v.boolean(),
+    completedAt: v.optional(v.number()),
+    completionSource: v.optional(
+      v.union(v.literal("playback"), v.literal("manual"))
+    ),
+    updatedAt: v.number(),
+  })
+    .index("by_user_content", ["userId", "contentId"])
+    .index("by_content", ["contentId"]),
+
   // Setup locks (singleton-like, prevents concurrent setup)
   setupLocks: defineTable({
     lockedBy: v.id("users"),

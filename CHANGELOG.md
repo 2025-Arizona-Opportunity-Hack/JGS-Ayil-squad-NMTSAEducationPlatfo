@@ -3,6 +3,42 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.10.0 — 2026-08-02
+
+- Feature: **quizzes & assessments.** Staff (new `MANAGE_QUIZZES` permission;
+  owner/admin/editor by default) can attach a quiz to a content item or a
+  bundle: single/multi/true-false questions, passing score, optional attempt
+  limit, optional shuffle, and a `revealAnswers` setting (score only /
+  right-wrong / full answers). Learners take the quiz on the `/view/` page
+  (or bundle page), attempts are **graded server-side**, and every attempt
+  records score, pass/fail, and attempt number — "attempts to pass" shows in
+  the new admin **Quizzes** tab alongside per-learner results. Learners can
+  leave feedback after an attempt; staff see it in the results view. Correct
+  answers never reach learner-facing queries (whitelist sanitizer; regression
+  cluster C1 in `convex/security.test.ts` plus `convex/quizzes.test.ts`).
+- Feature: **content progress tracking** (`contentProgress` table). Hosted
+  video/audio report watch progress from the player (completed at ≥90%);
+  external/YouTube embeds and documents get a manual "Mark as watched/read"
+  button. Quizzes can require completion before they unlock
+  (`requireContentCompletion`), including all-items completion for bundle
+  quizzes. Progress is honor-system by design.
+- Feature: **client bundle pages.** `/bundles` now lists bundles the learner
+  can actually see (public bundles, own bundles, or a `contentGroupAccess`
+  grant — a table that previously was written but never read) via new
+  learner-facing queries in `convex/publicBundles.ts`, and links to a new
+  bundle detail page (`/bundles/:groupId`) with the ordered item list,
+  per-item completion, and the bundle quiz after the final item. Previously
+  the page called an admin-gated query and always rendered empty.
+- Fix: bundle item ordering is now deterministic — `addContentToGroup`
+  defaults to end-of-list instead of no order, admins can reorder items
+  (up/down in the bundle content modal, new `reorderGroupItems` mutation),
+  readers sort explicitly, and `backfillGroupItemOrder` (internal) normalizes
+  legacy rows. Run once after deploy:
+  `npx convex run contentGroups:backfillGroupItemOrder`.
+- Fix: the public viewer no longer falls back to a hardcoded organization
+  name for authorless content (multi-org invariant); it uses the creator's
+  name instead.
+
 ## 0.9.0 — 2026-07-31
 
 - Feature: **priced content is now paywalled on `/view/` links.**
