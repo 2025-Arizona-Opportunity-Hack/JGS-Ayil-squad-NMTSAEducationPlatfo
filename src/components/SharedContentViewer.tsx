@@ -9,6 +9,7 @@ import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 export function SharedContentViewer() {
   const { accessToken } = useParams<{ accessToken: string }>();
@@ -19,6 +20,14 @@ export function SharedContentViewer() {
     accessToken ? { accessToken } : ("skip" as any)
   );
   const trackView = useMutation(api.contentShares.trackShareView);
+
+  // Share links are semi-secret tokenized URLs — title them for humans but
+  // keep them out of search indexes.
+  usePageMeta({
+    title: result?.content?.title ?? null,
+    description: result?.content?.description ?? null,
+    noindex: true,
+  });
 
   // Track view when content loads
   useEffect(() => {

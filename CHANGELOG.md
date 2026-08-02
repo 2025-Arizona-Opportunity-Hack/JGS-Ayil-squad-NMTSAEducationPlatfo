@@ -3,6 +3,33 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.11.0 — 2026-08-02
+
+- Feature: **SEO + link unfurling.** Link-preview bots (Slack, iMessage,
+  Facebook, X, LinkedIn, Discord, WhatsApp, Telegram…) hitting `/view/:id`
+  or `/share/:token` are rewritten (per user-agent, in `vercel.json`) to a
+  new Vercel function `api/meta.ts` that serves per-content Open Graph /
+  Twitter tags. Metadata comes only from the anonymous-visible payloads of
+  `getPublicContent` / `getContentByShareToken`, so publication, paywall,
+  and privacy gates apply verbatim — gated content falls back to site-wide
+  defaults from `getSiteSettings`. Share pages carry `noindex`. Google and
+  other JS-rendering crawlers keep the real SPA (better than serving them a
+  stub) and get correct titles from the new client-side `usePageMeta` hook,
+  which also fixes `/view/` and `/share/` tabs being titled "Content
+  Portal" for humans.
+- Feature: **sitemap + robots.** `/sitemap.xml` (Vercel function backed by
+  new public query `publicContent.listPublicContentForSitemap`: public +
+  published + active only) and a dynamic `/robots.txt` (allows `/view/`,
+  disallows `/share/`, absolute per-domain sitemap URL).
+- Fix: `index.html` previously pointed `og:image` at a file that didn't
+  exist (404 on every unfurl) and had no meta description or OG/Twitter tag
+  set. Now ships neutral, org-brandable defaults plus a real
+  `public/og-default.png` (replace per instance if desired; `api/meta.ts`
+  prefers the org logo, then the content thumbnail).
+- Note: SEO reach is currently limited to individually-public `/view/`
+  pages — there is no public landing/catalog page for anonymous visitors
+  (tracked as a recommended follow-up).
+
 ## 0.10.0 — 2026-08-02
 
 - Feature: **quizzes & assessments.** Staff (new `MANAGE_QUIZZES` permission;

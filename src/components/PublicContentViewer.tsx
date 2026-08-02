@@ -9,6 +9,7 @@ import { Logo } from "./Logo";
 import { PurchasePaywall } from "./PurchasePaywall";
 import { RecommendButton } from "./RecommendButton";
 import { QuizPanel } from "./quiz/QuizPanel";
+import { usePageMeta } from "@/lib/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,15 @@ export function PublicContentViewer() {
   );
   const lastReportedProgressRef = useRef(0);
   const isSignedIn = !!userProfile;
+
+  // Human-facing title/description (unfurl bots get api/meta.ts instead)
+  const previewMeta =
+    result && "preview" in result ? (result.preview as any) : null;
+  usePageMeta({
+    title: result?.content?.title ?? previewMeta?.title ?? null,
+    description:
+      result?.content?.description ?? previewMeta?.description ?? null,
+  });
   const isMarkedWatched = !!(contentId && myProgress?.[contentId]?.completed);
 
   const handleMediaTimeUpdate = (

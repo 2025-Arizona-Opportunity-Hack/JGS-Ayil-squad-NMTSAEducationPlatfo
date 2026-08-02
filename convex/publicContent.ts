@@ -4,6 +4,29 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { getUserProfile, getContentFileUrl, formatUserName, checkContentAccess, deriveContentType } from "./helpers";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
+// Public, published, active content ids for the sitemap (served by
+// api/sitemap.ts on Vercel). Ids and timestamps only — never titles or
+// URLs, so nothing here can leak beyond what /view/ already serves.
+export const listPublicContentForSitemap = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("content")
+      .withIndex("by_public", (q) => q.eq("isPublic", true))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "published"),
+          q.eq(q.field("active"), true)
+        )
+      )
+      .take(1000);
+    return rows.map((row) => ({
+      _id: row._id,
+      updatedAt: row.publishedAt ?? row._creationTime,
+    }));
+  },
+});
+
 // Get public content by ID (no auth required for public content)
 export const getPublicContent = query({
   args: {

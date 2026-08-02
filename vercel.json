@@ -1,5 +1,29 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/robots.txt", "destination": "/api/robots" },
+    {
+      "source": "/view/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|slackbot|slack-linkexpanding|linkedinbot|discordbot|whatsapp|telegrambot|skypeuripreview|pinterest|embedly|iframely|vkshare|redditbot).*"
+        }
+      ],
+      "destination": "/api/meta?path=/view/:id"
+    },
+    {
+      "source": "/share/:token",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|slackbot|slack-linkexpanding|linkedinbot|discordbot|whatsapp|telegrambot|skypeuripreview|pinterest|embedly|iframely|vkshare|redditbot).*"
+        }
+      ],
+      "destination": "/api/meta?path=/share/:token"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
