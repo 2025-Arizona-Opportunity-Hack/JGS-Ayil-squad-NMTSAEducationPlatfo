@@ -3,10 +3,12 @@ import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
 import { ConvexError } from "convex/values";
 import { query } from "./_generated/server";
+import { validatePassword } from "./passwordRules";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Password({
+      validatePasswordRequirements: validatePassword,
       reset: ResendProvider({
         apiKey: process.env.RESEND_API_KEY,
         from: `${process.env.ORG_NAME || "Content Portal"} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,

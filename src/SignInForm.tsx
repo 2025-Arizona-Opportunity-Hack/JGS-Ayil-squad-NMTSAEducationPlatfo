@@ -2,6 +2,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -508,9 +509,23 @@ export function SignInForm() {
                   .catch((error) => {
                     console.error("Authentication error:", error);
                     const errorMessage = error.message || "";
+                    // ConvexError data survives production redaction; plain
+                    // Error messages only exist in dev, so the string checks
+                    // below are best-effort.
+                    const errorData =
+                      error instanceof ConvexError
+                        ? (error.data as { code?: string; message?: string })
+                        : null;
 
-                    // Check for "already exists" FIRST (most specific)
-                    if (errorMessage.includes("already exists")) {
+                    if (errorData?.code === "INVALID_PASSWORD") {
+                      toast.error("Password requirements not met", {
+                        description:
+                          errorData.message ||
+                          "Password must be at least 8 characters.",
+                      });
+                      setError("password");
+                    } else if (errorMessage.includes("already exists")) {
+                      // Check for "already exists" FIRST (most specific)
                       toast.error("Account already exists", {
                         description: "An account with this email already exists. Try signing in instead.",
                       });
@@ -520,7 +535,7 @@ export function SignInForm() {
                       errorMessage.includes("Invalid password")
                     ) {
                       toast.error("Password requirements not met", {
-                        description: "Password must be at least 8 characters with letters and numbers.",
+                        description: "Password must be at least 8 characters.",
                       });
                       setError("password");
                     } else if (
@@ -542,9 +557,13 @@ export function SignInForm() {
                       });
                       setError("network");
                     } else {
-                      // Generic fallback - NEVER show raw error to user
-                      toast.error("Sign up failed", {
-                        description: "Something went wrong. Please try again or contact support.",
+                      // Generic fallback - NEVER show raw error to user.
+                      // In production the server redacts the reason, and the
+                      // most common one is an email that's already registered
+                      // — point at the ways forward instead of a dead end.
+                      toast.error("Couldn't create your account", {
+                        description:
+                          "If you already have an account with this email, sign in instead or use \"Forgot password?\". Otherwise, please try again or contact support.",
                       });
                       setError("general");
                     }
@@ -577,6 +596,8 @@ export function SignInForm() {
                   name="password"
                   placeholder="Create a password"
                   required
+                  minLength={8}
+                  aria-describedby="signup-password-hint"
                   className={
                     error === "password"
                       ? "border-red-500 focus:border-red-500"
@@ -590,13 +611,13 @@ export function SignInForm() {
                       🔐 Password doesn't meet requirements
                     </p>
                     <p className="text-xs text-red-600 mt-1">
-                      Must be at least 8 characters with letters and numbers.
+                      Must be at least 8 characters.
                     </p>
                   </div>
                 )}
                 {!error && (
-                  <p className="text-xs text-muted-foreground">
-                    Must be at least 8 characters with letters and numbers
+                  <p id="signup-password-hint" className="text-xs text-muted-foreground">
+                    Must be at least 8 characters
                   </p>
                 )}
               </div>

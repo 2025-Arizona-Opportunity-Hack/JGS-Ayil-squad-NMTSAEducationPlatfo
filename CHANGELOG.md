@@ -3,6 +3,17 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.13.1 — 2026-08-02
+
+- Fix: **sign-up errors were unreadable in production.** Convex redacts plain
+  server errors there, so every failure (short password, email already
+  registered) surfaced as "Something went wrong." Password validation now
+  throws a `ConvexError` the browser can read (`convex/passwordRules.ts`,
+  length ≥ 8 — matching what the provider already enforced), the sign-up form
+  maps it to a specific message, the password field enforces `minLength=8`
+  client-side, and the generic fallback now suggests signing in / password
+  reset (the most common redacted cause is an already-registered email).
+
 ## 0.13.0 — 2026-08-02
 
 - Feature: **quiz discoverability**.
