@@ -3,6 +3,16 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.13.2 — 2026-08-02
+
+- Fix: **public signup was still blocked after authentication.** `App.tsx`
+  kept its own join-request gate ("Access Not Available") for authenticated
+  users without a profile and never consulted `allowPublicSignup` — so
+  code-less signups authenticated fine but never reached role selection. The
+  gate now defers to the setting (and waits for settings to load instead of
+  flashing the denial screen). Server-side enforcement is unchanged:
+  `users.createUserProfile` still clamps code-less signups to client/parent.
+
 ## 0.13.1 — 2026-08-02
 
 - Fix: **sign-up errors were unreadable in production.** Convex redacts plain

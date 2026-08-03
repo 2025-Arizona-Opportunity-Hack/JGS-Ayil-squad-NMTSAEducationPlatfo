@@ -106,7 +106,13 @@ regression suite, and these rules are what it enforces:
   the role clamp in `users.createUserProfile` (code-less signups →
   client/parent) must stay intact. `autoApprovePurchases` removes the
   purchase-approval step only — entitlement still comes exclusively from the
-  Stripe webhook. Cluster D tests both.
+  Stripe webhook. Cluster D tests both. The join-request gate exists in TWO
+  places: `users.createUserProfile` (enforcement) and the App.tsx
+  "Access Not Available" screen (UX) — a signup-flow change must touch both.
+- Auth errors thrown as plain `Error` are redacted to "Server Error" in
+  production — the sign-in/sign-up forms can't string-match them. Anything
+  the browser must explain (e.g. password rules in `convex/passwordRules.ts`)
+  must be a `ConvexError`.
 - `api/meta.ts` (unfurl bots) may only source metadata from queries an
   anonymous visitor can call (`getPublicContent`, `getContentByShareToken`,
   `getSiteSettings`) so publication/paywall/privacy gates apply verbatim.

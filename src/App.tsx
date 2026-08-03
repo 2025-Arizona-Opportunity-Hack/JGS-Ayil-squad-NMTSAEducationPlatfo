@@ -34,10 +34,14 @@ export default function App() {
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");
 
-  // Check join request status (only if user exists, no profile, and no invite code)
+  // Check join request status (only if user exists, no profile, no invite
+  // code, and the instance doesn't allow public signup — public-signup
+  // instances skip the join-request gate entirely)
   const joinRequestStatus = useQuery(
     api.joinRequests.checkJoinRequestStatus,
-    user && !userProfile && !inviteCode && user.email ? { email: user.email } : "skip"
+    user && !userProfile && !inviteCode && !siteSettings?.allowPublicSignup && user.email
+      ? { email: user.email }
+      : "skip"
   );
 
   // Update document title based on site settings
@@ -129,8 +133,24 @@ export default function App() {
 
   // Authenticated but no profile — check join requests or show role selection
   if (user && !userProfile) {
-    // Check if user has an approved join request (unless they have an invite code)
-    if (!inviteCode) {
+    // Wait for settings before gating: while they load we can't tell whether
+    // this instance allows public signup, and flashing the denial screen at a
+    // legitimate signup would be worse than a moment of spinner.
+    if (siteSettings === undefined) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Checking access...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Check for an approved join request — unless they have an invite code,
+    // or the instance allows public signup (the server-side role clamp in
+    // users.createUserProfile still limits code-less signups to client/parent).
+    if (!inviteCode && !siteSettings?.allowPublicSignup) {
       if (joinRequestStatus === undefined) {
         return (
           <div className="min-h-screen bg-background flex items-center justify-center">

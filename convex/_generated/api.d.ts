@@ -26,6 +26,7 @@ import type * as joinRequests from "../joinRequests.js";
 import type * as notificationLogs from "../notificationLogs.js";
 import type * as notificationSettings from "../notificationSettings.js";
 import type * as orders from "../orders.js";
+import type * as passwordRules from "../passwordRules.js";
 import type * as permissions from "../permissions.js";
 import type * as pricing from "../pricing.js";
 import type * as progress from "../progress.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   notificationLogs: typeof notificationLogs;
   notificationSettings: typeof notificationSettings;
   orders: typeof orders;
+  passwordRules: typeof passwordRules;
   permissions: typeof permissions;
   pricing: typeof pricing;
   progress: typeof progress;
