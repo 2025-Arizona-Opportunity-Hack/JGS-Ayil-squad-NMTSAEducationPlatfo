@@ -1,12 +1,12 @@
 "use client";
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppSignOut } from "./lib/appAuth";
 
 export function SignOutButton({ className }: { className?: string }) {
   const { isAuthenticated } = useConvexAuth();
-  const { signOut } = useAuthActions();
+  const signOut = useAppSignOut();
 
   if (!isAuthenticated) {
     return null;

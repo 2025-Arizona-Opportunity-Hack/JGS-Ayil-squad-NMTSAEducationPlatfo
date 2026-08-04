@@ -17,6 +17,7 @@ import type * as contentShares from "../contentShares.js";
 import type * as debug from "../debug.js";
 import type * as debugActions from "../debugActions.js";
 import type * as emails from "../emails.js";
+import type * as externalAuth from "../externalAuth.js";
 import type * as featureFlags from "../featureFlags.js";
 import type * as generateThumbnail from "../generateThumbnail.js";
 import type * as helpers from "../helpers.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   debug: typeof debug;
   debugActions: typeof debugActions;
   emails: typeof emails;
+  externalAuth: typeof externalAuth;
   featureFlags: typeof featureFlags;
   generateThumbnail: typeof generateThumbnail;
   helpers: typeof helpers;

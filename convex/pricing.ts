@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requirePermission, validatePrice } from "./helpers";
 import { PERMISSIONS } from "./permissions";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 
 // Set or update pricing for content
 export const setPricing = mutation({

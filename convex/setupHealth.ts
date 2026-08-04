@@ -18,7 +18,7 @@
  *   a plain `null`, which the UI treats as "nothing to show."
  */
 import { query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 export type SetupHealthSeverity =

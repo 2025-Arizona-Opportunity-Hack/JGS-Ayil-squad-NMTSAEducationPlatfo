@@ -4,7 +4,7 @@ import { action } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { Resend } from "resend";
 import { getTwilio, isTwilioConfigured } from "./sms";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { internal } from "./_generated/api";
 
 // Lazy-initialized Resend client — must not be created at module load time

@@ -3,6 +3,21 @@ import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
 const applicationTables = {
+  // Links a third-party auth identity (PropelAuth today; Auth0 or any other
+  // custom-JWT issuer later) to a row in the `users` table. Rows are created
+  // only by externalAuth.ensureExternalUser from a verified JWT — the
+  // tokenIdentifier (issuer|subject) is the canonical key and is never
+  // accepted from client arguments.
+  authIdentities: defineTable({
+    tokenIdentifier: v.string(),
+    issuer: v.string(),
+    subject: v.string(),
+    userId: v.id("users"),
+    email: v.optional(v.string()),
+  })
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_user_id", ["userId"]),
+
   // Site settings (singleton - only one record)
   siteSettings: defineTable({
     organizationName: v.string(),

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { isExternalAuth } from "@/lib/authMode";
+import { ExternalSignInButton } from "@/lib/externalAuth";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
@@ -24,15 +26,11 @@ export function WelcomeStep({
   onLockAcquired,
   onAuthComplete,
 }: WelcomeStepProps) {
-  const { signIn } = useAuthActions();
   const user = useQuery(api.auth.loggedInUser);
   const acquireLock = useMutation(api.setup.acquireSetupLock);
   const touchLock = useMutation(api.setup.touchSetupLock);
   const lockAcquiredRef = useRef(false);
   const touchIntervalRef = useRef<ReturnType<typeof setInterval>>();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // When user authenticates, acquire lock and advance
   useEffect(() => {
@@ -77,8 +75,37 @@ export function WelcomeStep({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!user && (
-          <form
+        {!user && isExternalAuth && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground text-center">
+              Sign in with your organization account — the first account
+              becomes the owner.
+            </p>
+            <ExternalSignInButton label="Sign in to continue" />
+          </div>
+        )}
+        {!user && !isExternalAuth && <PasswordOwnerForm />}
+        {user && (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+            <p className="mt-4 text-sm text-muted-foreground">Setting up...</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Convex Auth (password) owner signup. Lives in its own component so
+// useAuthActions is only called when ConvexAuthProvider is mounted —
+// external-auth builds don't have it.
+function PasswordOwnerForm() {
+  const { signIn } = useAuthActions();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <form
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
@@ -156,14 +183,5 @@ export function WelcomeStep({
               {submitting ? "Creating account..." : "Create Owner Account"}
             </Button>
           </form>
-        )}
-        {user && (
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-            <p className="mt-4 text-sm text-muted-foreground">Setting up...</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }

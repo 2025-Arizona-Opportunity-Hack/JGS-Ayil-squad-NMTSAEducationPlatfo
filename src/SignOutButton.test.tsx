@@ -7,14 +7,20 @@ import userEvent from "@testing-library/user-event";
 const signOut = vi.fn();
 let isAuthenticated = true;
 
-vi.mock("@convex-dev/auth/react", () => ({
-  useAuthActions: () => ({ signOut }),
-}));
 vi.mock("convex/react", () => ({
   useConvexAuth: () => ({ isAuthenticated, isLoading: false }),
 }));
 
 import { SignOutButton } from "./SignOutButton";
+import { AppSignOutContext } from "./lib/appAuth";
+
+function renderButton() {
+  return render(
+    <AppSignOutContext.Provider value={signOut}>
+      <SignOutButton />
+    </AppSignOutContext.Provider>
+  );
+}
 
 describe("SignOutButton", () => {
   beforeEach(() => {
@@ -23,19 +29,19 @@ describe("SignOutButton", () => {
   });
 
   it("renders a sign-out control when authenticated", () => {
-    render(<SignOutButton />);
+    renderButton();
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
   });
 
   it("calls signOut when clicked", async () => {
-    render(<SignOutButton />);
+    renderButton();
     await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
   it("renders nothing when not authenticated", () => {
     isAuthenticated = false;
-    const { container } = render(<SignOutButton />);
+    const { container } = renderButton();
     expect(container).toBeEmptyDOMElement();
   });
 });

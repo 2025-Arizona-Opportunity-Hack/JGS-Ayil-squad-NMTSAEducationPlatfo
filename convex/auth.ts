@@ -1,4 +1,5 @@
-import { convexAuth, getAuthUserId } from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
 import { ConvexError } from "convex/values";

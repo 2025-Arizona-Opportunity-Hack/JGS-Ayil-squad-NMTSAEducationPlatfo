@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { useNavigate, Routes, Route } from "react-router-dom";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAppSignOut } from "./lib/appAuth";
+import { isExternalAuth } from "./lib/authMode";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { AdminDashboard } from "./components/AdminDashboard";
@@ -24,7 +25,8 @@ import { ForYouPage } from "./pages/client/ForYouPage";
 
 export default function App() {
   const navigate = useNavigate();
-  const { signOut } = useAuthActions();
+  const signOut = useAppSignOut();
+  const { isAuthenticated } = useConvexAuth();
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
@@ -94,6 +96,19 @@ export default function App() {
 
   // Not authenticated — show sign in form for returning users
   if (!user) {
+    // External auth: the token is valid but ensureExternalUser hasn't
+    // finished creating the users row yet — show a loading state instead of
+    // flashing the sign-in screen at an already-signed-in user.
+    if (isExternalAuth && isAuthenticated) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Setting up your account...</p>
+          </div>
+        </div>
+      );
+    }
     const siteName = siteSettings?.organizationName || "Content Platform";
     const siteTagline = siteSettings?.tagline || "Access your resources";
 
@@ -151,7 +166,10 @@ export default function App() {
     // or the instance allows public signup (the server-side role clamp in
     // users.createUserProfile still limits code-less signups to client/parent).
     if (!inviteCode && !siteSettings?.allowPublicSignup) {
-      if (joinRequestStatus === undefined) {
+      // The status query is skipped when the account has no email (possible
+      // with some external-auth tokens) — fall through to the denial screen
+      // rather than spinning forever on a query that will never run.
+      if (user.email && joinRequestStatus === undefined) {
         return (
           <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="text-center">

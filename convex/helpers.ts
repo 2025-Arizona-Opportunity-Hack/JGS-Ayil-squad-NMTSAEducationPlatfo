@@ -7,7 +7,7 @@
  */
 import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Id } from "./_generated/dataModel";
 import {
   getEffectivePermissions,

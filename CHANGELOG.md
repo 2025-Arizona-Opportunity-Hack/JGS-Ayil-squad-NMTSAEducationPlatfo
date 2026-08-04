@@ -3,6 +3,21 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.14.0 — 2026-08-02
+
+- Feature: **external authentication (PropelAuth).** An instance can now use
+  the organization's own PropelAuth login instead of the built-in password
+  auth: set `PROPELAUTH_URL` on the Convex deployment and
+  `VITE_AUTH_PROVIDER=propelauth` + `VITE_PROPELAUTH_URL` on the frontend
+  build. Tokens are verified via the issuer's JWKS (`customJwt` provider);
+  identities map to accounts through the new `authIdentities` table
+  (`externalAuth.ensureExternalUser`). Profiles/roles still flow through
+  `users.createUserProfile`, so the join-request gate and client/parent role
+  clamp apply unchanged. Optional `EXTERNAL_AUTH_TRUST_EMAILS=true` links
+  external logins to existing same-email accounts (migration path). The
+  architecture is provider-pluggable — Auth0 design notes included. Docs:
+  `docs/EXTERNAL_AUTH.md`; tests: `convex/externalAuth.test.ts`.
+
 ## 0.13.2 — 2026-08-02
 
 - Fix: **public signup was still blocked after authentication.** `App.tsx`

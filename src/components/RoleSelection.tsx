@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAppSignOut } from "@/lib/appAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +31,7 @@ export function RoleSelection() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const createProfile = useMutation(api.users.createUserProfile);
-  const { signOut } = useAuthActions();
+  const signOut = useAppSignOut();
 
   // Get current user to check if they have a name from Google
   const user = useQuery(api.auth.loggedInUser);

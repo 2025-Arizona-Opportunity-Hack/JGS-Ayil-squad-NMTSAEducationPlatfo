@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Create a new order (purchase content)

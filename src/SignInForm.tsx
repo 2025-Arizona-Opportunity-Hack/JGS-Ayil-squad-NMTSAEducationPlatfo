@@ -20,8 +20,22 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2 } from "lucide-react";
 import { Logo } from "./components/Logo";
 import { JoinRequestForm } from "./components/JoinRequestForm";
+import { isExternalAuth } from "./lib/authMode";
+import { ExternalSignInCard } from "./lib/externalAuth";
 
 export function SignInForm() {
+  // External-auth builds delegate login (and account recovery/signup) to the
+  // provider's hosted pages; the password form below is Convex Auth only.
+  if (isExternalAuth) return <ExternalSignIn />;
+  return <PasswordSignInForm />;
+}
+
+function ExternalSignIn() {
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  return <ExternalSignInCard orgName={siteSettings?.organizationName} />;
+}
+
+function PasswordSignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
   // Public settings — when allowPublicSignup is on, the invite code becomes

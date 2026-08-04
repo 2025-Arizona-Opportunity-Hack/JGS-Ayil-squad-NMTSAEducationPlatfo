@@ -10,7 +10,7 @@
  */
 import { v } from "convex/values";
 import { query, QueryCtx } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   checkGroupAccess,
