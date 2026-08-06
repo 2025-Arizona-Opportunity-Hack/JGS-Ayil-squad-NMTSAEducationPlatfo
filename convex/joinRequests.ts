@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, action } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { internal } from "./_generated/api";
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Video, FileText, FileAudio, Newspaper, Folder, Plus, X, Search } from "lucide-react";
+import { Video, FileText, FileAudio, Newspaper, Folder, Plus, X, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import {
   Dialog,
@@ -41,6 +41,29 @@ export function ContentGroupContentModal({
   
   const addContentToGroup = useMutation(api.contentGroups.addContentToGroup);
   const removeContentFromGroup = useMutation(api.contentGroups.removeContentFromGroup);
+  const reorderGroupItems = useMutation(api.contentGroups.reorderGroupItems);
+
+  // Item order matters to learners: the bundle page walks items in order and
+  // a bundle quiz sits after the final one.
+  const handleMoveItem = async (index: number, direction: -1 | 1) => {
+    const items = groupWithItems?.items;
+    if (!items) return;
+    const target = index + direction;
+    if (target < 0 || target >= items.length) return;
+    const orderedIds = items.map((item) => item.groupItemId);
+    [orderedIds[index], orderedIds[target]] = [
+      orderedIds[target],
+      orderedIds[index],
+    ];
+    try {
+      await reorderGroupItems({
+        groupId: groupId as any,
+        orderedItemIds: orderedIds as any,
+      });
+    } catch (error) {
+      console.error("Error reordering content:", error);
+    }
+  };
 
   const handleAddContent = async (contentId: string) => {
     try {
@@ -123,10 +146,35 @@ export function ContentGroupContentModal({
 
             {groupWithItems?.items && groupWithItems.items.length > 0 ? (
               <div className="space-y-2">
-                {groupWithItems.items.map((item) => (
+                {groupWithItems.items.map((item, index) => (
                   <Card key={item._id}>
                     <CardContent className="flex items-center justify-between p-4">
                       <div className="flex items-center gap-3 flex-1">
+                        <div className="flex flex-col">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1"
+                            disabled={index === 0}
+                            onClick={() => { void handleMoveItem(index, -1); }}
+                            aria-label={`Move ${item.title} up`}
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1"
+                            disabled={index === groupWithItems.items.length - 1}
+                            onClick={() => { void handleMoveItem(index, 1); }}
+                            aria-label={`Move ${item.title} down`}
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <span className="text-sm font-semibold text-muted-foreground w-5 text-center shrink-0">
+                          {index + 1}
+                        </span>
                         <div className="text-muted-foreground">
                           {getTypeIcon(item.type)}
                         </div>

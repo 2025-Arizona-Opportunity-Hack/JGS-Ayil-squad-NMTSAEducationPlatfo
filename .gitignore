@@ -70,3 +70,5 @@ convex/_generated/ai/
 
 # Local backups
 .env.local.bak.*
+.env*
+.playwright-mcp/

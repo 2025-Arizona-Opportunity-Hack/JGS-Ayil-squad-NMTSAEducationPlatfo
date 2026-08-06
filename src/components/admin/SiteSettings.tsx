@@ -10,12 +10,14 @@ import {
   Save,
   RotateCcw,
   ImageIcon,
+  UserPlus,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { NotificationSettings } from "./NotificationSettings";
 
 // Predefined color schemes
@@ -163,6 +165,30 @@ export function SiteSettings() {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Access toggles save immediately (no draft state) — they're operational
+  // switches, not branding drafts.
+  const handleToggleAccess = async (
+    field: "allowPublicSignup" | "autoApprovePurchases",
+    checked: boolean
+  ) => {
+    try {
+      await updateSiteSettings({ [field]: checked });
+      toast.success(
+        field === "allowPublicSignup"
+          ? checked
+            ? "Public signup enabled"
+            : "Public signup disabled"
+          : checked
+            ? "Self-serve purchases enabled"
+            : "Self-serve purchases disabled"
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update setting"
+      );
     }
   };
 
@@ -376,6 +402,61 @@ export function SiteSettings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Access & Purchasing */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5" />
+            Access &amp; Signup
+          </CardTitle>
+          <CardDescription>
+            Control how new people join and buy content. Both are off by
+            default; changes apply immediately.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="allowPublicSignup">Allow public signup</Label>
+              <p className="text-sm text-muted-foreground">
+                Anyone can create an account without an invite code or an
+                approved join request. Self-signups are always limited to the
+                client and parent roles — privileged roles (professional,
+                editor, admin…) still require an invite code. Note: these
+                accounts skip the join-request email verification step.
+              </p>
+            </div>
+            <Switch
+              id="allowPublicSignup"
+              checked={!!siteSettings.allowPublicSignup}
+              onCheckedChange={(checked) =>
+                void handleToggleAccess("allowPublicSignup", checked)
+              }
+            />
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="autoApprovePurchases">
+                Self-serve purchases
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Let signed-in users buy priced content directly, without an
+                admin approving a purchase request first. Purchases still
+                appear under Orders and Purchase Requests (auto-approved) for
+                reporting.
+              </p>
+            </div>
+            <Switch
+              id="autoApprovePurchases"
+              checked={!!siteSettings.autoApprovePurchases}
+              onCheckedChange={(checked) =>
+                void handleToggleAccess("autoApprovePurchases", checked)
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Preview */}
       <Card>

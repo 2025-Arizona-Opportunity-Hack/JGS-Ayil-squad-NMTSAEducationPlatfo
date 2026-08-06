@@ -1,13 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Id } from "./_generated/dataModel";
 import {
   requireAuth,
-  checkContentAccess,
   getUserProfile,
   formatUserName,
   getContentFileUrl,
+  deriveContentType,
 } from "./helpers";
 import {
   getEffectivePermissions,
@@ -29,22 +29,27 @@ function generateAccessToken(): string {
 /**
  * Evaluate whether a user can share a specific content item.
  * Used by both canShareContent (query) and createThirdPartyShare (mutation).
+ *
+ * Security contract (A4):
+ * - Content with active pricing is never third-party shareable, for any
+ *   role, including the creator — checked first, and unconditionally.
+ * - Content that isn't (isPublic && published) requires
+ *   SHARE_WITH_THIRD_PARTY (client/parent/professional don't have it by
+ *   default; editor/contributor/admin/owner do).
+ * - Public + published + unpriced content may be shared by anyone holding
+ *   the base SHARE_CONTENT permission.
+ * `SHARE_CONTENT` alone, or merely holding a `contentAccess` grant (e.g.
+ * from having purchased the item), must never authorize sharing paid or
+ * private content — so neither is consulted here.
  */
 async function evaluateSharePermission(
   ctx: QueryCtx,
   contentId: Id<"content">,
   content: { createdBy: Id<"users">; isPublic?: boolean; status?: string },
-  userId: Id<"users">,
+  _userId: Id<"users">,
   userProfile: { role: string; permissions?: string[] }
 ): Promise<{ canShare: boolean; reason: string | null }> {
   const perms = getEffectivePermissions(userProfile);
-
-  const hasSharePerm = hasAnyPermission(perms, [
-    PERMISSIONS.SHARE_CONTENT,
-    PERMISSIONS.SHARE_WITH_THIRD_PARTY,
-  ]);
-  const isContentCreator = content.createdBy === userId;
-  const isPublicContent = content.isPublic && content.status === "published";
 
   const activePricing = await ctx.db
     .query("contentPricing")
@@ -53,24 +58,25 @@ async function evaluateSharePermission(
     .first();
   const isPurchaseable = !!activePricing;
 
-  const hasAccess = await checkContentAccess(
-    ctx,
-    contentId,
-    userId,
-    userProfile.role
-  );
+  if (isPurchaseable) {
+    return { canShare: false, reason: "Cannot share purchaseable content" };
+  }
 
-  const canShareAsPrivileged = hasSharePerm || isContentCreator || hasAccess;
-  const canShareAsNormal = isPublicContent && !isPurchaseable;
+  const isPublicContent = !!content.isPublic && content.status === "published";
 
-  if (canShareAsPrivileged || canShareAsNormal) {
+  if (isPublicContent) {
+    const hasSharePerm = hasAnyPermission(perms, [
+      PERMISSIONS.SHARE_CONTENT,
+      PERMISSIONS.SHARE_WITH_THIRD_PARTY,
+    ]);
+    if (hasSharePerm) return { canShare: true, reason: null };
+    return { canShare: false, reason: "No permission to share" };
+  }
+
+  if (hasPermission(perms, PERMISSIONS.SHARE_WITH_THIRD_PARTY)) {
     return { canShare: true, reason: null };
   }
-  if (isPurchaseable)
-    return { canShare: false, reason: "Cannot share purchaseable content" };
-  if (!isPublicContent)
-    return { canShare: false, reason: "Cannot share private content" };
-  return { canShare: false, reason: "No permission to share" };
+  return { canShare: false, reason: "Cannot share private content" };
 }
 
 // ─── Queries ────────────────────────────────────────────────────────
@@ -126,6 +132,19 @@ export const getContentByShareToken = query({
     if (content.endDate && content.endDate < now)
       return { error: "This content is no longer available", content: null };
 
+    // A4 defense in depth: re-check shareability at read time, not just at
+    // mint time. A share link minted while content was free/public must stop
+    // handing out the file once the content becomes purchaseable — otherwise
+    // an old link is a permanent bypass of the paywall.
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", share.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    if (activePricing) {
+      return { error: "This content is no longer available via this link", content: null };
+    }
+
     const [fileUrl, thumbnailUrl] = await Promise.all([
       getContentFileUrl(ctx, content),
       content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
@@ -146,6 +165,8 @@ export const getContentByShareToken = query({
       error: null,
       content: {
         ...content,
+        // Derived, not stored — SharedContentViewer switches on it.
+        type: deriveContentType(content.attachmentType, content.type),
         ...urls,
         creatorName,
         password: undefined,

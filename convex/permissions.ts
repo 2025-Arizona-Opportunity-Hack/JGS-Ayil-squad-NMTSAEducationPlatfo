@@ -27,7 +27,11 @@ export const PERMISSIONS = {
   
   // Content groups/bundles
   MANAGE_CONTENT_GROUPS: "manage_content_groups",
-  
+
+  // Quizzes (authoring, results, and answer visibility — deliberately
+  // separate from EDIT_CONTENT so contributors don't see correct answers)
+  MANAGE_QUIZZES: "manage_quizzes",
+
   // User management permissions
   VIEW_USERS: "view_users",
   MANAGE_USERS: "manage_users",
@@ -80,6 +84,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.PUBLISH_CONTENT,
     PERMISSIONS.SHARE_CONTENT,
     PERMISSIONS.SHARE_WITH_THIRD_PARTY,
+    PERMISSIONS.MANAGE_QUIZZES,
   ],
   
   contributor: [

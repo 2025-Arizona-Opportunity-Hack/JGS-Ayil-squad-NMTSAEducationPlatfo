@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAppSignOut } from "@/lib/appAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,15 +23,15 @@ import {
 import { Logo } from "./Logo";
 
 export function RoleSelection() {
-  const [selectedRole, setSelectedRole] = useState<
-    "client" | "professional" | "parent"
-  >("client");
+  const [selectedRole, setSelectedRole] = useState<"client" | "parent">(
+    "client"
+  );
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const createProfile = useMutation(api.users.createUserProfile);
-  const { signOut } = useAuthActions();
+  const signOut = useAppSignOut();
 
   // Get current user to check if they have a name from Google
   const user = useQuery(api.auth.loggedInUser);
@@ -192,7 +192,7 @@ export function RoleSelection() {
             <Label htmlFor="role">I am a...</Label>
             <Select
               value={selectedRole}
-              onValueChange={(value: "client" | "professional" | "parent") =>
+              onValueChange={(value: "client" | "parent") =>
                 setSelectedRole(value)
               }
             >
@@ -201,7 +201,6 @@ export function RoleSelection() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="client">Client</SelectItem>
-                <SelectItem value="professional">Professional</SelectItem>
                 <SelectItem value="parent">Parent</SelectItem>
               </SelectContent>
             </Select>
@@ -212,12 +211,6 @@ export function RoleSelection() {
                   progress
                 </p>
               )}
-              {selectedRole === "professional" && (
-                <p>
-                  🎵 Provide therapy services, manage content, and support
-                  clients
-                </p>
-              )}
               {selectedRole === "parent" && (
                 <p>
                   👨‍👩‍👧‍👦 Support your child's therapy journey and track their
@@ -225,6 +218,11 @@ export function RoleSelection() {
                 </p>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Are you a therapy professional? Professional accounts require an
+              invite code from an administrator — ask your organization for
+              one instead of selecting a role here.
+            </p>
           </div>
 
           {/* Name fields for non-Google users */}

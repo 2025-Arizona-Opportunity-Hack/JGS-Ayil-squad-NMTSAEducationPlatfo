@@ -2,6 +2,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,28 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2 } from "lucide-react";
 import { Logo } from "./components/Logo";
 import { JoinRequestForm } from "./components/JoinRequestForm";
+import { isExternalAuth } from "./lib/authMode";
+import { ExternalSignInCard } from "./lib/externalAuth";
 
 export function SignInForm() {
+  // External-auth builds delegate login (and account recovery/signup) to the
+  // provider's hosted pages; the password form below is Convex Auth only.
+  if (isExternalAuth) return <ExternalSignIn />;
+  return <PasswordSignInForm />;
+}
+
+function ExternalSignIn() {
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  return <ExternalSignInCard orgName={siteSettings?.organizationName} />;
+}
+
+function PasswordSignInForm() {
   const { signIn } = useAuthActions();
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
+  // Public settings — when allowPublicSignup is on, the invite code becomes
+  // optional (the server still clamps code-less signups to client/parent).
+  const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  const allowPublicSignup = !!siteSettings?.allowPublicSignup;
   const [flow, setFlow] = useState<"signIn" | "signUp" | "joinRequest" | "forgotPassword" | "resetPassword">("signIn");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +71,12 @@ export function SignInForm() {
       toast.success("Invite code applied!", {
         description: `Using invite code: ${inviteParam.toUpperCase()}`,
       });
+    }
+    // ?signup=true (e.g. "Sign up to purchase" on a paywall) opens the
+    // Sign Up tab directly
+    if (params.get('signup') === 'true') {
+      setFlow('signUp');
+      window.history.replaceState({}, '', window.location.pathname);
     }
     // Handle password reset URL (from email link)
     const resetCodeParam = params.get('code');
@@ -457,9 +482,11 @@ export function SignInForm() {
                 e.preventDefault();
                 setError(null);
 
-                // Require a valid invite code (unless bootstrap mode)
+                // Require a valid invite code (unless bootstrap mode or the
+                // instance allows public signup — then the code is optional
+                // but still validated when one was entered)
                 if (!bootstrapNeeded) {
-                  if (!inviteCode) {
+                  if (!inviteCode && !allowPublicSignup) {
                     toast.error("Invite code required", {
                       description: "Please enter an invite code to create an account.",
                     });
@@ -468,7 +495,7 @@ export function SignInForm() {
                   }
 
                   // Validate invite code before proceeding
-                  if (!inviteCodeValidation?.valid) {
+                  if (inviteCode && !inviteCodeValidation?.valid) {
                     toast.error("Invalid invite code", {
                       description: inviteCodeValidation?.message || "Please check your invite code and try again.",
                     });
@@ -496,9 +523,23 @@ export function SignInForm() {
                   .catch((error) => {
                     console.error("Authentication error:", error);
                     const errorMessage = error.message || "";
+                    // ConvexError data survives production redaction; plain
+                    // Error messages only exist in dev, so the string checks
+                    // below are best-effort.
+                    const errorData =
+                      error instanceof ConvexError
+                        ? (error.data as { code?: string; message?: string })
+                        : null;
 
-                    // Check for "already exists" FIRST (most specific)
-                    if (errorMessage.includes("already exists")) {
+                    if (errorData?.code === "INVALID_PASSWORD") {
+                      toast.error("Password requirements not met", {
+                        description:
+                          errorData.message ||
+                          "Password must be at least 8 characters.",
+                      });
+                      setError("password");
+                    } else if (errorMessage.includes("already exists")) {
+                      // Check for "already exists" FIRST (most specific)
                       toast.error("Account already exists", {
                         description: "An account with this email already exists. Try signing in instead.",
                       });
@@ -508,7 +549,7 @@ export function SignInForm() {
                       errorMessage.includes("Invalid password")
                     ) {
                       toast.error("Password requirements not met", {
-                        description: "Password must be at least 8 characters with letters and numbers.",
+                        description: "Password must be at least 8 characters.",
                       });
                       setError("password");
                     } else if (
@@ -530,9 +571,13 @@ export function SignInForm() {
                       });
                       setError("network");
                     } else {
-                      // Generic fallback - NEVER show raw error to user
-                      toast.error("Sign up failed", {
-                        description: "Something went wrong. Please try again or contact support.",
+                      // Generic fallback - NEVER show raw error to user.
+                      // In production the server redacts the reason, and the
+                      // most common one is an email that's already registered
+                      // — point at the ways forward instead of a dead end.
+                      toast.error("Couldn't create your account", {
+                        description:
+                          "If you already have an account with this email, sign in instead or use \"Forgot password?\". Otherwise, please try again or contact support.",
                       });
                       setError("general");
                     }
@@ -565,6 +610,8 @@ export function SignInForm() {
                   name="password"
                   placeholder="Create a password"
                   required
+                  minLength={8}
+                  aria-describedby="signup-password-hint"
                   className={
                     error === "password"
                       ? "border-red-500 focus:border-red-500"
@@ -578,21 +625,23 @@ export function SignInForm() {
                       🔐 Password doesn't meet requirements
                     </p>
                     <p className="text-xs text-red-600 mt-1">
-                      Must be at least 8 characters with letters and numbers.
+                      Must be at least 8 characters.
                     </p>
                   </div>
                 )}
                 {!error && (
-                  <p className="text-xs text-muted-foreground">
-                    Must be at least 8 characters with letters and numbers
+                  <p id="signup-password-hint" className="text-xs text-muted-foreground">
+                    Must be at least 8 characters
                   </p>
                 )}
               </div>
 
-              {/* Invite Code - Required for sign up */}
+              {/* Invite Code - required unless public signup is enabled */}
               {!bootstrapNeeded && (
                 <div className="space-y-2">
-                  <Label htmlFor="inviteCode">Invite Code *</Label>
+                  <Label htmlFor="inviteCode">
+                    {allowPublicSignup ? "Invite Code (optional)" : "Invite Code *"}
+                  </Label>
                   <Input
                     id="inviteCode"
                     type="text"
@@ -600,9 +649,13 @@ export function SignInForm() {
                     onChange={(e) =>
                       setInviteCode(e.target.value.toUpperCase())
                     }
-                    placeholder="Enter your invite code"
+                    placeholder={
+                      allowPublicSignup
+                        ? "Have an invite code? Enter it here"
+                        : "Enter your invite code"
+                    }
                     maxLength={8}
-                    required
+                    required={!allowPublicSignup}
                     className="font-mono"
                   />
                   {inviteCode.length >= 6 && inviteCodeValidation && (

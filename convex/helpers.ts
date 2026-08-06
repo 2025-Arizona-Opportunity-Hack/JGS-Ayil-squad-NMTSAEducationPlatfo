@@ -7,7 +7,7 @@
  */
 import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Id } from "./_generated/dataModel";
 import {
   getEffectivePermissions,
@@ -235,6 +235,67 @@ export async function checkContentAccess(
   return false;
 }
 
+/**
+ * Check whether a user has access to a content group (bundle) through any
+ * of the three access patterns: direct user, role-based, or user-group.
+ *
+ * This is the single canonical copy (like checkContentAccess above) — do
+ * not duplicate it in feature modules.
+ */
+export async function checkGroupAccess(
+  ctx: QueryCtx,
+  groupId: Id<"contentGroups">,
+  userId: Id<"users">,
+  userRole: string
+): Promise<boolean> {
+  const now = Date.now();
+
+  // Check direct user access
+  const userAccess = await ctx.db
+    .query("contentGroupAccess")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("groupId"), groupId))
+    .first();
+
+  if (userAccess && (!userAccess.expiresAt || userAccess.expiresAt > now)) {
+    return true;
+  }
+
+  // Check role-based access
+  const roleAccess = await ctx.db
+    .query("contentGroupAccess")
+    .withIndex("by_group", (q) => q.eq("groupId", groupId))
+    .filter((q) => q.eq(q.field("role"), userRole))
+    .first();
+
+  if (roleAccess && (!roleAccess.expiresAt || roleAccess.expiresAt > now)) {
+    return true;
+  }
+
+  // Check user group access
+  const userGroups = await ctx.db
+    .query("userGroupMembers")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  for (const membership of userGroups) {
+    const groupAccess = await ctx.db
+      .query("contentGroupAccess")
+      .withIndex("by_group", (q) => q.eq("groupId", groupId))
+      .filter((q) => q.eq(q.field("userGroupId"), membership.groupId))
+      .first();
+
+    if (
+      groupAccess &&
+      (!groupAccess.expiresAt || groupAccess.expiresAt > now)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // ─── Validation Helpers ─────────────────────────────────────────────
 
 /**
@@ -265,5 +326,134 @@ export function validatePhoneNumber(phone: string): void {
 export function validatePrice(price: number): void {
   if (!Number.isInteger(price) || price <= 0) {
     throw new ConvexError("Price must be a positive integer (in cents)");
+  }
+}
+
+// ─── Org branding helpers (C1) ──────────────────────────────────────
+//
+// This platform is deployed once per organization — its own Convex project,
+// its own domain (see docs/DEPLOYMENTS.md) — rather than as a shared
+// multi-tenant backend. That means any hardcoded first-organization name or
+// domain baked into this codebase would leak into *every other* org's
+// deployment the moment its own siteSettings/SITE_URL weren't configured
+// yet. These two helpers exist so every notification-building function
+// degrades to a neutral value instead.
+
+/**
+ * Get the organization's display name, never an org-specific hardcoded one.
+ *
+ * Most callers (the email/SMS actions in emails.ts/sms.ts) already fetch
+ * the `siteSettings` row via an internalQuery — actions don't have direct
+ * `ctx.db` access — so this takes that row (or null/undefined before setup
+ * has run) rather than a ctx, and falls back to the neutral "Content
+ * Portal" label.
+ */
+export function getOrgName(
+  settings: { organizationName?: string | null } | null | undefined
+): string {
+  return settings?.organizationName || "Content Portal";
+}
+
+/**
+ * Get the configured SITE_URL for this deployment, with any trailing
+ * slash stripped so callers can concatenate paths safely (`${url}/path`).
+ *
+ * Throws a ConvexError when SITE_URL is unset or empty instead of falling
+ * back to a default domain. Every deployment belongs to exactly one
+ * organization, so a missing SITE_URL is a misconfiguration, not something
+ * to paper over — silently emitting a password-reset/invite/verification
+ * link to some other organization's domain is worse than failing loudly.
+ */
+export function requireSiteUrl(): string {
+  const siteUrl = process.env.SITE_URL?.trim();
+  if (!siteUrl) {
+    throw new ConvexError(
+      "SITE_URL is not configured for this deployment. Set the SITE_URL " +
+        "environment variable (see docs/DEPLOYMENTS.md) before sending " +
+        "notifications that contain links."
+    );
+  }
+  return siteUrl.replace(/\/+$/, "");
+}
+
+// ─── Signed media URL helpers (A3) ──────────────────────────────────
+//
+// Media tags (<video src>, <audio src>) can't send an Authorization header,
+// so entitlement for the /api/serve-chunked HTTP action is proven with a
+// short-lived HMAC-signed URL instead: `sig` = HMAC-SHA256 over
+// `${contentId}:${exp}` keyed by MEDIA_URL_SECRET. Signing happens in the
+// `getSignedMediaUrl` action (content.ts); verification happens in the
+// `/api/serve-chunked` HTTP action (router.ts). Both run in the Convex
+// action runtime, which — unlike queries/mutations — exposes `crypto.subtle`.
+
+/**
+ * Compute the hex-encoded HMAC-SHA256 signature for a media URL.
+ */
+export async function computeMediaSignature(
+  contentId: string,
+  exp: number,
+  secret: string
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sigBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${contentId}:${exp}`)
+  );
+  return Array.from(new Uint8Array(sigBuffer), (b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+/**
+ * Constant-time-style comparison of two equal-length-checked strings. Never
+ * early-returns on the first differing byte, so it doesn't leak timing
+ * information about how many leading characters matched.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+/**
+ * Map the stored `attachmentType` to the `type` discriminator the viewer
+ * components switch on ("video" | "audio" | "document" | "article").
+ *
+ * The database stores `attachmentType`; `content.type` is a derived field that
+ * queries attach on the way out. Any query whose result is rendered by
+ * PublicContentViewer / SharedContentViewer / RecommendedContent MUST run its
+ * content through this, or those components fall through every `type === ...`
+ * branch and render the metadata with no player at all — which is exactly the
+ * bug this was extracted to fix. Previously the mapping was duplicated inline
+ * in two `content.ts` queries and simply missing from the other three.
+ */
+export function deriveContentType(
+  attachmentType?: string | null,
+  existingType?: string | null
+): string {
+  if (!attachmentType) return existingType || "article";
+  switch (attachmentType) {
+    case "video":
+      return "video";
+    case "audio":
+      return "audio";
+    case "pdf":
+      return "document";
+    case "image":
+      return "document";
+    case "richtext":
+      return "article";
+    default:
+      return "article";
   }
 }

@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye, DollarSign } from "lucide-react";
+import { Video, FileText, FileAudio, Newspaper, ExternalLink, Lock, Calendar, Tag, Eye, DollarSign, CheckCircle2 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Navbar } from "./Navbar";
 import { Logo } from "./Logo";
+import { PurchasePaywall } from "./PurchasePaywall";
 import { RecommendButton } from "./RecommendButton";
+import { QuizPanel } from "./quiz/QuizPanel";
+import { QuizSignInNudge } from "./quiz/QuizSignInNudge";
+import { usePageMeta } from "@/lib/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +48,61 @@ export function PublicContentViewer() {
   const grantAccess = useMutation(api.content.grantAccessAfterPassword);
   const trackView = useMutation(api.analytics.trackView);
   const sessionIdRef = useRef<string>(`session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+
+  // Watch-progress tracking (feeds quiz completion gating). Only recorded
+  // for signed-in users with a profile; anonymous playback is untracked.
+  const recordProgress = useMutation(api.progress.recordProgress);
+  const markCompleted = useMutation(api.progress.markContentCompleted);
+  const myProgress = useQuery(
+    api.progress.getMyProgressForContents,
+    userProfile && contentId
+      ? { contentIds: [contentId as any] }
+      : ("skip" as any)
+  );
+  const lastReportedProgressRef = useRef(0);
+  const isSignedIn = !!userProfile;
+
+  // Human-facing title/description (unfurl bots get api/meta.ts instead)
+  const previewMeta =
+    result && "preview" in result ? (result.preview as any) : null;
+  usePageMeta({
+    title: result?.content?.title ?? previewMeta?.title ?? null,
+    description:
+      result?.content?.description ?? previewMeta?.description ?? null,
+  });
+  const isMarkedWatched = !!(contentId && myProgress?.[contentId]?.completed);
+
+  const handleMediaTimeUpdate = (
+    e: React.SyntheticEvent<HTMLVideoElement | HTMLAudioElement>
+  ) => {
+    if (!isSignedIn || !contentId) return;
+    const el = e.currentTarget;
+    if (!el.duration || !isFinite(el.duration)) return;
+    const fraction = el.currentTime / el.duration;
+    // Report on ~10% steps and when crossing the 90% completion threshold,
+    // rather than on every timeupdate tick (~4/sec).
+    const last = lastReportedProgressRef.current;
+    if (fraction - last >= 0.1 || (fraction >= 0.9 && last < 0.9)) {
+      lastReportedProgressRef.current = fraction;
+      void recordProgress({
+        contentId: contentId as any,
+        progress: fraction,
+      }).catch(() => {});
+    }
+  };
+
+  const handleMediaEnded = () => {
+    if (!isSignedIn || !contentId) return;
+    lastReportedProgressRef.current = 1;
+    void recordProgress({ contentId: contentId as any, progress: 1 }).catch(
+      () => {}
+    );
+  };
+
+  const handleMarkWatched = () => {
+    if (!isSignedIn || !contentId) return;
+    void markCompleted({ contentId: contentId as any }).catch(() => {});
+  };
 
   // Debug logging
   useEffect(() => {
@@ -87,13 +146,21 @@ export function PublicContentViewer() {
     }
   }, [result]);
 
-  // Grant access when password is correct
+  // Grant access when password is correct. The server (grantAccessAfterPassword)
+  // re-verifies the password itself — it's the authority here, not this
+  // client-side "we already got content back" check, which is just a signal
+  // for when to bother asking.
   useEffect(() => {
     if (result?.content && attemptedPassword && contentId) {
-      // Password was correct and we have content - grant permanent access
-      void grantAccess({ contentId: contentId as any }).catch((err) => {
+      const verifiedPassword = attemptedPassword;
+      // Password was correct (per the server, via getPublicContent) and we
+      // have content - grant permanent access so future visits skip the
+      // password prompt.
+      void grantAccess({ contentId: contentId as any, password: verifiedPassword }).catch((err) => {
         console.error("Failed to grant access:", err);
-        // Don't show error to user - they still have access via password
+        // Don't show a hard error here — the viewer can already see the
+        // content this visit via the password they entered; only the
+        // permanent-access grant (for future visits) failed.
       });
     }
   }, [result?.content, attemptedPassword, contentId, grantAccess]);
@@ -221,6 +288,21 @@ export function PublicContentViewer() {
     );
   }
 
+  // Paywall: priced content the viewer isn't entitled to. Checked before the
+  // auth wall so anonymous visitors see the purchase page (with a login CTA)
+  // rather than a dead-end "Authentication Required".
+  if (result && "requiresPurchase" in result && result.requiresPurchase && contentId) {
+    return (
+      <PurchasePaywall
+        contentId={contentId}
+        preview={result.preview}
+        pricing={result.pricing}
+        requiresAuth={!!result.requiresAuth}
+        onGoToLogin={handleGoToLogin}
+      />
+    );
+  }
+
   // Show auth required message (only if authentication is needed)
   if (result?.requiresAuth && !result?.error) {
     return (
@@ -328,7 +410,7 @@ export function PublicContentViewer() {
                   {content.title}
                 </h1>
                 <p className="text-xs sm:text-sm text-muted-foreground italic mt-2">
-                  By {content.authorName || "Neurological Music Therapy Services of Arizona"}
+                  By {content.authorName || content.creatorName || "Unknown"}
                 </p>
                 {content.description && (
                   <div className="text-sm sm:text-base text-muted-foreground mt-3 max-w-3xl" dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.description) }} />
@@ -374,12 +456,14 @@ export function PublicContentViewer() {
                       controls
                       className="w-full h-full"
                       preload="metadata"
+                      onTimeUpdate={handleMediaTimeUpdate}
+                      onEnded={handleMediaEnded}
                     >
                       Your browser does not support video playback.
                     </video>
                   ) : content.externalUrl && (
                     <iframe
-                      src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be') 
+                      src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be')
                         ? content.externalUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
                         : content.externalUrl
                       }
@@ -390,6 +474,23 @@ export function PublicContentViewer() {
                     />
                   )}
                 </div>
+                {/* Embedded players can't emit playback events, so completion
+                    is a manual acknowledgement for external videos. */}
+                {isSignedIn && !content.fileUrl && content.externalUrl && (
+                  <div className="p-3 sm:p-4 border-t">
+                    {isMarkedWatched ? (
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" aria-hidden="true" />
+                        Marked as watched
+                      </p>
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" onClick={handleMarkWatched}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" aria-hidden="true" />
+                        Mark as watched
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -398,12 +499,24 @@ export function PublicContentViewer() {
             <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
               <CardContent className="p-4 sm:p-6 md:p-8">
                 {content.fileUrl ? (
-                  <audio src={content.fileUrl} controls className="w-full">
+                  <audio
+                    src={content.fileUrl}
+                    controls
+                    className="w-full"
+                    onTimeUpdate={handleMediaTimeUpdate}
+                    onEnded={handleMediaEnded}
+                  >
                     Your browser does not support audio playback.
                   </audio>
                 ) : content.externalUrl && (
                   <div className="space-y-4">
-                    <audio src={content.externalUrl} controls className="w-full">
+                    <audio
+                      src={content.externalUrl}
+                      controls
+                      className="w-full"
+                      onTimeUpdate={handleMediaTimeUpdate}
+                      onEnded={handleMediaEnded}
+                    >
                       Your browser does not support audio playback.
                     </audio>
                     <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
@@ -435,6 +548,22 @@ export function PublicContentViewer() {
                     </a>
                   </Button>
                 </div>
+                {/* Documents have no playback events; completion is manual. */}
+                {isSignedIn && (
+                  <div className="mt-4 pt-4 border-t">
+                    {isMarkedWatched ? (
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" aria-hidden="true" />
+                        Marked as read
+                      </p>
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" onClick={handleMarkWatched}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" aria-hidden="true" />
+                        Mark as read
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -460,6 +589,16 @@ export function PublicContentViewer() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Quiz (renders nothing when no quiz exists for this content or
+              the viewer isn't entitled). Signed-out visitors get a sign-in
+              nudge instead, so they know the quiz exists. */}
+          {isSignedIn && contentId && (
+            <QuizPanel contentId={contentId as any} />
+          )}
+          {!isSignedIn && contentId && content.quiz && (
+            <QuizSignInNudge contentId={contentId} quiz={content.quiz} />
           )}
 
           {/* Description Content */}

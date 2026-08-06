@@ -7,7 +7,42 @@
 
     <title>Content Portal</title>
 
-    <meta property="og:image" content="/og-preview.png" />
+    <!--
+      Neutral default meta (no org branding — one build serves many orgs).
+      Human-facing pages refine title/description at runtime (usePageMeta);
+      unfurl bots hitting /view/ and /share/ URLs are rewritten to
+      /api/meta, which serves per-content Open Graph tags.
+    -->
+    <meta
+      name="description"
+      content="A content portal for sharing videos, documents, and learning materials."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="Content Portal"
+    />
+    <meta
+      property="og:description"
+      content="A content portal for sharing videos, documents, and learning materials."
+    />
+    <meta property="og:image" content="/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      Neutral default favicon (a plain document glyph, no org branding) so
+      there's no /favicon.ico 404 before siteSettings loads or for instances
+      that never upload a custom favicon. src/App.tsx swaps this out for the
+      configured siteSettings.faviconUrl at runtime when one is set.
+    -->
+    <link
+      id="favicon"
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233b82f6'/%3E%3Cpath d='M20 18h16a4 4 0 0 1 4 4v22l-8-6-8 6V22a4 4 0 0 1 4-4z' fill='%23ffffff'/%3E%3C/svg%3E"
+    />
 
     <!-- Apply cached theme color immediately to prevent flash -->
     <script>

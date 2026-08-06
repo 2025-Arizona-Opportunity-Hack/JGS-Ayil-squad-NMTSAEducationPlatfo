@@ -25,7 +25,10 @@ export const PERMISSIONS = {
   
   // Content groups/bundles
   MANAGE_CONTENT_GROUPS: "manage_content_groups",
-  
+
+  // Quizzes (authoring, results, and answer visibility)
+  MANAGE_QUIZZES: "manage_quizzes",
+
   // User management permissions
   VIEW_USERS: "view_users",
   MANAGE_USERS: "manage_users",
@@ -117,6 +120,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [PERMISSIONS.MANAGE_CONTENT_ACCESS]: "Manage Content Access",
   [PERMISSIONS.SET_CONTENT_PRICING]: "Set Content Pricing",
   [PERMISSIONS.MANAGE_CONTENT_GROUPS]: "Manage Content Bundles",
+  [PERMISSIONS.MANAGE_QUIZZES]: "Manage Quizzes",
   [PERMISSIONS.VIEW_USERS]: "View Users",
   [PERMISSIONS.MANAGE_USERS]: "Manage Users",
   [PERMISSIONS.UPDATE_USER_ROLES]: "Update User Roles",
@@ -152,6 +156,7 @@ export const PERMISSION_CATEGORIES = {
     PERMISSIONS.MANAGE_CONTENT_ACCESS,
     PERMISSIONS.SET_CONTENT_PRICING,
     PERMISSIONS.MANAGE_CONTENT_GROUPS,
+    PERMISSIONS.MANAGE_QUIZZES,
   ],
   "User Management": [
     PERMISSIONS.VIEW_USERS,

@@ -4,7 +4,7 @@ import { action } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { Resend } from "resend";
 import { getTwilio, isTwilioConfigured } from "./sms";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { internal } from "./_generated/api";
 
 // Lazy-initialized Resend client — must not be created at module load time
@@ -46,7 +46,7 @@ export const sendTestEmail = action({
     // Configuration based on environment
     const IS_PRODUCTION = process.env.ENVIRONMENT === "production";
     const TEST_EMAIL = process.env.DEV_TEST_EMAIL || "test@example.com";
-    const PRODUCTION_DOMAIN = process.env.RESEND_DOMAIN || "noreply-nmtsa.org";
+    const PRODUCTION_DOMAIN = process.env.RESEND_DOMAIN || "resend.dev";
 
     const recipientEmail = IS_PRODUCTION ? toEmail.trim().toLowerCase() : TEST_EMAIL;
     const fromEmail = IS_PRODUCTION
@@ -206,7 +206,7 @@ export const getDebugConfig = action({
         provider: "Resend",
         hasApiKey: hasResendKey,
         testEmail: IS_PRODUCTION ? null : (process.env.DEV_TEST_EMAIL || "test@example.com"),
-        fromDomain: IS_PRODUCTION ? (process.env.RESEND_DOMAIN || "noreply-nmtsa.org") : "resend.dev",
+        fromDomain: IS_PRODUCTION ? (process.env.RESEND_DOMAIN || "resend.dev") : "resend.dev",
       },
       sms: {
         provider: "Twilio",

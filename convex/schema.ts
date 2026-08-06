@@ -3,6 +3,21 @@ import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
 const applicationTables = {
+  // Links a third-party auth identity (PropelAuth today; Auth0 or any other
+  // custom-JWT issuer later) to a row in the `users` table. Rows are created
+  // only by externalAuth.ensureExternalUser from a verified JWT — the
+  // tokenIdentifier (issuer|subject) is the canonical key and is never
+  // accepted from client arguments.
+  authIdentities: defineTable({
+    tokenIdentifier: v.string(),
+    issuer: v.string(),
+    subject: v.string(),
+    userId: v.id("users"),
+    email: v.optional(v.string()),
+  })
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_user_id", ["userId"]),
+
   // Site settings (singleton - only one record)
   siteSettings: defineTable({
     organizationName: v.string(),
@@ -11,6 +26,15 @@ const applicationTables = {
     logoId: v.optional(v.id("_storage")),
     faviconId: v.optional(v.id("_storage")),
     primaryColor: v.optional(v.string()),
+    // Access & signup toggles. Both default off (undefined = current
+    // behavior) so existing instances are unchanged until an admin opts in.
+    // allowPublicSignup: anyone may create an account without an invite
+    // code or approved join request; the server-side role clamp in
+    // users.createUserProfile still forces such accounts to client/parent.
+    allowPublicSignup: v.optional(v.boolean()),
+    // autoApprovePurchases: createOrder no longer requires an
+    // admin-approved purchase request first (self-serve checkout).
+    autoApprovePurchases: v.optional(v.boolean()),
     setupCompleted: v.boolean(),
     setupCompletedAt: v.optional(v.number()),
     setupCompletedBy: v.optional(v.id("users")),
@@ -298,7 +322,11 @@ const applicationTables = {
     createdAt: v.number(),
     expiresAt: v.optional(v.number()),
     isActive: v.boolean(),
-    currentUses: v.optional(v.number()), // Legacy field for tracking usage
+    currentUses: v.optional(v.number()), // Number of times this code has been redeemed
+    // Redemption limit. Absent (undefined) means single-use by default —
+    // existing rows predating this field have neither `maxUses` nor
+    // `currentUses` set and must be treated as single-use with 0 uses so far.
+    maxUses: v.optional(v.number()),
   })
     .index("by_code", ["code"])
     .index("by_creator", ["createdBy"]),
@@ -439,6 +467,94 @@ const applicationTables = {
     .index("by_recipient_email", ["recipientEmail"])
     .index("by_recipient_user", ["recipientUserId"])
     .index("by_active", ["isActive"]),
+
+  // Quizzes — attached to exactly one of contentId | groupId (mutation-enforced)
+  quizzes: defineTable({
+    contentId: v.optional(v.id("content")),
+    groupId: v.optional(v.id("contentGroups")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    passingScore: v.number(), // percent 0-100
+    maxAttempts: v.optional(v.number()), // undefined = unlimited
+    shuffleQuestions: v.optional(v.boolean()),
+    // What learners see after submitting: score only, per-question
+    // right/wrong, or full correct answers + explanations
+    revealAnswers: v.optional(
+      v.union(
+        v.literal("none"),
+        v.literal("correctness"),
+        v.literal("full")
+      )
+    ),
+    requireContentCompletion: v.optional(v.boolean()),
+    isActive: v.boolean(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_content", ["contentId"])
+    .index("by_group", ["groupId"]),
+
+  // Quiz questions. correctOptionIds must NEVER be returned to learners —
+  // only getQuizForEditing (MANAGE_QUIZZES) and server-side grading read it.
+  quizQuestions: defineTable({
+    quizId: v.id("quizzes"),
+    order: v.number(),
+    prompt: v.string(),
+    kind: v.union(
+      v.literal("single"),
+      v.literal("multi"),
+      v.literal("trueFalse")
+    ),
+    options: v.array(v.object({ id: v.string(), text: v.string() })),
+    correctOptionIds: v.array(v.string()),
+    explanation: v.optional(v.string()),
+    points: v.optional(v.number()), // default 1
+    // Soft-delete: questions referenced by attempts are deactivated, not
+    // removed, so old attempts stay interpretable
+    isActive: v.optional(v.boolean()),
+  })
+    .index("by_quiz", ["quizId"])
+    .index("by_quiz_order", ["quizId", "order"]),
+
+  // Quiz attempts — one fully-graded row per submission
+  quizAttempts: defineTable({
+    quizId: v.id("quizzes"),
+    userId: v.id("users"),
+    attemptNumber: v.number(), // 1-based per (quizId, userId)
+    submittedAt: v.number(),
+    answers: v.array(
+      v.object({
+        questionId: v.id("quizQuestions"),
+        selectedOptionIds: v.array(v.string()),
+        correct: v.boolean(),
+      })
+    ),
+    score: v.number(), // percent 0-100
+    pointsEarned: v.number(),
+    pointsPossible: v.number(),
+    passed: v.boolean(),
+    // Learner -> staff feedback left after the attempt
+    learnerFeedback: v.optional(v.string()),
+    learnerFeedbackAt: v.optional(v.number()),
+  })
+    .index("by_quiz", ["quizId"])
+    .index("by_user", ["userId"])
+    .index("by_quiz_user", ["quizId", "userId"]),
+
+  // Per-user content progress (watch percentage / completion)
+  contentProgress: defineTable({
+    contentId: v.id("content"),
+    userId: v.id("users"),
+    maxProgress: v.number(), // 0..1, monotonically increasing
+    completed: v.boolean(),
+    completedAt: v.optional(v.number()),
+    completionSource: v.optional(
+      v.union(v.literal("playback"), v.literal("manual"))
+    ),
+    updatedAt: v.number(),
+  })
+    .index("by_user_content", ["userId", "contentId"])
+    .index("by_content", ["contentId"]),
 
   // Setup locks (singleton-like, prevents concurrent setup)
   setupLocks: defineTable({

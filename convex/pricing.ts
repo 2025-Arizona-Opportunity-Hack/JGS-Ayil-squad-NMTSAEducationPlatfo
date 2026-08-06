@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requirePermission, validatePrice } from "./helpers";
 import { PERMISSIONS } from "./permissions";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 
 // Set or update pricing for content
 export const setPricing = mutation({
@@ -122,6 +122,12 @@ export const listPricedContent = query({
 
         return {
           ...content,
+          // Never leak the plaintext password to a logged-in-but-unentitled
+          // caller (matches the convention used elsewhere, e.g.
+          // contentShares.ts). Note: `content` has no stored `fileUrl` field
+          // to begin with — the raw file is served only via authenticated/
+          // signed endpoints, so there is nothing else to strip here.
+          password: undefined,
           pricing,
           thumbnailUrl,
           hasAccess,

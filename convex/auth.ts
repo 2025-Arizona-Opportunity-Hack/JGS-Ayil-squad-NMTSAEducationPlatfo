@@ -1,19 +1,27 @@
-import { convexAuth, getAuthUserId } from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
 import { ConvexError } from "convex/values";
 import { query } from "./_generated/server";
+import { validatePassword } from "./passwordRules";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Password({
+      validatePasswordRequirements: validatePassword,
       reset: ResendProvider({
         apiKey: process.env.RESEND_API_KEY,
-        from: `NMTSA Platform <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
+        from: `${process.env.ORG_NAME || "Content Portal"} <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
         sendVerificationRequest: async ({ identifier: email, token }) => {
           const apiKey = process.env.RESEND_API_KEY;
           if (!apiKey) throw new ConvexError("RESEND_API_KEY is not configured");
           const domain = process.env.RESEND_DOMAIN || "resend.dev";
+          // This callback has no `ctx`, so it can't read siteSettings for the
+          // sender name — ORG_NAME is the per-deployment stand-in. Never
+          // hardcode an organization here: this email goes out from every
+          // instance, and a wrong name in the From line reads as a phish.
+          const orgName = process.env.ORG_NAME || "Content Portal";
           const siteUrl = process.env.SITE_URL || "http://localhost:5173";
           const resetUrl = `${siteUrl}/reset-password?code=${token}&email=${encodeURIComponent(email)}`;
 
@@ -24,7 +32,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              from: `NMTSA Platform <noreply@${domain}>`,
+              from: `${orgName} <noreply@${domain}>`,
               to: [email],
               subject: "Reset your password",
               html: `

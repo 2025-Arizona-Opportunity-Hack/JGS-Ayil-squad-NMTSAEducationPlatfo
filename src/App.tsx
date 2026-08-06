@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { useNavigate, Routes, Route } from "react-router-dom";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAppSignOut } from "./lib/appAuth";
+import { isExternalAuth } from "./lib/authMode";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { AdminDashboard } from "./components/AdminDashboard";
@@ -15,6 +16,7 @@ import { ClientLayout } from "./components/client/ClientLayout";
 import { HomePage } from "./pages/client/HomePage";
 import { BrowsePage } from "./pages/client/BrowsePage";
 import { BundlesPage } from "./pages/client/BundlesPage";
+import { BundleDetailPage } from "./pages/client/BundleDetailPage";
 import { ShopPage } from "./pages/client/ShopPage";
 import { OrdersPage } from "./pages/client/OrdersPage";
 import { SharesPage } from "./pages/client/SharesPage";
@@ -23,7 +25,8 @@ import { ForYouPage } from "./pages/client/ForYouPage";
 
 export default function App() {
   const navigate = useNavigate();
-  const { signOut } = useAuthActions();
+  const signOut = useAppSignOut();
+  const { isAuthenticated } = useConvexAuth();
   const user = useQuery(api.auth.loggedInUser);
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
@@ -33,10 +36,14 @@ export default function App() {
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");
 
-  // Check join request status (only if user exists, no profile, and no invite code)
+  // Check join request status (only if user exists, no profile, no invite
+  // code, and the instance doesn't allow public signup — public-signup
+  // instances skip the join-request gate entirely)
   const joinRequestStatus = useQuery(
     api.joinRequests.checkJoinRequestStatus,
-    user && !userProfile && !inviteCode && user.email ? { email: user.email } : "skip"
+    user && !userProfile && !inviteCode && !siteSettings?.allowPublicSignup && user.email
+      ? { email: user.email }
+      : "skip"
   );
 
   // Update document title based on site settings
@@ -45,6 +52,19 @@ export default function App() {
       document.title = `${siteSettings.organizationName} - Content Portal`;
     }
   }, [siteSettings?.organizationName]);
+
+  // Swap in the org's uploaded favicon when one is configured. Falls back to
+  // the neutral default `<link id="favicon">` already in index.html when
+  // siteSettings has no faviconUrl (e.g. before setup, or an org that never
+  // uploaded one), so there's never a broken/missing icon.
+  useEffect(() => {
+    if (!siteSettings?.faviconUrl) return;
+    const link =
+      document.getElementById("favicon") as HTMLLinkElement | null;
+    if (link && link.href !== siteSettings.faviconUrl) {
+      link.href = siteSettings.faviconUrl;
+    }
+  }, [siteSettings?.faviconUrl]);
 
   // Check if user just logged in and should be redirected to content
   useEffect(() => {
@@ -76,6 +96,19 @@ export default function App() {
 
   // Not authenticated — show sign in form for returning users
   if (!user) {
+    // External auth: the token is valid but ensureExternalUser hasn't
+    // finished creating the users row yet — show a loading state instead of
+    // flashing the sign-in screen at an already-signed-in user.
+    if (isExternalAuth && isAuthenticated) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Setting up your account...</p>
+          </div>
+        </div>
+      );
+    }
     const siteName = siteSettings?.organizationName || "Content Platform";
     const siteTagline = siteSettings?.tagline || "Access your resources";
 
@@ -115,9 +148,28 @@ export default function App() {
 
   // Authenticated but no profile — check join requests or show role selection
   if (user && !userProfile) {
-    // Check if user has an approved join request (unless they have an invite code)
-    if (!inviteCode) {
-      if (joinRequestStatus === undefined) {
+    // Wait for settings before gating: while they load we can't tell whether
+    // this instance allows public signup, and flashing the denial screen at a
+    // legitimate signup would be worse than a moment of spinner.
+    if (siteSettings === undefined) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Checking access...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Check for an approved join request — unless they have an invite code,
+    // or the instance allows public signup (the server-side role clamp in
+    // users.createUserProfile still limits code-less signups to client/parent).
+    if (!inviteCode && !siteSettings?.allowPublicSignup) {
+      // The status query is skipped when the account has no email (possible
+      // with some external-auth tokens) — fall through to the denial screen
+      // rather than spinning forever on a query that will never run.
+      if (user.email && joinRequestStatus === undefined) {
         return (
           <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="text-center">
@@ -177,6 +229,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="browse" element={<BrowsePage />} />
         <Route path="bundles" element={<BundlesPage />} />
+        <Route path="bundles/:groupId" element={<BundleDetailPage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="shares" element={<SharesPage />} />

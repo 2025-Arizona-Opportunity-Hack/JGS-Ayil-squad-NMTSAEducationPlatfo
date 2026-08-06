@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Create a new order (purchase content)
@@ -18,6 +18,9 @@ export const createOrder = mutation({
     const pricing = await ctx.db.get(args.pricingId);
     if (!pricing || !pricing.isActive) {
       throw new ConvexError("Pricing not found or inactive");
+    }
+    if (pricing.contentId !== args.contentId) {
+      throw new ConvexError("Pricing does not match the specified content");
     }
 
     // Check if user already has an active order for this content
@@ -40,8 +43,11 @@ export const createOrder = mutation({
       throw new ConvexError("You already have access to this content");
     }
 
-    // Check for approved purchase request
-    const approvedRequest = await ctx.db
+    // Check for approved purchase request. When the autoApprovePurchases
+    // site setting is on, self-serve checkout is allowed: an approved
+    // request row is auto-created so downstream bookkeeping
+    // (purchaseCompletedAt, admin reporting) works unchanged.
+    let approvedRequest = await ctx.db
       .query("purchaseRequests")
       .withIndex("by_user_content", (q) =>
         q.eq("userId", userId).eq("contentId", args.contentId)
@@ -50,9 +56,22 @@ export const createOrder = mutation({
       .first();
 
     if (!approvedRequest) {
-      throw new ConvexError(
-        "You need an approved purchase request to buy this content. Please request permission first."
-      );
+      const settings = await ctx.db.query("siteSettings").first();
+      if (!settings?.autoApprovePurchases) {
+        throw new ConvexError(
+          "You need an approved purchase request to buy this content. Please request permission first."
+        );
+      }
+      const autoRequestId = await ctx.db.insert("purchaseRequests", {
+        userId,
+        contentId: args.contentId,
+        status: "approved",
+        adminNotes: "Auto-approved (self-serve purchases enabled)",
+        createdAt: Date.now(),
+        reviewedAt: Date.now(),
+      });
+      approvedRequest = await ctx.db.get(autoRequestId);
+      if (!approvedRequest) throw new ConvexError("Failed to create request");
     }
 
     // Check if the approved request has already been used
@@ -97,6 +116,17 @@ export const completeOrder = mutation({
     if (!order) throw new ConvexError("Order not found");
     if (order.userId !== userId) throw new ConvexError("Not authorized");
     if (order.status !== "pending") throw new ConvexError("Order already processed");
+
+    // This mutation is a client-triggerable "mark my own order paid" path with
+    // no Stripe verification, so it must never grant entitlement in
+    // production. It only exists for local/dev mock-payment flows, gated by
+    // an explicit env var. The real, signature-verified path is
+    // `completeOrderInternal`, driven by the Stripe webhook.
+    if (process.env.ALLOW_MOCK_PAYMENTS !== "true") {
+      throw new ConvexError(
+        "Mock payment completion is disabled. Payments must be completed via Stripe checkout."
+      );
+    }
 
     // Update order status
     await ctx.db.patch(args.orderId, {

@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 
@@ -135,7 +135,10 @@ export const createUserProfile = mutation({
         }
       }
 
-      // Check for approved join request (unless they have an invite code)
+      // Check for approved join request (unless they have an invite code).
+      // When the allowPublicSignup site setting is on, code-less signups are
+      // permitted without a join request — the role clamp below still forces
+      // them to client/parent, so no privilege is reachable this way.
       if (!args.inviteCode) {
         const joinRequest = await ctx.db
           .query("joinRequests")
@@ -144,13 +147,14 @@ export const createUserProfile = mutation({
           .first();
 
         if (!joinRequest || joinRequest.status !== "approved") {
-          throw new ConvexError(
-            "You need an approved join request to create an account. Please request access first or contact support."
-          );
-        }
-
-        // Mark join request as account created
-        if (!joinRequest.accountCreatedAt) {
+          const settings = await ctx.db.query("siteSettings").first();
+          if (!settings?.allowPublicSignup) {
+            throw new ConvexError(
+              "You need an approved join request to create an account. Please request access first or contact support."
+            );
+          }
+        } else if (!joinRequest.accountCreatedAt) {
+          // Mark join request as account created
           await ctx.db.patch(joinRequest._id, {
             accountCreatedAt: Date.now(),
             userId: userId,
@@ -159,14 +163,19 @@ export const createUserProfile = mutation({
       }
     }
 
-    // Determine the role based on invite code or provided role
+    // Determine the role based on invite code or provided role.
+    // Self-service role selection (no invite code) is limited to "client" and
+    // "parent" — any other value, including a client-supplied "professional",
+    // falls back to "client". Privileged roles (professional, editor,
+    // contributor, admin, ...) may only be granted via a valid invite code
+    // below, since "professional" carries VIEW_ALL_CONTENT by default.
     let roleToAssign:
       | "admin"
       | "editor"
       | "contributor"
       | "client"
       | "parent"
-      | "professional" = args.role || "client";
+      | "professional" = args.role === "parent" ? "parent" : "client";
 
     // If invite code is provided, validate and use it
     if (args.inviteCode && args.inviteCode.trim() !== "") {
@@ -187,7 +196,13 @@ export const createUserProfile = mutation({
       if (staffInvite) {
         if (!staffInvite.isActive) throw new ConvexError("This invite code has been deactivated");
         if (staffInvite.expiresAt && staffInvite.expiresAt < Date.now()) throw new ConvexError("This invite code has expired");
+        const usesSoFar = staffInvite.currentUses ?? 0;
+        const maxUses = staffInvite.maxUses ?? 1;
+        if (usesSoFar >= maxUses) {
+          throw new ConvexError("This invite code has already been used or has reached its use limit");
+        }
         roleToAssign = staffInvite.role;
+        await ctx.db.patch(staffInvite._id, { currentUses: usesSoFar + 1 });
       } else if (clientInvite) {
         if (!clientInvite.isActive) throw new ConvexError("This invite code has been deactivated");
         if (clientInvite.usedBy) throw new ConvexError("This invite code has already been used");

@@ -104,20 +104,33 @@ export function VideoThumbnail({
                       body: blob,
                     });
                     const uploadJson = await uploadResult.json();
-                    
+
                     if (uploadResult.ok && uploadJson.storageId) {
-                      // Update content with new thumbnail
-                      await updateThumbnail({
-                        contentId: contentId as any,
-                        thumbnailId: uploadJson.storageId,
-                      });
-                      
-                      // Set local thumbnail for immediate display
+                      // Show the locally generated thumbnail immediately —
+                      // this doesn't depend on whether persisting it below
+                      // succeeds.
                       const thumbnailDataUrl = URL.createObjectURL(blob);
                       setGeneratedThumbnail(thumbnailDataUrl);
-                      
-                      // Notify parent
-                      onThumbnailGenerated?.();
+
+                      try {
+                        // Persist the thumbnail. `updateContentThumbnailId`
+                        // requires EDIT_CONTENT or being the content's
+                        // creator (A6) — an ordinary viewer without either
+                        // will get a permission error here. That's expected
+                        // and must not surface as an error to them; they
+                        // still get the locally generated thumbnail for this
+                        // session, just not saved server-side.
+                        await updateThumbnail({
+                          contentId: contentId as any,
+                          thumbnailId: uploadJson.storageId,
+                        });
+                        onThumbnailGenerated?.();
+                      } catch (permErr) {
+                        console.warn(
+                          "Could not save generated thumbnail (likely missing permission):",
+                          permErr
+                        );
+                      }
                     }
                   } catch (err) {
                     console.error("Error uploading thumbnail:", err);

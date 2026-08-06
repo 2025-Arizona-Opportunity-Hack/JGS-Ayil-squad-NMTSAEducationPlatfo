@@ -86,7 +86,13 @@ import { ContentActions } from "./admin/ContentActions";
 const CHUNKED_UPLOAD_THRESHOLD_BYTES = 500 * 1024 * 1024; // 500 MB
 const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB per chunk — comfortably uploads in <2 min on typical broadband
 
-export function ContentManager() {
+interface ContentManagerProps {
+  // Switches the admin dashboard to the Quizzes tab (quiz badge / edit-modal
+  // link). Optional so the manager still works if rendered standalone.
+  onNavigateToQuizzes?: () => void;
+}
+
+export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}) {
   const tourActive = useTourActive();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -152,8 +158,16 @@ export function ContentManager() {
   const viewCounts = useQuery(api.analytics.getContentViewCounts);
   const allPricing = useQuery(
     api.pricing.listAllPricing,
-    hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SET_CONTENT_PRICING) || 
+    hasPermission(userProfile?.effectivePermissions, PERMISSIONS.SET_CONTENT_PRICING) ||
     hasPermission(userProfile?.effectivePermissions, PERMISSIONS.VIEW_ALL_CONTENT) ? undefined as any : "skip" as any
+  );
+  // Feeds the per-row "Quiz" badge and the edit-modal note. Skipped for users
+  // without MANAGE_QUIZZES (the query would just return [] for them anyway).
+  const allQuizzes = useQuery(
+    api.quizzes.listQuizzes,
+    hasPermission(userProfile?.effectivePermissions, PERMISSIONS.MANAGE_QUIZZES)
+      ? undefined as any
+      : "skip" as any
   );
   const previewContent = useQuery(
     api.content.getContent,
@@ -1303,8 +1317,10 @@ export function ContentManager() {
         copiedId={copiedId}
         viewCounts={viewCounts}
         allPricing={allPricing as any[] | undefined}
+        allQuizzes={allQuizzes as any[] | undefined}
         effectivePermissions={userProfile?.effectivePermissions}
         actions={{
+          onOpenQuizzes: onNavigateToQuizzes,
           onPreview: handlePreviewContent,
           onReview: handleReviewContent,
           onSubmitForReview: handleSubmitForReview,
@@ -1359,6 +1375,20 @@ export function ContentManager() {
             setSelectedContent(null);
           }}
           content={selectedContent}
+          quizTitle={
+            (allQuizzes as any[] | undefined)?.find(
+              (q) => q.contentId === selectedContent._id
+            )?.title ?? null
+          }
+          onOpenQuizzes={
+            onNavigateToQuizzes
+              ? () => {
+                  setShowEditModal(false);
+                  setSelectedContent(null);
+                  onNavigateToQuizzes();
+                }
+              : undefined
+          }
         />
       )}
 
@@ -1647,6 +1677,7 @@ export function ContentManager() {
           }}
           contentId={selectedContent._id}
           contentTitle={selectedContent.title}
+          isContentPublic={!!selectedContent.isPublic}
         />
       )}
 

@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./externalAuth";
 import { internal } from "./_generated/api";
 
 const LOCK_DURATION_MS = 10 * 60 * 1000; // 10 minutes

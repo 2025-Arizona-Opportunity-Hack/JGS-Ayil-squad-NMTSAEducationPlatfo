@@ -27,8 +27,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { stripHtml } from "@/lib/sanitize";
-
-const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
+import { redirectToStripeCheckout } from "@/lib/checkout";
 
 export function Shop() {
   const pricedContent = useQuery(api.pricing.listPricedContent);
@@ -78,24 +77,7 @@ export function Shop() {
         pricingId: item.pricing._id,
       });
 
-      // Create a Stripe Checkout Session via Convex HTTP endpoint
-      const response = await fetch(
-        `${CONVEX_URL.replace(".cloud", ".site")}/api/stripe/checkout`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create checkout session");
-      }
-
-      const { url } = await response.json();
-      // Redirect to Stripe Checkout
-      window.location.href = url;
+      await redirectToStripeCheckout(orderId);
     } catch (error) {
       console.error("Checkout error:", error);
       toast.error(

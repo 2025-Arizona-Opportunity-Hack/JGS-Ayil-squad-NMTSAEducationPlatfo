@@ -129,7 +129,9 @@ async function setupSiteUrl() {
   const siteUrl = await prompt('Enter your site URL (e.g., https://yoursite.com, or press Enter to skip): ');
   
   if (!siteUrl.trim()) {
-    console.log('⏭️  Skipping Site URL setup (will default to https://nmtsa.com)');
+    console.log('⚠️  Skipping Site URL setup. SITE_URL is REQUIRED: without it,');
+    console.log('   password reset / invite / verification links cannot be built');
+    console.log('   and those notifications will fail to send.');
     return true;
   }
 
@@ -145,7 +147,7 @@ async function main() {
   const skipAuth = args.includes('--skip-auth');
 
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║           NMTSA Education Platform - Setup Script          ║');
+  console.log('║           Content Portal - Setup Script                    ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
 
   console.log('This script will configure the following environment variables:');

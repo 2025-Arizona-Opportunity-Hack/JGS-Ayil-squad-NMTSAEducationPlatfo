@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,6 +35,21 @@ const shareSchema = z.object({
 
 type ShareFormData = z.infer<typeof shareSchema>;
 
+// Human-friendly explanations for the server's canShareContent reasons, so
+// the dialog can say why sharing is off instead of throwing on submit.
+function shareBlockedExplanation(reason: string | null | undefined): string {
+  switch (reason) {
+    case "Cannot share purchaseable content":
+      return "This content has a price, and a third-party share link would give the recipient the paid content for free. Remove its pricing first if you want to share it.";
+    case "Cannot share private content":
+      return "This content is private, and your account doesn't have permission to share private content with third parties.";
+    case "Not authenticated":
+      return "You need to be logged in to share content.";
+    default:
+      return "Your account doesn't have permission to share this content.";
+  }
+}
+
 interface ThirdPartyShareModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,6 +73,13 @@ export function ThirdPartyShareModal({
   const [isCreating, setIsCreating] = useState(false);
 
   const createShare = useMutation(api.contentShares.createThirdPartyShare);
+  // Ask the server up front whether this content is shareable, so the user
+  // sees the reason (e.g. priced content) instead of a submit-time error.
+  const shareability = useQuery(
+    api.contentShares.canShareContent,
+    demoMode || !isOpen ? "skip" : { contentId: contentId as any }
+  );
+  const shareBlocked = !demoMode && shareability && !shareability.canShare;
 
   const {
     register,
@@ -146,7 +168,29 @@ export function ThirdPartyShareModal({
           </DialogDescription>
         </DialogHeader>
 
-        {!shareUrl ? (
+        {shareBlocked ? (
+          <div className="space-y-4">
+            <div
+              role="status"
+              className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
+            >
+              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                Sharing isn't available for this content
+              </h3>
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {shareBlockedExplanation(shareability?.reason)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              className="w-full"
+            >
+              Close
+            </Button>
+          </div>
+        ) : !shareUrl ? (
           <form onSubmit={(e) => { void handleSubmit(onSubmit)(e); }} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="expiresInDays">Link Expires In *</Label>
@@ -215,7 +259,12 @@ export function ThirdPartyShareModal({
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={isCreating || demoMode} className="flex-1" data-tour="share-field-save">
+              <Button
+                type="submit"
+                disabled={isCreating || demoMode || shareability?.canShare !== true}
+                className="flex-1"
+                data-tour="share-field-save"
+              >
                 {isCreating ? "Creating..." : "Create Share Link"}
               </Button>
               <Button
