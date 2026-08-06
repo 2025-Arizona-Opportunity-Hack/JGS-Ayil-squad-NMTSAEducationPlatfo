@@ -16,13 +16,21 @@
  * an issuer trusted here but unknown there authenticates but never resolves
  * to a user, and vice versa.
  */
-// Enumeration on purpose: when this file is evaluated at push time, Convex
-// errors on any read of an UNSET env var (AuthConfigMissingEnvironmentVariable),
-// but these two are optional — most instances don't configure external auth.
-// Object.entries only yields vars that are actually set, so this never trips
-// that check.
-const setEnvVars = Object.fromEntries(Object.entries(process.env));
-const optionalEnv = (name: string): string | undefined => setEnvVars[name];
+
+// Optional env vars MUST be read like this here. During push evaluation
+// process.env is not a real env object: it is not enumerable
+// (Object.keys(process.env).length === 0, `in` is always false), set vars are
+// readable only via property access, and reading an UNSET var throws
+// (surfacing as AuthConfigMissingEnvironmentVariable, which would fail every
+// push on instances that don't configure external auth). The try/catch makes
+// the read optional; in normal runtimes it behaves like a plain env read.
+const optionalEnv = (name: string): string | undefined => {
+  try {
+    return (process.env as Record<string, string | undefined>)[name];
+  } catch {
+    return undefined;
+  }
+};
 
 const externalIssuerUrls = [
   optionalEnv("PROPELAUTH_URL"),

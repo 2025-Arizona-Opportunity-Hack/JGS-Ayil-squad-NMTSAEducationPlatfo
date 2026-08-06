@@ -3,6 +3,18 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.14.1 — 2026-08-06
+
+- Fix: **external auth issuer was never registered.** `auth.config.ts` read
+  its optional env vars via `Object.entries(process.env)`, but at push time
+  `process.env` is a non-enumerable facade (`Object.keys` → `[]`), so the
+  provider list was silently empty and PropelAuth logins failed with
+  `NoAuthProvider`, looping back to the sign-in screen. Optional vars are now
+  read with a direct property access inside try/catch (set vars are readable;
+  unset vars throw `AuthConfigMissingEnvironmentVariable`, which the catch
+  makes optional). Verified by JWT probe against the deployment, not just by
+  a successful push. Docs updated with the verification recipe.
+
 ## 0.14.0 — 2026-08-02
 
 - Feature: **external authentication (PropelAuth).** An instance can now use

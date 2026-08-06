@@ -73,10 +73,17 @@ Signup flow notes:
 - `ensureExternalUser` takes **no arguments** — identity comes only from the
   verified JWT. It never creates a profile or grants a role.
 - Email linking is opt-in via `EXTERNAL_AUTH_TRUST_EMAILS` (see above).
-- `convex/auth.config.ts` must read optional env vars via enumeration
-  (`Object.entries(process.env)`), because a direct `process.env.X` read of
-  an unset var fails every push with `AuthConfigMissingEnvironmentVariable` —
-  which would break instances that don't use external auth.
+- `convex/auth.config.ts` must read optional env vars through try/catch
+  (see `optionalEnv` there). At push time `process.env` is a non-enumerable
+  facade: `Object.keys()` returns `[]` (so enumeration silently produces an
+  empty provider list), and reading an UNSET var throws
+  `AuthConfigMissingEnvironmentVariable` — which would fail every push on
+  instances that don't use external auth. try/catch around the direct read is
+  the only pattern that is both optional and actually reads set values.
+- After any auth-config change, verify the issuer is really registered — a
+  successful push is not proof. Send a fake JWT with the expected `iss` to
+  `<deployment>.convex.cloud/api/query`: `NoAuthProvider` means not
+  registered; a kid/JWKS error means registered.
 - Issuer lists in `auth.config.ts` and `externalIssuers()`
   (`convex/externalAuth.ts`) must stay in sync; both read the same env vars.
 - Regression tests: `convex/externalAuth.test.ts`.

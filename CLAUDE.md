@@ -123,8 +123,13 @@ regression suite, and these rules are what it enforces:
   `externalAuth.ensureExternalUser` creates accounts only (no profile, no
   role, no client args); linking to existing same-email accounts requires
   `EXTERNAL_AUTH_TRUST_EMAILS=true`. `auth.config.ts` must read optional env
-  vars via enumeration — a direct `process.env.X` read of an unset var fails
-  every push (`AuthConfigMissingEnvironmentVariable`). Frontend auth mode is
+  vars via try/catch around the property access — at push time process.env is
+  non-enumerable (`Object.keys` → `[]`, so enumeration silently yields no
+  providers) and reading an UNSET var throws
+  (`AuthConfigMissingEnvironmentVariable`). After changing auth config,
+  verify registration with a fake JWT (wrong-issuer ⇒ `NoAuthProvider`,
+  right-issuer ⇒ kid/JWKS error) — a successful push alone proves nothing.
+  Frontend auth mode is
   build-time (`VITE_AUTH_PROVIDER`); sign-out goes through `useAppSignOut()`
   (`src/lib/appAuth.tsx`), not `useAuthActions` directly. Tests:
   `convex/externalAuth.test.ts`.
