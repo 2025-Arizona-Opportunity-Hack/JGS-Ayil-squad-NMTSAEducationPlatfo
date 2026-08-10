@@ -89,6 +89,10 @@ export const createUserProfile = mutation({
         v.literal("parent")
       )
     ),
+    // Id of a configured siteSettings.signupRoles option. Resolved
+    // server-side — the client only names the option; role and label come
+    // from settings, and baseRole there is limited to client/parent.
+    signupRoleId: v.optional(v.string()),
     inviteCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -176,6 +180,25 @@ export const createUserProfile = mutation({
       | "client"
       | "parent"
       | "professional" = args.role === "parent" ? "parent" : "client";
+    let roleLabel: string | undefined;
+
+    // Configured signup option (custom "I am a..." choices). The schema
+    // limits baseRole to client/parent, so this path can never grant a
+    // privileged role — it only picks between the two self-assignable ones
+    // and records a display label.
+    if (args.signupRoleId && !args.inviteCode) {
+      const settings = await ctx.db.query("siteSettings").first();
+      const option = settings?.signupRoles?.find(
+        (r) => r.id === args.signupRoleId
+      );
+      if (!option) {
+        throw new ConvexError(
+          "That signup option is no longer available. Please refresh and try again."
+        );
+      }
+      roleToAssign = option.baseRole;
+      roleLabel = option.label;
+    }
 
     // If invite code is provided, validate and use it
     if (args.inviteCode && args.inviteCode.trim() !== "") {
@@ -222,6 +245,7 @@ export const createUserProfile = mutation({
     const newProfile = await ctx.db.insert("userProfiles", {
       userId,
       role: roleToAssign,
+      roleLabel,
       firstName: args.firstName || user.name?.split(" ")[0] || "User",
       lastName: args.lastName || user.name?.split(" ").slice(1).join(" ") || "",
       isActive: true,

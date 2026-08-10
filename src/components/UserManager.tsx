@@ -75,6 +75,11 @@ export function UserManager() {
                         <Badge variant={getRoleBadgeVariant(user.role)}>
                           {user.role}
                         </Badge>
+                        {user.roleLabel &&
+                          user.roleLabel.toLowerCase() !==
+                            user.role.toLowerCase() && (
+                            <Badge variant="outline">{user.roleLabel}</Badge>
+                          )}
                       </div>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>

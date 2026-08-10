@@ -35,6 +35,21 @@ const applicationTables = {
     // autoApprovePurchases: createOrder no longer requires an
     // admin-approved purchase request first (self-serve checkout).
     autoApprovePurchases: v.optional(v.boolean()),
+    // Configurable self-signup role choices shown on the "I am a..." screen.
+    // Unset/empty = built-in defaults (Client/Parent). Labels are cosmetic;
+    // permissions come only from baseRole, which is deliberately limited to
+    // the two self-assignable roles — a signup option can never grant a
+    // privileged role.
+    signupRoles: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          description: v.optional(v.string()),
+          baseRole: v.union(v.literal("client"), v.literal("parent")),
+        })
+      )
+    ),
     setupCompleted: v.boolean(),
     setupCompletedAt: v.optional(v.number()),
     setupCompletedBy: v.optional(v.id("users")),
@@ -59,6 +74,11 @@ const applicationTables = {
     permissions: v.optional(v.array(v.string())),
     firstName: v.string(),
     lastName: v.string(),
+    // Display label from the signupRoles option chosen at signup (e.g.
+    // "Mentor", "Judge"). Cosmetic only — permissions always derive from
+    // `role`. Denormalized on purpose: renaming/removing a signup option
+    // doesn't rewrite existing profiles.
+    roleLabel: v.optional(v.string()),
     profilePictureId: v.optional(v.id("_storage")),
     isActive: v.boolean(),
     invitedBy: v.optional(v.id("users")),

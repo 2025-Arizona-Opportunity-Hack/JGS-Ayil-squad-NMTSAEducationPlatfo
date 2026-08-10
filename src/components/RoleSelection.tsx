@@ -22,10 +22,25 @@ import {
 } from "@/components/ui/card";
 import { Logo } from "./Logo";
 
+// Fallback when the instance hasn't configured siteSettings.signupRoles —
+// matches the platform's historical defaults.
+const DEFAULT_SIGNUP_ROLES = [
+  {
+    id: "client",
+    label: "Client",
+    description: "✨ Access resources, activities, and track your progress",
+    baseRole: "client" as const,
+  },
+  {
+    id: "parent",
+    label: "Parent",
+    description: "👨‍👩‍👧‍👦 Support your child's journey and track their progress",
+    baseRole: "parent" as const,
+  },
+];
+
 export function RoleSelection() {
-  const [selectedRole, setSelectedRole] = useState<"client" | "parent">(
-    "client"
-  );
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +53,14 @@ export function RoleSelection() {
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
   const hasNameFromAuth = user?.name && user.name.trim().length > 0;
   const orgName = siteSettings?.organizationName || "Content Platform";
+
+  // Configured signup options (siteSettings.signupRoles) or the defaults.
+  const usingCustomRoles = !!siteSettings?.signupRoles?.length;
+  const signupRoles = usingCustomRoles
+    ? siteSettings!.signupRoles!
+    : DEFAULT_SIGNUP_ROLES;
+  const selectedRole =
+    signupRoles.find((r) => r.id === selectedRoleId) ?? signupRoles[0];
 
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");
@@ -102,7 +125,11 @@ export function RoleSelection() {
     setSubmitting(true);
     try {
       await createProfile({
-        role: selectedRole,
+        // Custom options are resolved server-side by id; the defaults use
+        // the legacy role argument.
+        ...(usingCustomRoles
+          ? { signupRoleId: selectedRole.id }
+          : { role: selectedRole.baseRole }),
         firstName: hasNameFromAuth ? undefined : firstName.trim(),
         lastName: hasNameFromAuth ? undefined : lastName.trim(),
         inviteCode: undefined, // No invite code in normal role selection
@@ -191,38 +218,32 @@ export function RoleSelection() {
           <div className="space-y-2">
             <Label htmlFor="role">I am a...</Label>
             <Select
-              value={selectedRole}
-              onValueChange={(value: "client" | "parent") =>
-                setSelectedRole(value)
-              }
+              value={selectedRole.id}
+              onValueChange={(value) => setSelectedRoleId(value)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="role">
                 <SelectValue placeholder="Select your role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="client">Client</SelectItem>
-                <SelectItem value="parent">Parent</SelectItem>
+                {signupRoles.map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    {role.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <div className="text-sm text-muted-foreground mt-2">
-              {selectedRole === "client" && (
-                <p>
-                  ✨ Access therapy resources, activities, and track your
-                  progress
-                </p>
-              )}
-              {selectedRole === "parent" && (
-                <p>
-                  👨‍👩‍👧‍👦 Support your child's therapy journey and track their
-                  progress
-                </p>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Are you a therapy professional? Professional accounts require an
-              invite code from an administrator — ask your organization for
-              one instead of selecting a role here.
-            </p>
+            {selectedRole.description && (
+              <div className="text-sm text-muted-foreground mt-2">
+                <p>{selectedRole.description}</p>
+              </div>
+            )}
+            {!usingCustomRoles && (
+              <p className="text-xs text-muted-foreground">
+                Are you a professional? Professional accounts require an
+                invite code from an administrator — ask your organization for
+                one instead of selecting a role here.
+              </p>
+            )}
           </div>
 
           {/* Name fields for non-Google users */}

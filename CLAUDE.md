@@ -91,6 +91,10 @@ regression suite, and these rules are what it enforces:
   content on `SHARE_WITH_THIRD_PARTY`, and never allow it for priced content.
 - `professional` carries `VIEW_ALL_CONTENT`, so it must never be self-assignable
   at signup; privileged roles come only from an admin-issued invite code.
+  The configurable `siteSettings.signupRoles` ("I am a..." options) respect
+  this: labels are cosmetic (`userProfiles.roleLabel`), and each option's
+  `baseRole` is limited to client/parent by validators in both `schema.ts`
+  and `siteSettings.updateSiteSettings`. Tests: `convex/signupRoles.test.ts`.
 - Entitlement comes from a signature-verified Stripe webhook
   (`completeOrderInternal`), never from a client-callable mutation.
 - Keep one copy of an access check. The group-access bypass existed because

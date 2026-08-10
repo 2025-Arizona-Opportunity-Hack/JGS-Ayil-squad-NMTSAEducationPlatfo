@@ -3,6 +3,18 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.15.0 — 2026-08-09
+
+- Feature: **configurable signup roles.** The "I am a..." choices on the
+  first-login screen are now editable per instance (Admin → Settings →
+  Signup Roles), e.g. judge/mentor/hacker/volunteer/sponsor/nonprofit/staff.
+  Each option has a label, optional description, and a base permission role
+  limited to client or parent — labels are cosmetic and can never grant a
+  privileged role (those still require invite codes). The chosen label is
+  stored on the profile (`roleLabel`) and shown in the admin user list.
+  Unconfigured instances keep the built-in Client/Parent defaults. Tests:
+  `convex/signupRoles.test.ts`.
+
 ## 0.14.1 — 2026-08-06
 
 - Fix: **external auth issuer was never registered.** `auth.config.ts` read

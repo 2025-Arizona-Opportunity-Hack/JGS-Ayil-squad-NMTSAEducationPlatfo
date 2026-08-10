@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { NotificationSettings } from "./NotificationSettings";
+import { SignupRolesEditor } from "./SignupRolesEditor";
 
 // Predefined color schemes
 const colorSchemes = [
@@ -457,6 +458,9 @@ export function SiteSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Signup role choices */}
+      <SignupRolesEditor />
 
       {/* Preview */}
       <Card>

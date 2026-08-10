@@ -96,6 +96,19 @@ export const updateSiteSettings = mutation({
     primaryColor: v.optional(v.string()),
     allowPublicSignup: v.optional(v.boolean()),
     autoApprovePurchases: v.optional(v.boolean()),
+    // Custom "I am a..." signup options. Empty array reverts to the built-in
+    // defaults. baseRole is limited to client/parent by the validator — a
+    // signup option can never grant a privileged role.
+    signupRoles: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          description: v.optional(v.string()),
+          baseRole: v.union(v.literal("client"), v.literal("parent")),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_SITE_SETTINGS);
@@ -133,6 +146,28 @@ export const updateSiteSettings = mutation({
     }
     if (args.autoApprovePurchases !== undefined) {
       updateData.autoApprovePurchases = args.autoApprovePurchases;
+    }
+    if (args.signupRoles !== undefined) {
+      if (args.signupRoles.length > 20) {
+        throw new ConvexError("At most 20 signup roles are supported");
+      }
+      const ids = new Set<string>();
+      for (const role of args.signupRoles) {
+        const label = role.label.trim();
+        if (!role.id.trim() || !label) {
+          throw new ConvexError("Every signup role needs an id and a label");
+        }
+        if (label.length > 60 || (role.description?.length ?? 0) > 200) {
+          throw new ConvexError("Signup role label or description too long");
+        }
+        if (ids.has(role.id)) {
+          throw new ConvexError("Signup role ids must be unique");
+        }
+        ids.add(role.id);
+      }
+      // Empty array = revert to the built-in Client/Parent defaults.
+      updateData.signupRoles =
+        args.signupRoles.length === 0 ? undefined : args.signupRoles;
     }
 
     await ctx.db.patch(existingSettings._id, updateData);
