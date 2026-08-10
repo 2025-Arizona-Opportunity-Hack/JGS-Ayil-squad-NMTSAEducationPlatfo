@@ -31,6 +31,16 @@ describe("useWelcomeGreeting", () => {
     expect(success).toHaveBeenCalledTimes(1);
   });
 
+  it("does not greet the same user again in a new hook instance", () => {
+    // What a page reload looks like: fresh mount, same session storage. This is
+    // the path the rerender test above cannot reach, because unchanged
+    // primitive deps mean React skips the effect entirely.
+    renderHook(() => useWelcomeGreeting({ userId: "u1", firstName: "Jen" }));
+    renderHook(() => useWelcomeGreeting({ userId: "u1", firstName: "Jen" }));
+
+    expect(success).toHaveBeenCalledTimes(1);
+  });
+
   it("stays silent while the profile is still loading", () => {
     renderHook(() => useWelcomeGreeting(undefined));
     expect(success).not.toHaveBeenCalled();

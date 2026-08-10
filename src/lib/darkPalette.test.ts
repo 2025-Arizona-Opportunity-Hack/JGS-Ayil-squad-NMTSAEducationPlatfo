@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { contrastRatio, hslLuminance } from "./color";
+import { contrastRatio, hslLuminance, DARK_BACKGROUND_HSL } from "./color";
 
 /**
  * Parses the `.dark` block out of the real stylesheet so this suite fails if
@@ -52,5 +52,14 @@ describe("dark palette contrast (WCAG 2.2 AA)", () => {
   it("renders client-portal body text on the client surface at 4.5:1 or better", () => {
     expect(ratio(tokens, "client-text", "client-surface")).toBeGreaterThanOrEqual(4.5);
     expect(ratio(tokens, "client-text-secondary", "client-surface")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("pairs the primary fill with a foreground equal to the background", () => {
+    // Load-bearing: because --primary-foreground and the background are the
+    // same colour, "primary readable as text on the background" and "button
+    // label readable on the primary fill" are one constraint, which is why a
+    // single 4.5:1 adjustment in ensureContrastOnDark satisfies both.
+    expect(tokens["primary-foreground"]).toBe(tokens["background"]);
+    expect(tokens["primary-foreground"]).toBe(DARK_BACKGROUND_HSL);
   });
 });
