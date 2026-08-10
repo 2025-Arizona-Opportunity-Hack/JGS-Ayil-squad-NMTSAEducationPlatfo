@@ -27,7 +27,7 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById("root")!).render(
   <ConvexAuthProvider client={convex}>
-    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
+    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem>
       <BrandColorProvider>
         <ErrorBoundary>
           <BrowserRouter>
