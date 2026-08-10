@@ -1,85 +1,52 @@
 import { useEffect } from "react";
 import { useQuery } from "convex/react";
+import { useTheme } from "next-themes";
 import { api } from "../../convex/_generated/api";
-
-/**
- * Converts a hex color to HSL values (without the hsl() wrapper)
- * Returns format: "h s% l%" for use in CSS variables
- */
-function hexToHSL(hex: string): string {
-  // Remove # if present
-  hex = hex.replace(/^#/, "");
-
-  // Parse hex values
-  const r = parseInt(hex.substring(0, 2), 16) / 255;
-  const g = parseInt(hex.substring(2, 4), 16) / 255;
-  const b = parseInt(hex.substring(4, 6), 16) / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-    switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-        break;
-      case g:
-        h = ((b - r) / d + 2) / 6;
-        break;
-      case b:
-        h = ((r - g) / d + 4) / 6;
-        break;
-    }
-  }
-
-  // Convert to degrees and percentages
-  const hDeg = Math.round(h * 360);
-  const sPercent = Math.round(s * 100);
-  const lPercent = Math.round(l * 100);
-
-  return `${hDeg} ${sPercent}% ${lPercent}%`;
-}
-
-/**
- * Generates a slightly lighter version of a color for the ring/focus state
- */
-function lightenHSL(hsl: string, amount: number = 10): string {
-  const parts = hsl.split(" ");
-  const h = parts[0];
-  const s = parts[1];
-  const l = parseInt(parts[2]);
-  const newL = Math.min(100, l + amount);
-  return `${h} ${s} ${newL}%`;
-}
+import { resolveBrandTokens } from "@/lib/brandTheme";
 
 interface BrandColorProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * Applies the admin's configured brand colour to the primary CSS variables.
+ *
+ * Re-runs on theme change: the dark palette needs a lighter, dark-on-light
+ * variant of the brand colour to stay readable (see src/lib/brandTheme.ts).
+ */
 export function BrandColorProvider({ children }: BrandColorProviderProps) {
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
-    if (siteSettings?.primaryColor) {
-      const primaryHSL = hexToHSL(siteSettings.primaryColor);
-      
-      // Apply to CSS variables
-      document.documentElement.style.setProperty("--primary", primaryHSL);
-      document.documentElement.style.setProperty("--ring", primaryHSL);
-      
-      // Also set a CSS custom property for the raw hex value (useful for gradients, etc.)
-      document.documentElement.style.setProperty("--primary-hex", siteSettings.primaryColor);
-      
-      // Cache in localStorage to prevent flash on next page load
-      localStorage.setItem("theme-primary-color", siteSettings.primaryColor);
+    // Still loading — leave the pre-paint value alone, or we flash
+    // brand → default → brand on every cold load in light mode.
+    if (siteSettings === undefined) return;
+
+    const root = document.documentElement;
+    const tokens = siteSettings?.primaryColor
+      ? resolveBrandTokens(siteSettings.primaryColor, resolvedTheme === "dark")
+      : null;
+
+    if (!tokens) {
+      // No colour configured, or it is malformed. Drop the inline overrides so
+      // the accessible tokens in index.css apply, and stop the pre-paint script
+      // replaying a stale value on the next load.
+      for (const property of ["--primary", "--ring", "--primary-foreground", "--primary-hex"]) {
+        root.style.removeProperty(property);
+      }
+      localStorage.removeItem("theme-primary-color");
+      return;
     }
-  }, [siteSettings?.primaryColor]);
+
+    root.style.setProperty("--primary", tokens.primary);
+    root.style.setProperty("--ring", tokens.ring);
+    root.style.setProperty("--primary-foreground", tokens.primaryForeground);
+    root.style.setProperty("--primary-hex", tokens.primaryHex);
+
+    // Cached so index.html can apply it before first paint on the next load.
+    localStorage.setItem("theme-primary-color", siteSettings.primaryColor);
+  }, [siteSettings, resolvedTheme]);
 
   return <>{children}</>;
 }

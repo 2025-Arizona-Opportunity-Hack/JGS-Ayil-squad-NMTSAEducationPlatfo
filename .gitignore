@@ -64,6 +64,7 @@ tests/.auth/
 # Claude Code / agent tooling
 .agents/
 .claude/
+.superpowers/
 AGENTS.md
 skills-lock.json
 convex/_generated/ai/

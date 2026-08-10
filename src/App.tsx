@@ -11,6 +11,7 @@ import { Logo } from "./components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isAdminUser } from "@/lib/permissions";
+import { useWelcomeGreeting } from "@/lib/useWelcomeGreeting";
 import { ClientLayout } from "./components/client/ClientLayout";
 import { HomePage } from "./pages/client/HomePage";
 import { BrowsePage } from "./pages/client/BrowsePage";
@@ -29,6 +30,10 @@ export default function App() {
   const bootstrapNeeded = useQuery(api.users.bootstrapNeeded, {});
   const siteSetupNeeded = useQuery(api.siteSettings.isSetupNeeded);
   const siteSettings = useQuery(api.siteSettings.getSiteSettings);
+
+  // Confirms arrival for users who are unsure their sign-in worked. Fires once
+  // per browser session; no-ops until the profile resolves.
+  useWelcomeGreeting(userProfile);
 
   // Check if there's an invite code from sign up
   const inviteCode = localStorage.getItem("signupInviteCode");

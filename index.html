@@ -9,11 +9,36 @@
 
     <meta property="og:image" content="/og-preview.png" />
 
+    <!--
+      Apply the resolved theme before first paint. This mirrors next-themes'
+      own resolution logic (storage key "theme"); it must stay in sync with
+      defaultTheme in src/main.tsx, or next-themes will correct the class
+      after mount and the flash gets worse rather than better.
+    -->
+    <script id="theme-init">
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme') || 'dark';
+          var resolved = stored === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : stored;
+          if (resolved === 'dark') document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = resolved;
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Apply cached theme color immediately to prevent flash -->
     <script>
       (function() {
         var cached = localStorage.getItem('theme-primary-color');
-        if (cached) {
+        // Skip in dark mode: the cached value is the unadjusted light-mode
+        // colour. BrandColorProvider computes the readable dark variant once
+        // React mounts; until then the accessible CSS token stands.
+        // Skip malformed values too — primaryColor is stored unvalidated, and
+        // a bad hex here would set a NaN custom property that nothing corrects.
+        if (cached && /^#?[0-9a-fA-F]{6}$/.test(cached)
+            && !document.documentElement.classList.contains('dark')) {
           try {
             var hex = cached.replace(/^#/, '');
             var r = parseInt(hex.substring(0, 2), 16) / 255;
