@@ -62,4 +62,12 @@ describe("ensureContrastOnDark", () => {
     // 21:1 is unreachable for a saturated colour; must return, not hang.
     expect(ensureContrastOnDark("238 70% 56%", 21)).toBe("238 70% 95%");
   });
+
+  it("returns malformed input unchanged instead of looping forever", () => {
+    // A 3-char shorthand hex makes hexToHSL produce a NaN triple; before the
+    // guard this hung the browser's main thread on page load.
+    expect(ensureContrastOnDark("NaN NaN% NaN%")).toBe("NaN NaN% NaN%");
+    expect(ensureContrastOnDark("")).toBe("");
+    expect(ensureContrastOnDark("not a colour")).toBe("not a colour");
+  });
 });

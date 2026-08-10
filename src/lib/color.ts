@@ -116,8 +116,12 @@ export function contrastRatio(a: number, b: number): number {
  * lightness differ by several ratio points.
  */
 export function ensureContrastOnDark(hsl: string, target: number = 4.5): string {
-  const background = hslLuminance(DARK_BACKGROUND_HSL);
   const { h, s, l } = parseHSL(hsl);
+  // Guard: invalid CSS custom property values are ignored by the browser;
+  // return the input unchanged rather than looping on NaN.
+  if (!Number.isFinite(h) || !Number.isFinite(s) || !Number.isFinite(l)) return hsl;
+
+  const background = hslLuminance(DARK_BACKGROUND_HSL);
   let lightness = l;
 
   for (;;) {
