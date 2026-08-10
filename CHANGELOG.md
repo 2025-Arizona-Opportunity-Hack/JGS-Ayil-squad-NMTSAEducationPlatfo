@@ -3,6 +3,22 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.6.0 — 2026-08-09
+
+- New: dark mode is now the default. Anyone who has previously chosen light
+  keeps light, and the sun/moon toggle in the header still switches at any
+  time. A pre-paint script applies the theme before the first frame, so there
+  is no white flash on load.
+- New: a "Welcome back, <name>!" notification when you reach your portal,
+  confirming your sign-in worked. It appears once per visit for clients and
+  staff alike, and does not repeat as you move between pages.
+- Fix: dark-mode accent colour is now readable. The primary colour was
+  unchanged between light and dark and measured 2.66:1 as text on the dark
+  background, against the 4.5:1 WCAG AA requirement — affecting 111 usages
+  including the sign-in screen's links. It now measures 4.77:1, and an admin's
+  configured brand colour is automatically adjusted for dark mode so a dark
+  brand colour cannot make accent text unreadable.
+
 ## 0.5.0 — 2026-06-26
 
 - Improve: the Pricing and Share tours now demonstrate the real dialogs using a
