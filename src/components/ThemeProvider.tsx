@@ -19,12 +19,26 @@ export function BrandColorProvider({ children }: BrandColorProviderProps) {
   const { resolvedTheme } = useTheme();
 
   useEffect(() => {
-    if (!siteSettings?.primaryColor) return;
-
-    const tokens = resolveBrandTokens(siteSettings.primaryColor, resolvedTheme === "dark");
-    if (!tokens) return;
+    // Still loading — leave the pre-paint value alone, or we flash
+    // brand → default → brand on every cold load in light mode.
+    if (siteSettings === undefined) return;
 
     const root = document.documentElement;
+    const tokens = siteSettings?.primaryColor
+      ? resolveBrandTokens(siteSettings.primaryColor, resolvedTheme === "dark")
+      : null;
+
+    if (!tokens) {
+      // No colour configured, or it is malformed. Drop the inline overrides so
+      // the accessible tokens in index.css apply, and stop the pre-paint script
+      // replaying a stale value on the next load.
+      for (const property of ["--primary", "--ring", "--primary-foreground", "--primary-hex"]) {
+        root.style.removeProperty(property);
+      }
+      localStorage.removeItem("theme-primary-color");
+      return;
+    }
+
     root.style.setProperty("--primary", tokens.primary);
     root.style.setProperty("--ring", tokens.ring);
     root.style.setProperty("--primary-foreground", tokens.primaryForeground);
@@ -32,7 +46,7 @@ export function BrandColorProvider({ children }: BrandColorProviderProps) {
 
     // Cached so index.html can apply it before first paint on the next load.
     localStorage.setItem("theme-primary-color", siteSettings.primaryColor);
-  }, [siteSettings?.primaryColor, resolvedTheme]);
+  }, [siteSettings, resolvedTheme]);
 
   return <>{children}</>;
 }
