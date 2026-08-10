@@ -45,8 +45,8 @@
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 9%;
     --popover-foreground: 0 0% 100%;
-    --primary: 238 70% 56%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 238 70% 68%;
+    --primary-foreground: 0 0% 9%;
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 100%;
     --muted: 0 0% 15%;
@@ -57,7 +57,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 15%;
     --input: 0 0% 15%;
-    --ring: 238 70% 56%;
+    --ring: 238 70% 68%;
     /* Client palette dark mode */
     --client-primary: 166 64% 52%;
     --client-accent: 232 92% 74%;
