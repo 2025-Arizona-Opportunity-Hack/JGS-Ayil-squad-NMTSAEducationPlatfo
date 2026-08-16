@@ -24,6 +24,17 @@
       ],
       "destination": "/api/meta?path=/share/:token"
     },
+    {
+      "source": "/certificate/:token",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|slackbot|slack-linkexpanding|linkedinbot|discordbot|whatsapp|telegrambot|skypeuripreview|pinterest|embedly|iframely|vkshare|redditbot).*"
+        }
+      ],
+      "destination": "/api/meta?path=/certificate/:token"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

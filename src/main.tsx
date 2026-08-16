@@ -9,6 +9,7 @@ import "./index.css";
 import App from "./App";
 import { PublicContentViewer } from "./components/PublicContentViewer";
 import { SharedContentViewer } from "./components/SharedContentViewer";
+import { CertificateView } from "./components/CertificateView";
 import { VerifyEmail } from "./components/VerifyEmail";
 import { ResetPassword } from "./components/ResetPassword";
 import { CheckoutSuccess, CheckoutCancel } from "./components/CheckoutResult";
@@ -48,6 +49,7 @@ const appTree = (
           <Routes>
             <Route path="/view/:contentId" element={<PublicContentViewer />} />
             <Route path="/share/:accessToken" element={<SharedContentViewer />} />
+            <Route path="/certificate/:shareToken" element={<CertificateView />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             {/* Password reset is a Convex Auth flow; external providers host
                 their own account recovery. */}

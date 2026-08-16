@@ -561,6 +561,29 @@ const applicationTables = {
     .index("by_user", ["userId"])
     .index("by_quiz_user", ["quizId", "userId"]),
 
+  // Quiz pass certificates. Issued server-side only, from a graded passing
+  // attempt (submitQuizAttempt auto-issues; claimMyCertificate covers passes
+  // that predate the feature). shareToken (32 random bytes, hex) is the only
+  // public handle — the /certificate/:token page and unfurl bots resolve it
+  // through a whitelisted anonymous query. Display fields are snapshotted at
+  // issue time so later edits to the quiz/content/profile don't rewrite
+  // certificates already awarded.
+  certificates: defineTable({
+    quizId: v.id("quizzes"),
+    userId: v.id("users"),
+    attemptId: v.id("quizAttempts"),
+    shareToken: v.string(),
+    recipientName: v.string(),
+    quizTitle: v.string(),
+    targetTitle: v.optional(v.string()), // content title or bundle name
+    score: v.number(), // percent on the attempt that earned the certificate
+    passingScore: v.number(),
+    issuedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_quiz_user", ["quizId", "userId"])
+    .index("by_share_token", ["shareToken"]),
+
   // Per-user content progress (watch percentage / completion)
   contentProgress: defineTable({
     contentId: v.id("content"),

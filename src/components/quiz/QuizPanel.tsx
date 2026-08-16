@@ -6,6 +6,8 @@ import {
   Lock,
   ClipboardCheck,
   RotateCcw,
+  Award,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -21,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { CertificateCard } from "./CertificateCard";
+import { CertificateShareActions } from "./CertificateShareActions";
 
 interface QuizPanelProps {
   contentId?: Id<"content">;
@@ -35,6 +39,7 @@ interface SubmitResult {
   pointsEarned: number;
   pointsPossible: number;
   passingScore: number;
+  certificate: { shareToken: string } | null;
   results:
     | null
     | Array<{
@@ -70,6 +75,7 @@ export function QuizPanel({ contentId, groupId }: QuizPanelProps) {
   );
   const submitAttempt = useMutation(api.quizzes.submitQuizAttempt);
   const setFeedback = useMutation(api.quizzes.setMyAttemptFeedback);
+  const claimCertificate = useMutation(api.certificates.claimMyCertificate);
 
   const [taking, setTaking] = useState(false);
   const [selections, setSelections] = useState<Record<string, string[]>>({});
@@ -77,7 +83,20 @@ export function QuizPanel({ contentId, groupId }: QuizPanelProps) {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const resultHeadingRef = useRef<HTMLHeadingElement | null>(null);
+
+  // Certificate: the fresh submit result carries the token immediately; the
+  // reactive quiz payload carries it on later visits. Details (name, date)
+  // come from the same public query the share page uses.
+  const certificateToken =
+    result?.certificate?.shareToken ??
+    quiz?.status.certificate?.shareToken ??
+    null;
+  const certificateDetails = useQuery(
+    api.certificates.getCertificateByShareToken,
+    certificateToken ? { shareToken: certificateToken } : "skip"
+  );
 
   const questionById = useMemo(() => {
     const map = new Map<
@@ -158,6 +177,20 @@ export function QuizPanel({ contentId, groupId }: QuizPanelProps) {
       toast.success("Thanks — your feedback was sent.");
     } catch {
       toast.error("Could not send feedback. Please try again.");
+    }
+  };
+
+  const handleClaimCertificate = async () => {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      // Server re-validates the passing attempt; the reactive quiz payload
+      // picks up the issued certificate.
+      await claimCertificate({ quizId: quiz.quizId });
+    } catch {
+      toast.error("Could not generate the certificate. Please try again.");
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -373,6 +406,49 @@ export function QuizPanel({ contentId, groupId }: QuizPanelProps) {
             </div>
           )}
         </div>
+
+        {/* Certificate — earned by passing; shareable to social media */}
+        {(result?.passed || status.passed) && !taking && (
+          <div className="space-y-3">
+            {certificateDetails ? (
+              <>
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Award className="w-4 h-4 text-primary" aria-hidden="true" />
+                  Your certificate
+                </h3>
+                <CertificateCard certificate={certificateDetails} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button asChild size="sm">
+                    <a
+                      href={`/certificate/${certificateToken}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" aria-hidden="true" />
+                      View certificate page
+                    </a>
+                  </Button>
+                  <CertificateShareActions
+                    shareToken={certificateToken!}
+                    quizTitle={quiz.title}
+                    issuedAt={certificateDetails.issuedAt}
+                  />
+                </div>
+              </>
+            ) : certificateToken ? null : (
+              // Passed before certificates existed — one click issues it
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleClaimCertificate()}
+                disabled={claiming}
+              >
+                <Award className="w-4 h-4 mr-2" aria-hidden="true" />
+                {claiming ? "Generating…" : "Get your certificate"}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Intro / start */}
         {!taking && !result && !status.locked && canAttempt && (

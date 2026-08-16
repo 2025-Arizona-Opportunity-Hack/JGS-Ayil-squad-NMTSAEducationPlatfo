@@ -3,6 +3,17 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.16.0 — 2026-08-15
+
+- Feature: **quiz pass certificates.** Passing a quiz now auto-issues a
+  certificate (server-side, from the graded attempt; snapshots name/quiz/
+  score). Shown inline after the quiz with share actions (copy link, Add to
+  LinkedIn, X, Facebook, native share) and listed in the profile modal.
+  Public verification page at `/certificate/:token` (tokenized, noindex)
+  backed by a whitelisted anonymous query; unfurl bots get OG tags via
+  `api/meta.ts`. Learners who passed before this release get a one-click
+  "Get your certificate" button. Tests: `convex/certificates.test.ts`.
+
 ## 0.15.0 — 2026-08-09
 
 - Feature: **configurable signup roles.** The "I am a..." choices on the

@@ -10,6 +10,7 @@
 
 import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
+import type * as certificates from "../certificates.js";
 import type * as clientInvites from "../clientInvites.js";
 import type * as content from "../content.js";
 import type * as contentGroups from "../contentGroups.js";
@@ -56,6 +57,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   auth: typeof auth;
+  certificates: typeof certificates;
   clientInvites: typeof clientInvites;
   content: typeof content;
   contentGroups: typeof contentGroups;

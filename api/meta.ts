@@ -8,12 +8,13 @@
  * humans and JS-rendering crawlers (Googlebot) keep the SPA.
  *
  * Security: metadata comes exclusively from the same public Convex queries
- * an anonymous visitor can call (getPublicContent / getContentByShareToken),
- * so the gates in those queries (published/active/date-window/paywall/
- * private) apply verbatim. Gated content falls back to site-wide defaults.
+ * an anonymous visitor can call (getPublicContent / getContentByShareToken /
+ * getCertificateByShareToken), so the gates in those queries (published/
+ * active/date-window/paywall/private/whitelist) apply verbatim. Gated
+ * content falls back to site-wide defaults.
  */
 
-const BOT_PATH_RE = /^\/(view|share)\/([^/?#]+)/;
+const BOT_PATH_RE = /^\/(view|share|certificate)\/([^/?#]+)/;
 
 function escapeHtml(value: string): string {
   return value
@@ -108,6 +109,29 @@ export default async function handler(request: Request): Promise<Response> {
         title = `${meta.title} — ${siteName}`;
         if (meta.description) description = stripTags(meta.description);
         if (meta.thumbnailUrl) image = meta.thumbnailUrl;
+      }
+    } else if (kind === "certificate") {
+      noindex = true; // tokenized certificate links are never indexed
+      const cert = (await convexQuery(
+        convexUrl,
+        "certificates:getCertificateByShareToken",
+        { shareToken: id }
+      )) as {
+        recipientName?: string;
+        quizTitle?: string;
+        targetTitle?: string | null;
+        score?: number;
+        issuedAt?: number;
+      } | null;
+      if (cert?.recipientName && cert.quizTitle) {
+        title = `${cert.recipientName} — ${cert.quizTitle} Certificate — ${siteName}`;
+        description =
+          `Certificate of achievement awarded to ${cert.recipientName} ` +
+          `for passing “${cert.quizTitle}”` +
+          (cert.targetTitle ? ` (${cert.targetTitle})` : "") +
+          (typeof cert.score === "number"
+            ? ` with a score of ${cert.score}%.`
+            : ".");
       }
     } else {
       noindex = true; // tokenized share links are never indexed

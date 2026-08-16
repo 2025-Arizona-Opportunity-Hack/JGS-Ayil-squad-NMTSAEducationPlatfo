@@ -28,6 +28,7 @@ import {
   hasPermission,
   PERMISSIONS,
 } from "./permissions";
+import { issueCertificateIfNeeded } from "./certificates";
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
 const MAX_OPTIONS_PER_QUESTION = 10;
@@ -758,6 +759,15 @@ async function buildLearnerQuizPayload(
     );
   }
 
+  // Certificate for a pass (auto-issued on submit; null for passes that
+  // predate certificates — the UI offers claimMyCertificate for those).
+  const certificate = await ctx.db
+    .query("certificates")
+    .withIndex("by_quiz_user", (q) =>
+      q.eq("quizId", quiz._id).eq("userId", userId)
+    )
+    .unique();
+
   return {
     quizId: quiz._id,
     title: quiz.title,
@@ -777,6 +787,9 @@ async function buildLearnerQuizPayload(
       passed,
       locked: !!lockReason,
       lockReason,
+      certificate: certificate
+        ? { shareToken: certificate.shareToken, issuedAt: certificate.issuedAt }
+        : null,
     },
   };
 }
@@ -910,12 +923,24 @@ export const submitQuizAttempt = mutation({
       passed,
     });
 
+    // A pass earns a certificate (idempotent — repeat passes keep the first)
+    const certificate = passed
+      ? await issueCertificateIfNeeded(ctx, quiz, userId, {
+          _id: attemptId,
+          score,
+          passed,
+        })
+      : null;
+
     const reveal = quiz.revealAnswers ?? "correctness";
     return {
       attemptId,
       attemptNumber,
       score,
       passed,
+      certificate: certificate
+        ? { shareToken: certificate.shareToken }
+        : null,
       pointsEarned,
       pointsPossible,
       passingScore: quiz.passingScore,

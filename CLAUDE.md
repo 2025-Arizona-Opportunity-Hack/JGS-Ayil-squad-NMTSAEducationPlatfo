@@ -106,6 +106,13 @@ regression suite, and these rules are what it enforces:
   results. Learner queries go through the `sanitizeQuestion` whitelist in
   `convex/quizzes.ts` — never spread a question doc. Grading is server-side
   only. Regression cluster C1 in `convex/security.test.ts`.
+- **Certificates are issued server-side only** — from a graded passing
+  `quizAttempts` row (`issueCertificateIfNeeded` in `convex/certificates.ts`
+  is the single copy; `submitQuizAttempt` auto-issues, `claimMyCertificate`
+  re-validates the pass). `getCertificateByShareToken` is deliberately
+  anonymous (share page `/certificate/:token` + `api/meta.ts`) and returns a
+  whitelist — never userId/attemptId/quizId or answers. Tests:
+  `convex/certificates.test.ts`.
 - The `allowPublicSignup` site setting relaxes the join-request gate only —
   the role clamp in `users.createUserProfile` (code-less signups →
   client/parent) must stay intact. `autoApprovePurchases` removes the
@@ -119,7 +126,8 @@ regression suite, and these rules are what it enforces:
   must be a `ConvexError`.
 - `api/meta.ts` (unfurl bots) may only source metadata from queries an
   anonymous visitor can call (`getPublicContent`, `getContentByShareToken`,
-  `getSiteSettings`) so publication/paywall/privacy gates apply verbatim.
+  `getCertificateByShareToken`, `getSiteSettings`) so publication/paywall/
+  privacy gates apply verbatim.
 - **External auth** (PropelAuth; see `docs/EXTERNAL_AUTH.md`): backend code
   imports `getAuthUserId` from `convex/externalAuth.ts`, never from
   `@convex-dev/auth/server` — it's the single resolver for both Convex Auth
@@ -141,8 +149,8 @@ regression suite, and these rules are what it enforces:
 ## SEO / unfurling
 
 The app is a client-rendered SPA; `vercel.json` rewrites known unfurl-bot
-user agents on `/view/:id` and `/share/:token` to `api/meta.ts`, which serves
-per-content Open Graph tags. Google et al. keep the SPA and get titles from
+user agents on `/view/:id`, `/share/:token`, and `/certificate/:token` to
+`api/meta.ts`, which serves per-content Open Graph tags. Google et al. keep the SPA and get titles from
 `src/lib/usePageMeta.ts`. `/sitemap.xml` + `/robots.txt` are Vercel functions
 (`api/`), per-domain at request time — never hardcode a domain there. Share
 pages are always `noindex`.

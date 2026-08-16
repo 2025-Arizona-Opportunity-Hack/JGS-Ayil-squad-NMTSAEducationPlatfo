@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Upload, Trash2 } from "lucide-react";
+import { Camera, Upload, Trash2, Award, ExternalLink, Link2 } from "lucide-react";
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -68,6 +68,21 @@ export function ProfileEditModal({
   const generateUploadUrl = useMutation(
     api.users.generateProfilePictureUploadUrl
   );
+  const certificates = useQuery(
+    api.certificates.getMyCertificates,
+    isOpen ? {} : "skip"
+  );
+
+  const copyCertificateLink = async (shareToken: string) => {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/certificate/${shareToken}`
+      );
+      toast.success("Certificate link copied");
+    } catch {
+      toast.error("Could not copy the link");
+    }
+  };
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -259,6 +274,66 @@ export function ProfileEditModal({
               />
             </div>
           </div>
+
+          {/* Certificates earned from quizzes */}
+          {certificates && certificates.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-medium">
+                <Award className="w-4 h-4 text-primary" aria-hidden="true" />
+                My certificates
+              </h3>
+              <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {certificates.map((certificate) => (
+                  <li
+                    key={certificate._id}
+                    className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {certificate.quizTitle}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {certificate.score}% ·{" "}
+                        {new Date(certificate.issuedAt).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "short", day: "numeric" }
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`/certificate/${certificate.shareToken}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`View certificate for ${certificate.quizTitle}`}
+                        >
+                          <ExternalLink className="w-4 h-4" aria-hidden="true" />
+                          <span className="sr-only sm:not-sr-only sm:ml-1.5">
+                            View
+                          </span>
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void copyCertificateLink(certificate.shareToken)
+                        }
+                        aria-label={`Copy share link for ${certificate.quizTitle} certificate`}
+                      >
+                        <Link2 className="w-4 h-4" aria-hidden="true" />
+                        <span className="sr-only sm:not-sr-only sm:ml-1.5">
+                          Copy link
+                        </span>
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
