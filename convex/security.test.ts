@@ -373,11 +373,9 @@ describe("A3: /api/serve-chunked must require a signed URL for protected content
     const { ownerId, contentId } = await seedChunkedContent(t);
     stubStorageFetch();
 
-    // `getSignedMediaUrl` does not exist yet — this will fail to resolve
-    // until cluster-A implements it, which is expected/acceptable for now.
     const signedUrl: string = await t
       .withIdentity({ subject: ownerId })
-      .action((api.content as any).getSignedMediaUrl, { contentId });
+      .action(api.content.getSignedMediaUrl, { contentId });
 
     const parsed = new URL(signedUrl, "http://localhost");
     const res = await t.fetch(`${parsed.pathname}${parsed.search}`, {
@@ -385,6 +383,292 @@ describe("A3: /api/serve-chunked must require a signed URL for protected content
     });
 
     expect(res.status).toBe(200);
+  });
+});
+
+describe("A3b: getSignedMediaUrl mints only for entitled viewers", () => {
+  const TEST_SECRET = "test-secret-for-media-urls";
+  const SECRET_BYTES = "TOP-SECRET-PAID-CONTENT-BYTES";
+  let originalSecret: string | undefined;
+
+  beforeEach(() => {
+    originalSecret = process.env.MEDIA_URL_SECRET;
+    process.env.MEDIA_URL_SECRET = TEST_SECRET;
+  });
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env.MEDIA_URL_SECRET;
+    else process.env.MEDIA_URL_SECRET = originalSecret;
+    vi.restoreAllMocks();
+  });
+
+  function stubStorageFetch() {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(SECRET_BYTES, { status: 200 }));
+  }
+
+  async function seedChunked(
+    t: ReturnType<typeof convexTest>,
+    overrides: Record<string, unknown> = {}
+  ) {
+    const ownerId = await seedUser(t, "owner", `owner-a3b-${Math.random()}@test.local`);
+    const contentId = await t.run(async (ctx) => {
+      const blob = new Blob([SECRET_BYTES], { type: "video/mp4" });
+      const storageId = await ctx.storage.store(blob);
+      return await ctx.db.insert("content", {
+        title: "Chunked Video",
+        isPublic: false,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        attachmentType: "video",
+        mimeType: "video/mp4",
+        chunks: [{ storageId, size: SECRET_BYTES.length }],
+        ...overrides,
+      });
+    });
+    return { ownerId, contentId };
+  }
+
+  it("rejects an authed user with no grant on private chunked content", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunked(t);
+    const strangerId = await seedUser(t, "client", `client-a3b-${Math.random()}@test.local`);
+
+    await expect(
+      t
+        .withIdentity({ subject: strangerId })
+        .action(api.content.getSignedMediaUrl, { contentId })
+    ).rejects.toThrow();
+  });
+
+  it("rejects anonymous callers without or with a wrong password on password-gated content", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunked(t, { password: "letmein" });
+
+    await expect(
+      t.action(api.content.getSignedMediaUrl, { contentId })
+    ).rejects.toThrow();
+    await expect(
+      t.action(api.content.getSignedMediaUrl, { contentId, password: "wrong" })
+    ).rejects.toThrow();
+  });
+
+  it("mints for an anonymous caller with the correct password, and the URL serves", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunked(t, { password: "letmein" });
+    stubStorageFetch();
+
+    const url: string = await t.action(api.content.getSignedMediaUrl, {
+      contentId,
+      password: "letmein",
+    });
+
+    const parsed = new URL(url, "http://localhost");
+    const res = await t.fetch(`${parsed.pathname}${parsed.search}`, { method: "GET" });
+    expect(res.status).toBe(200);
+  });
+
+  it("mints via a share token only for that token's content", async () => {
+    const t = convexTest(schema);
+    const { ownerId, contentId } = await seedChunked(t);
+    const { contentId: otherContentId } = await seedChunked(t);
+    const token = `tok-${Math.random()}`;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentShares", {
+        contentId,
+        sharedBy: ownerId,
+        recipientEmail: "friend@test.local",
+        accessToken: token,
+        viewCount: 0,
+      });
+    });
+
+    const url: string = await t.action(api.content.getSignedMediaUrl, {
+      contentId,
+      shareToken: token,
+    });
+    expect(url).toContain(`/api/serve-chunked/${contentId}`);
+
+    await expect(
+      t.action(api.content.getSignedMediaUrl, {
+        contentId: otherContentId,
+        shareToken: token,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects an expired share token", async () => {
+    const t = convexTest(schema);
+    const { ownerId, contentId } = await seedChunked(t);
+    const token = `tok-${Math.random()}`;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentShares", {
+        contentId,
+        sharedBy: ownerId,
+        recipientEmail: "friend@test.local",
+        accessToken: token,
+        viewCount: 0,
+        expiresAt: Date.now() - 60 * 1000,
+      });
+    });
+
+    await expect(
+      t.action(api.content.getSignedMediaUrl, { contentId, shareToken: token })
+    ).rejects.toThrow();
+  });
+
+  it("does not mint priced public chunked content for non-purchasers, but does for grant-holders", async () => {
+    const t = convexTest(schema);
+    const { ownerId, contentId } = await seedChunked(t, { isPublic: true });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentPricing", {
+        contentId,
+        price: 1999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+    });
+    const buyerId = await seedUser(t, "client", `buyer-a3b-${Math.random()}@test.local`);
+
+    // Anonymous and authed-but-not-purchased callers get nothing, even
+    // though the content is isPublic (that only makes the purchase page
+    // public, never the media).
+    await expect(
+      t.action(api.content.getSignedMediaUrl, { contentId })
+    ).rejects.toThrow();
+    await expect(
+      t
+        .withIdentity({ subject: buyerId })
+        .action(api.content.getSignedMediaUrl, { contentId })
+    ).rejects.toThrow();
+
+    // A contentAccess grant (what completeOrderInternal writes) unlocks it.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentAccess", {
+        contentId,
+        userId: buyerId,
+        grantedBy: ownerId,
+        canShare: false,
+      });
+    });
+    const url: string = await t
+      .withIdentity({ subject: buyerId })
+      .action(api.content.getSignedMediaUrl, { contentId });
+    expect(url).toContain(`/api/serve-chunked/${contentId}`);
+  });
+
+  it("still serves exempt (public, published, unpriced, password-free) chunked content unsigned", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunked(t, { isPublic: true });
+    stubStorageFetch();
+
+    const res = await t.fetch(`/api/serve-chunked/${contentId}`, { method: "GET" });
+    expect(res.status).toBe(200);
+  });
+
+  it("serves chunked media recorded as video/x-m4v with Content-Type video/mp4", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedChunked(t, {
+      isPublic: true,
+      mimeType: "video/x-m4v",
+    });
+    stubStorageFetch();
+
+    const res = await t.fetch(`/api/serve-chunked/${contentId}`, { method: "GET" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("video/mp4");
+  });
+});
+
+describe("A5: getContent must enforce the paywall and not leak content passwords", () => {
+  async function seedPricedPublicContent(t: ReturnType<typeof convexTest>) {
+    const ownerId = await seedUser(t, "owner", `owner-a5-${Math.random()}@test.local`);
+    const contentId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("content", {
+        title: "Paid Course",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+      });
+      await ctx.db.insert("contentPricing", {
+        contentId: id,
+        price: 1999,
+        currency: "USD",
+        isActive: true,
+        createdBy: ownerId,
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+    return { ownerId, contentId };
+  }
+
+  it("returns null for priced public content to an authed user without a grant", async () => {
+    const t = convexTest(schema);
+    const { contentId } = await seedPricedPublicContent(t);
+    const clientId = await seedUser(t, "client", `client-a5-${Math.random()}@test.local`);
+
+    const result = await t
+      .withIdentity({ subject: clientId })
+      .query(api.content.getContent, { contentId });
+
+    expect(result).toBeNull();
+  });
+
+  it("still returns priced content to the creator and to grant-holders", async () => {
+    const t = convexTest(schema);
+    const { ownerId, contentId } = await seedPricedPublicContent(t);
+    const buyerId = await seedUser(t, "client", `buyer-a5-${Math.random()}@test.local`);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contentAccess", {
+        contentId,
+        userId: buyerId,
+        grantedBy: ownerId,
+        canShare: false,
+      });
+    });
+
+    const forOwner = await t
+      .withIdentity({ subject: ownerId })
+      .query(api.content.getContent, { contentId });
+    const forBuyer = await t
+      .withIdentity({ subject: buyerId })
+      .query(api.content.getContent, { contentId });
+
+    expect(forOwner?.title).toBe("Paid Course");
+    expect(forBuyer?.title).toBe("Paid Course");
+  });
+
+  it("strips the content password for viewers without EDIT_CONTENT and keeps it for editors", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", `owner-a5p-${Math.random()}@test.local`);
+    const contentId = await t.run(async (ctx) =>
+      ctx.db.insert("content", {
+        title: "Password-gated",
+        isPublic: true,
+        status: "published",
+        active: true,
+        createdBy: ownerId,
+        password: "sekrit",
+      })
+    );
+    const clientId = await seedUser(t, "client", `client-a5p-${Math.random()}@test.local`);
+
+    const forClient = await t
+      .withIdentity({ subject: clientId })
+      .query(api.content.getContent, { contentId });
+    const forOwner = await t
+      .withIdentity({ subject: ownerId })
+      .query(api.content.getContent, { contentId });
+
+    expect(forClient).not.toBeNull();
+    expect(forClient?.password).toBeUndefined();
+    expect(forOwner?.password).toBe("sekrit");
   });
 });
 

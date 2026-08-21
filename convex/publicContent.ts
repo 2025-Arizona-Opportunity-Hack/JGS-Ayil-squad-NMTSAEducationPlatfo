@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getAuthUserId } from "./externalAuth";
-import { getUserProfile, getContentFileUrl, formatUserName, checkContentAccess, deriveContentType } from "./helpers";
+import { getUserProfile, getAnonymousContentMediaInfo, formatUserName, checkContentAccess, deriveContentType } from "./helpers";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 
 // Public, published, active content ids for the sitemap (served by
@@ -165,8 +165,8 @@ export const getPublicContent = query({
       return { error: "You don't have permission to view this content", requiresPassword: false, requiresAuth: true, content: null };
     }
 
-    const [fileUrl, thumbnailUrl] = await Promise.all([
-      getContentFileUrl(ctx, content),
+    const [mediaInfo, thumbnailUrl] = await Promise.all([
+      getAnonymousContentMediaInfo(ctx, content, !!activePricing),
       content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
     ]);
     const creatorName = formatUserName(await getUserProfile(ctx, content.createdBy));
@@ -200,7 +200,11 @@ export const getPublicContent = query({
         // Viewers switch on `type`, which is derived rather than stored.
         // Without this the player never renders. See deriveContentType.
         type: deriveContentType(content.attachmentType, content.type),
-        fileUrl,
+        fileUrl: mediaInfo.fileUrl,
+        // Chunked media that isn't signature-exempt has no direct URL; the
+        // viewer mints one via content.getSignedMediaUrl (passing the same
+        // password it used here, so the gates re-apply).
+        requiresSignedUrl: mediaInfo.requiresSignedUrl,
         thumbnailUrl,
         creatorName,
         password: undefined,

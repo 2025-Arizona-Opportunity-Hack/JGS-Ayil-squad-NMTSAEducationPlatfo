@@ -100,6 +100,22 @@ regression suite, and these rules are what it enforces:
 - Keep one copy of an access check. The group-access bypass existed because
   `content.ts` held a divergent copy of `checkContentAccess`; `helpers.ts` owns it
   (and `checkGroupAccess` for bundles).
+- **Chunked media** (`content.chunks`, files over ~50 MB) is served by
+  `/api/serve-chunked`, which requires an HMAC-signed URL (`MEDIA_URL_SECRET`,
+  fail-closed) unless the content is exempt — public+published+active+unpriced+
+  password-free; `isSignedMediaExempt` in `helpers.ts` is the ONE copy of that
+  predicate, shared by `router.ts` and the queries. Queries never return an
+  unsigned `/api/serve-chunked` URL for non-exempt content: they return
+  `fileUrl: null` + `requiresSignedUrl: true`, and the frontend
+  (`src/lib/useMediaUrl.ts` → `content.getSignedMediaUrl`) mints one.
+  `getSignedMediaUrl`'s entitlement comes only from the canonical viewer
+  queries (getContent, then shareToken via getContentByShareToken, then
+  getPublicContent+password) — never a new copy of an access check.
+  `getContent` itself enforces the paywall (priced ⇒ creator / VIEW_ALL /
+  grant) and returns `password` only to holders of `EDIT_CONTENT` (the edit
+  form prefills it). MIME aliases are normalized in `convex/mimeTypes.ts`
+  (video/x-m4v → video/mp4) at upload AND serve time. Tests: clusters
+  A3/A3b/A5 in `convex/security.test.ts`.
 - **Quiz answers are secrets.** `quizQuestions.correctOptionIds`/`explanation`
   reach clients only via `getQuizForEditing` (gated on `MANAGE_QUIZZES`, which
   is deliberately separate from `EDIT_CONTENT`) or reveal-shaped grading

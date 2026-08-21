@@ -36,6 +36,14 @@ import { ContentAnalyticsModal } from "./ContentAnalyticsModal";
 import { RecommendContentModal } from "./RecommendContentModal";
 import { LexicalEditor } from "./LexicalEditor";
 import { GoogleDrivePicker } from "./GoogleDrivePicker";
+import { ContentMediaPlayer } from "./media/ContentMediaPlayer";
+import { useMediaUrl } from "@/lib/useMediaUrl";
+import { getEffectiveFileType, matchesAttachmentType } from "@/lib/mediaMime";
+import { uploadBlobWithProgress, UploadHttpError } from "@/lib/uploadWithProgress";
+import { uploadContentFile, ContentUploadError } from "@/lib/uploadContentFile";
+import { generateVideoThumbnail } from "@/lib/generateVideoThumbnail";
+import { useUploadFailureLogger } from "@/lib/useUploadFailureLogger";
+import { Progress } from "@/components/ui/progress";
 import { TagInput } from "@/components/ui/tag-input";
 import { contentFormSchema, type ContentFormData } from "../lib/validationSchemas";
 import { Button } from "@/components/ui/button";
@@ -80,12 +88,6 @@ import { ContentFilters, type FilterState } from "./admin/ContentFilters";
 import { ContentList } from "./admin/ContentList";
 import { ContentActions } from "./admin/ContentActions";
 
-// Files larger than this go through the chunked-upload path so we don't blow
-// past Convex's 2-minute single-POST window. Below this, the single-POST flow
-// is faster and simpler.
-const CHUNKED_UPLOAD_THRESHOLD_BYTES = 500 * 1024 * 1024; // 500 MB
-const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB per chunk — comfortably uploads in <2 min on typical broadband
-
 interface ContentManagerProps {
   // Switches the admin dashboard to the Quizzes tab (quiz badge / edit-modal
   // link). Optional so the manager still works if rendered standalone.
@@ -118,6 +120,10 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileSource, setFileSource] = useState<"local" | "google_drive" | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    uploadedBytes: number;
+    totalBytes: number;
+  } | null>(null);
   const [contentToDelete, setContentToDelete] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -173,38 +179,17 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
     api.content.getContent,
     previewContentId ? { contentId: previewContentId as any } : "skip" as any
   );
+  // Chunked media has no direct fileUrl; the preview modal mints a signed
+  // URL (staff can mint for anything getContent returns, drafts included).
+  const previewMedia = useMediaUrl({
+    contentId: previewContentId ?? undefined,
+    fileUrl: previewContent?.fileUrl ?? null,
+    requiresSignedUrl: previewContent?.requiresSignedUrl,
+  });
   const createContent = useMutation(api.content.createContent);
   const createChunkedContent = useMutation(api.content.createChunkedContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
-  const logUploadFailure = useMutation(api.uploadLogs.log);
-
-  const reportUploadFailure = (args: {
-    step: string;
-    error: unknown;
-    file?: File | null;
-    source?: "local" | "google_drive" | null;
-    attachmentType?: string;
-    httpStatus?: number;
-    metadata?: Record<string, unknown>;
-  }) => {
-    const err = args.error;
-    const errorMessage =
-      err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
-    const errorName = err instanceof Error ? err.name : undefined;
-    logUploadFailure({
-      step: args.step,
-      source: args.source ?? undefined,
-      errorMessage,
-      errorName,
-      fileName: args.file?.name,
-      fileSize: args.file?.size,
-      mimeType: args.file?.type,
-      attachmentType: args.attachmentType,
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-      httpStatus: args.httpStatus,
-      metadata: args.metadata,
-    }).catch(() => {});
-  };
+  const reportUploadFailure = useUploadFailureLogger();
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const archiveContentMutation = useMutation(api.content.archiveContent);
   const submitForReview = useMutation(api.content.submitForReview);
@@ -289,87 +274,17 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
     setSelectedIds([]);
   }, [contentTypeFilter, statusFilter, searchQuery, selectedTags, selectedGroupId, sortBy]);
 
-  // Generate thumbnail from video
-  const generateVideoThumbnail = (videoFile: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      // Timeout after 30 seconds
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error('Thumbnail generation timed out - video may not be playable'));
-      }, 30000);
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        if (video.src) {
-          URL.revokeObjectURL(video.src);
-        }
-      };
-
-      video.preload = 'metadata';
-      video.muted = true;
-      video.playsInline = true;
-      video.crossOrigin = 'anonymous';
-
-      video.onloadedmetadata = () => {
-        console.log("[Thumbnail] Video metadata loaded:", {
-          duration: video.duration,
-          width: video.videoWidth,
-          height: video.videoHeight,
-        });
-      };
-
-      video.onloadeddata = () => {
-        console.log("[Thumbnail] Video data loaded, seeking...");
-        // Seek to 1 second or 10% of video duration, whichever is smaller
-        video.currentTime = Math.min(1, video.duration * 0.1);
-      };
-
-      video.onseeked = () => {
-        console.log("[Thumbnail] Seeked to:", video.currentTime);
-        // Set canvas size to video dimensions (max 640px width to keep file size reasonable)
-        const maxWidth = 640;
-        const scale = Math.min(1, maxWidth / video.videoWidth);
-        canvas.width = video.videoWidth * scale;
-        canvas.height = video.videoHeight * scale;
-
-        if (canvas.width === 0 || canvas.height === 0) {
-          cleanup();
-          reject(new Error('Video dimensions are zero - format may not be supported'));
-          return;
-        }
-
-        // Draw video frame to canvas
-        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Convert canvas to blob
-        canvas.toBlob(
-          (blob) => {
-            cleanup();
-            if (blob && blob.size > 0) {
-              resolve(blob);
-            } else {
-              reject(new Error('Failed to generate thumbnail - blob is empty'));
-            }
-          },
-          'image/jpeg',
-          0.8
-        );
-      };
-
-      video.onerror = (e) => {
-        console.error("[Thumbnail] Video error:", e);
-        cleanup();
-        reject(new Error(`Failed to load video: ${video.error?.message || 'unknown error'}`));
-      };
-
-      video.src = URL.createObjectURL(videoFile);
-      console.log("[Thumbnail] Created object URL for video");
-    });
-  };
+  // Closing the tab mid-upload silently abandons it (and any already-uploaded
+  // chunks); make the browser ask first.
+  useEffect(() => {
+    if (!uploading) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploading]);
 
   // Selection and bulk actions (component scope)
   const toggleSelect = (id: string) => {
@@ -479,12 +394,45 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
     }
   };
 
+  // Generate a poster thumbnail from the selected video and upload it.
+  // Failures are non-fatal: the content is created without a thumbnail.
+  const generateAndUploadThumbnail = async (
+    videoFile: File,
+    attachmentType: string
+  ): Promise<string | undefined> => {
+    try {
+      toast.loading("Generating thumbnail...", { id: "thumbnail" });
+      const thumbnailBlob = await generateVideoThumbnail(videoFile);
+      const storageId = await uploadBlobWithProgress({
+        getUploadUrl: () => generateUploadUrl(),
+        blob: thumbnailBlob,
+        contentType: "image/jpeg",
+      });
+      toast.success("Thumbnail generated!", { id: "thumbnail" });
+      return storageId;
+    } catch (error) {
+      console.error("[Thumbnail] Error generating thumbnail:", error);
+      reportUploadFailure({
+        step: "thumbnail_upload",
+        error,
+        file: videoFile,
+        source: fileSource,
+        attachmentType,
+        httpStatus: error instanceof UploadHttpError ? error.status : undefined,
+        metadata: { phase: "generation_or_upload" },
+      });
+      toast.error("Thumbnail generation failed - video format may not be supported", { id: "thumbnail" });
+      return undefined;
+    }
+  };
+
   const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
+    setUploadProgress(null);
 
     try {
-      let fileId = undefined;
-      let thumbnailId = undefined;
+      let fileId: string | undefined = undefined;
+      let thumbnailId: string | undefined = undefined;
       let chunkedUploadResult:
         | { chunks: Array<{ storageId: string; size: number }>; mimeType: string }
         | null = null;
@@ -496,184 +444,71 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
           data.attachmentType === "audio" ||
           data.attachmentType === "image");
 
-      const useChunkedUpload =
-        isFileAttachment && selectedFile.size > CHUNKED_UPLOAD_THRESHOLD_BYTES;
+      // Canonical MIME type: normalizes aliases like video/x-m4v (which
+      // Chromium refuses to play back) and falls back to the file extension
+      // when the OS reports no type. Used as the storage Content-Type and the
+      // serve-time mimeType of chunked content.
+      const effectiveMimeType = selectedFile
+        ? getEffectiveFileType(selectedFile) || "application/octet-stream"
+        : "application/octet-stream";
+
+      // Poster thumbnail for both upload paths — the original File is in
+      // hand before any chunking, so chunked videos get thumbnails too.
+      if (isFileAttachment && data.attachmentType === "video") {
+        thumbnailId = await generateAndUploadThumbnail(selectedFile, data.attachmentType);
+      }
 
       // Handle file upload for videos, pdfs, images, and audio
-      if (isFileAttachment && !useChunkedUpload) {
+      if (isFileAttachment) {
         console.log("[Upload] Starting file upload:", {
           fileName: selectedFile.name,
           fileSize: selectedFile.size,
-          fileType: selectedFile.type,
+          fileType: effectiveMimeType,
           attachmentType: data.attachmentType,
         });
 
-        const uploadUrl = await generateUploadUrl();
-        let result: Response;
+        setUploadProgress({ uploadedBytes: 0, totalBytes: selectedFile.size });
+        let uploadResult;
         try {
-          result = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": selectedFile.type },
-            body: selectedFile,
+          uploadResult = await uploadContentFile({
+            file: selectedFile,
+            contentType: effectiveMimeType,
+            getUploadUrl: () => generateUploadUrl(),
+            onProgress: (uploadedBytes, totalBytes) =>
+              setUploadProgress({ uploadedBytes, totalBytes }),
           });
-        } catch (fetchError) {
-          // Network-level failure (e.g. Safari "Load failed", connection drop, CORS)
+        } catch (error) {
+          const uploadError = error instanceof ContentUploadError ? error : null;
+          const cause = uploadError?.cause ?? error;
           reportUploadFailure({
             step: "convex_upload",
-            error: fetchError,
+            error: cause,
             file: selectedFile,
             source: fileSource,
             attachmentType: data.attachmentType,
-            metadata: { phase: "fetch" },
+            httpStatus: cause instanceof UploadHttpError ? cause.status : undefined,
+            metadata: uploadError?.info,
           });
-          throw fetchError;
-        }
-        const json = await result.json();
-        console.log("[Upload] Upload response:", json);
-
-        if (!result.ok) {
-          reportUploadFailure({
-            step: "convex_upload",
-            error: new Error(`Upload failed: ${JSON.stringify(json)}`),
-            file: selectedFile,
-            source: fileSource,
-            attachmentType: data.attachmentType,
-            httpStatus: result.status,
-            metadata: { phase: "response_not_ok", response: json },
-          });
-          throw new Error(`Upload failed: ${JSON.stringify(json)}`);
-        }
-        fileId = json.storageId;
-        console.log("[Upload] File uploaded with storageId:", fileId);
-        
-        // Generate and upload thumbnail for videos
-        if (data.attachmentType === "video") {
-          try {
-            console.log("[Thumbnail] Starting thumbnail generation for:", selectedFile.name, selectedFile.type);
-            toast.loading("Generating thumbnail...", { id: "thumbnail" });
-            const thumbnailBlob = await generateVideoThumbnail(selectedFile);
-            console.log("[Thumbnail] Generated blob:", thumbnailBlob.size, "bytes");
-
-            const thumbnailUploadUrl = await generateUploadUrl();
-            const thumbnailResult = await fetch(thumbnailUploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": "image/jpeg" },
-              body: thumbnailBlob,
-            });
-            const thumbnailJson = await thumbnailResult.json();
-            console.log("[Thumbnail] Upload response:", thumbnailJson);
-
-            if (thumbnailResult.ok) {
-              thumbnailId = thumbnailJson.storageId;
-              console.log("[Thumbnail] Successfully uploaded with storageId:", thumbnailId);
-              toast.success("Thumbnail generated!", { id: "thumbnail" });
-            } else {
-              console.error("[Thumbnail] Upload failed:", thumbnailJson);
-              reportUploadFailure({
-                step: "thumbnail_upload",
-                error: new Error(`Thumbnail upload failed: ${JSON.stringify(thumbnailJson)}`),
-                file: selectedFile,
-                source: fileSource,
-                attachmentType: data.attachmentType,
-                httpStatus: thumbnailResult.status,
-                metadata: { phase: "response_not_ok", response: thumbnailJson },
-              });
-              toast.dismiss("thumbnail");
-            }
-          } catch (error) {
-            console.error("[Thumbnail] Error generating thumbnail:", error);
-            reportUploadFailure({
-              step: "thumbnail_upload",
-              error,
-              file: selectedFile,
-              source: fileSource,
-              attachmentType: data.attachmentType,
-              metadata: { phase: "generation_or_fetch" },
-            });
-            toast.error("Thumbnail generation failed - video format may not be supported", { id: "thumbnail" });
-            // Continue without thumbnail if generation fails
+          if (uploadError?.info.chunked) {
+            toast.error(
+              `Upload failed at ${Math.round((uploadError.info.uploadedBytes / selectedFile.size) * 100)}% — please try again`
+            );
           }
-        }
-      } else if (useChunkedUpload && selectedFile) {
-        // Chunked-upload path for files larger than CHUNKED_UPLOAD_THRESHOLD_BYTES.
-        // We upload each 50 MB chunk as its own _storage object, then call
-        // createChunkedContent with the ordered list. The /api/serve-chunked
-        // HTTP action stitches them back together via Range requests.
-        //
-        // Trade-offs vs. single-POST: no Convex 2-min timeout (each chunk
-        // uploads independently). Thumbnail generation is skipped because the
-        // generator needs the whole video in one Blob, which would require
-        // re-stitching client-side. Acceptable for v1.
-        const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE_BYTES);
-        console.log("[ChunkedUpload] Starting:", {
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          chunkSize: CHUNK_SIZE_BYTES,
-          totalChunks,
-        });
-
-        const chunks: Array<{ storageId: string; size: number }> = [];
-        const toastId = "chunked-upload";
-        toast.loading(`Uploading chunk 1 of ${totalChunks}…`, { id: toastId });
-
-        for (let i = 0; i < totalChunks; i++) {
-          const start = i * CHUNK_SIZE_BYTES;
-          const end = Math.min(start + CHUNK_SIZE_BYTES, selectedFile.size);
-          const chunkBlob = selectedFile.slice(start, end);
-
-          toast.loading(`Uploading chunk ${i + 1} of ${totalChunks}…`, { id: toastId });
-
-          const uploadUrl = await generateUploadUrl();
-          let result: Response;
-          try {
-            result = await fetch(uploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
-              body: chunkBlob,
-            });
-          } catch (fetchError) {
-            reportUploadFailure({
-              step: "convex_upload",
-              error: fetchError,
-              file: selectedFile,
-              source: fileSource,
-              attachmentType: data.attachmentType,
-              metadata: { phase: "fetch", chunkIndex: i, totalChunks, chunked: true },
-            });
-            toast.error(`Chunk ${i + 1} failed to upload`, { id: toastId });
-            throw fetchError;
-          }
-
-          const json = await result.json();
-          if (!result.ok) {
-            reportUploadFailure({
-              step: "convex_upload",
-              error: new Error(`Chunk upload failed: ${JSON.stringify(json)}`),
-              file: selectedFile,
-              source: fileSource,
-              attachmentType: data.attachmentType,
-              httpStatus: result.status,
-              metadata: { phase: "response_not_ok", response: json, chunkIndex: i, totalChunks, chunked: true },
-            });
-            toast.error(`Chunk ${i + 1} failed to upload`, { id: toastId });
-            throw new Error(`Chunk upload failed: ${JSON.stringify(json)}`);
-          }
-
-          chunks.push({ storageId: json.storageId, size: end - start });
+          throw error;
         }
 
-        toast.success(`All ${totalChunks} chunks uploaded`, { id: toastId });
-        chunkedUploadResult = {
-          chunks,
-          mimeType: selectedFile.type || "application/octet-stream",
-        };
+        if (uploadResult.kind === "single") {
+          fileId = uploadResult.storageId;
+          console.log("[Upload] File uploaded with storageId:", fileId);
+        } else {
+          chunkedUploadResult = { chunks: uploadResult.chunks, mimeType: effectiveMimeType };
+        }
       }
 
       let newContentId: string;
       if (chunkedUploadResult && selectedFile) {
-        // Chunked path: call createChunkedContent (does not accept fileId or
-        // thumbnailId since chunked content is served via /api/serve-chunked
-        // and thumbnail generation is skipped above).
+        // Chunked path: no fileId — the content is served via
+        // /api/serve-chunked from the ordered chunk list.
         console.log("[Create] Creating chunked content:", {
           totalChunks: chunkedUploadResult.chunks.length,
         });
@@ -684,6 +519,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
           chunks: chunkedUploadResult.chunks as Array<{ storageId: any; size: number }>,
           mimeType: chunkedUploadResult.mimeType,
           fileName: selectedFile.name,
+          thumbnailId: thumbnailId as any,
           externalUrl: data.externalUrl || undefined,
           isPublic: data.isPublic,
           authorName: data.authorName || undefined,
@@ -699,8 +535,8 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
           title: data.title,
           description: data.description || undefined,
           attachmentType: data.attachmentType,
-          fileId: fileId,
-          thumbnailId: thumbnailId,
+          fileId: fileId as any,
+          thumbnailId: thumbnailId as any,
           externalUrl: data.externalUrl || undefined,
           isPublic: data.isPublic,
           authorName: data.authorName || undefined,
@@ -726,6 +562,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
       toast.error(error instanceof Error ? error.message : "Failed to create content");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -813,23 +650,26 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file type based on attachment type
-      if (formAttachmentType === "video" && !file.type.startsWith('video/')) {
+      // Check file type based on attachment type. getEffectiveFileType falls
+      // back to the extension when the OS reports no MIME type (common for
+      // .m4v on Windows/Linux), so those files aren't rejected outright.
+      const mime = getEffectiveFileType(file);
+      if (formAttachmentType === "video" && !matchesAttachmentType(mime, "video")) {
         toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "audio" && !file.type.startsWith('audio/')) {
+      if (formAttachmentType === "audio" && !matchesAttachmentType(mime, "audio")) {
         toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "pdf" && !file.type.includes('pdf')) {
+      if (formAttachmentType === "pdf" && !matchesAttachmentType(mime, "pdf")) {
         toast.error('Please select a PDF file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "image" && !file.type.startsWith('image/')) {
+      if (formAttachmentType === "image" && !matchesAttachmentType(mime, "image")) {
         toast.error('Please select an image file');
         e.target.value = '';
         return;
@@ -1011,7 +851,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
                       <Input
                         id="videoFile"
                         type="file"
-                        accept="video/*"
+                        accept="video/*,.mp4,.m4v,.mov,.webm"
                         onChange={handleFileChange}
                       />
                     </div>
@@ -1042,7 +882,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
                       <Input
                         id="audioFile"
                         type="file"
-                        accept="audio/*"
+                        accept="audio/*,.mp3,.m4a,.wav,.ogg"
                         onChange={handleFileChange}
                       />
                     </div>
@@ -1291,9 +1131,28 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
                 </div>
               )}
 
+            {uploadProgress && uploadProgress.totalBytes > 0 && (
+              <div className="space-y-1 pt-4">
+                <Progress
+                  value={(uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100}
+                  label="File upload progress"
+                />
+                <p className="text-xs text-muted-foreground" aria-live="polite">
+                  Uploading {selectedFile?.name}:{" "}
+                  {(uploadProgress.uploadedBytes / 1024 / 1024).toFixed(0)} MB of{" "}
+                  {(uploadProgress.totalBytes / 1024 / 1024).toFixed(0)} MB — keep this
+                  tab open until the upload finishes
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-6">
               <Button type="submit" disabled={uploading} data-tour="field-save">
-                {uploading ? "Creating..." : "Create Content"}
+                {uploading
+                  ? uploadProgress && uploadProgress.totalBytes > 0
+                    ? `Uploading… ${Math.round((uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100)}%`
+                    : "Creating..."
+                  : "Create Content"}
               </Button>
               <Button
                 type="button"
@@ -1477,10 +1336,8 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
                 <h4 className="text-sm font-semibold mb-3">Content</h4>
                 {previewContent.type === "video" && (
                   <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                    {previewContent.fileUrl ? (
-                      <video src={previewContent.fileUrl} controls className="w-full h-full">
-                        Your browser does not support video playback.
-                      </video>
+                    {previewContent.fileUrl || previewContent.requiresSignedUrl ? (
+                      <ContentMediaPlayer kind="video" media={previewMedia} />
                     ) : previewContent.externalUrl ? (
                       <iframe
                         src={previewContent.externalUrl.includes('youtube.com') || previewContent.externalUrl.includes('youtu.be') 
@@ -1514,10 +1371,8 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
                         />
                       </div>
                     )}
-                    {previewContent.fileUrl ? (
-                      <audio src={previewContent.fileUrl} controls className="w-full">
-                        Your browser does not support audio playback.
-                      </audio>
+                    {previewContent.fileUrl || previewContent.requiresSignedUrl ? (
+                      <ContentMediaPlayer kind="audio" media={previewMedia} />
                     ) : previewContent.externalUrl ? (
                       <div className="space-y-3">
                         <audio src={previewContent.externalUrl} controls className="w-full">
@@ -1543,19 +1398,25 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
 
                 {previewContent.type === "document" && (
                   <div>
-                    {previewContent.fileUrl ? (
+                    {previewContent.fileUrl || previewContent.requiresSignedUrl ? (
                       <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
                         <FileText className="w-10 h-10 text-primary" />
                         <div className="flex-1">
                           <p className="font-medium">Document File</p>
                           <p className="text-sm text-muted-foreground">Click to download or view</p>
                         </div>
-                        <Button asChild variant="outline" size="sm">
-                          <a href={previewContent.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            Open
-                          </a>
-                        </Button>
+                        {previewMedia.url ? (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={previewMedia.url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="w-4 h-4 mr-1" />
+                              Open
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
+                            {previewMedia.status === "loading" ? "Preparing…" : "Unavailable"}
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
