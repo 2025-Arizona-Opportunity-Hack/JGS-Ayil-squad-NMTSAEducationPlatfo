@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { QuizEditorModal } from "./QuizEditorModal";
 import { QuizResultsPanel } from "./QuizResultsPanel";
+import { DuplicateQuizDialog } from "./DuplicateQuizDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,6 +30,7 @@ import {
 import {
   BarChart3,
   ClipboardCheck,
+  Copy,
   Pencil,
   Plus,
   Power,
@@ -56,6 +58,10 @@ export function QuizManagement() {
   const [editingQuizId, setEditingQuizId] = useState<Id<"quizzes"> | null>(null);
   const [resultsQuizId, setResultsQuizId] = useState<Id<"quizzes"> | null>(null);
   const [deletingQuiz, setDeletingQuiz] = useState<{
+    _id: Id<"quizzes">;
+    title: string;
+  } | null>(null);
+  const [duplicatingQuiz, setDuplicatingQuiz] = useState<{
     _id: Id<"quizzes">;
     title: string;
   } | null>(null);
@@ -203,6 +209,16 @@ export function QuizManagement() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() =>
+                          setDuplicatingQuiz({ _id: quiz._id, title: quiz.title })
+                        }
+                        aria-label={`Duplicate quiz ${quiz.title}`}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleToggleActive(quiz)}
                         disabled={togglingId === quiz._id}
                         aria-label={
@@ -241,6 +257,15 @@ export function QuizManagement() {
         onOpenChange={setEditorOpen}
         quizId={editingQuizId}
         onCreated={setEditingQuizId}
+      />
+
+      <DuplicateQuizDialog
+        quiz={duplicatingQuiz}
+        onOpenChange={(isOpen) => !isOpen && setDuplicatingQuiz(null)}
+        onDuplicated={(newQuizId) => {
+          setDuplicatingQuiz(null);
+          openEdit(newQuizId);
+        }}
       />
 
       <QuizResultsPanel

@@ -3,6 +3,18 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.17.0 — 2026-08-20
+
+- Feature: **duplicate quiz.** Admins can copy an existing quiz — settings
+  plus active questions — onto another content item or bundle (or the same
+  target, to draft a v2) from Admin → Quizzes. Quizzes still can't be
+  re-pointed in place: attempts store only the quiz id, so moving one would
+  misattribute attempt history and certificate idempotency. Copies start
+  inactive; activating one goes through the existing one-active-quiz-per-
+  target guard. Answers are copied entirely server-side and the mutation
+  returns only the new quiz id. Tests: `convex/quizzes.test.ts`,
+  `src/components/admin/DuplicateQuizDialog.test.tsx`.
+
 ## 0.16.0 — 2026-08-15
 
 - Feature: **quiz pass certificates.** Passing a quiz now auto-issues a

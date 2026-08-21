@@ -41,6 +41,55 @@ function validatePassingScore(score: number): void {
   }
 }
 
+/**
+ * XOR target check + existence check shared by createQuiz and duplicateQuiz.
+ * When `requireNoActiveQuiz`, also rejects targets that already have an
+ * active quiz (duplicates skip this — they are created inactive, and the
+ * reactivation guard in updateQuiz enforces one-active-quiz-per-target).
+ */
+async function validateQuizTarget(
+  ctx: QueryCtx,
+  target: { contentId?: Id<"content">; groupId?: Id<"contentGroups"> },
+  opts: { requireNoActiveQuiz: boolean }
+): Promise<void> {
+  const hasContent = target.contentId !== undefined;
+  const hasGroup = target.groupId !== undefined;
+  if (hasContent === hasGroup) {
+    throw new ConvexError(
+      "A quiz must attach to exactly one content item or one bundle"
+    );
+  }
+
+  if (target.contentId) {
+    const content = await ctx.db.get(target.contentId);
+    if (!content) throw new ConvexError("Content not found");
+    if (opts.requireNoActiveQuiz) {
+      const existing = await ctx.db
+        .query("quizzes")
+        .withIndex("by_content", (q) => q.eq("contentId", target.contentId))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .first();
+      if (existing) {
+        throw new ConvexError("This content already has an active quiz");
+      }
+    }
+  }
+  if (target.groupId) {
+    const group = await ctx.db.get(target.groupId);
+    if (!group) throw new ConvexError("Bundle not found");
+    if (opts.requireNoActiveQuiz) {
+      const existing = await ctx.db
+        .query("quizzes")
+        .withIndex("by_group", (q) => q.eq("groupId", target.groupId))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .first();
+      if (existing) {
+        throw new ConvexError("This bundle already has an active quiz");
+      }
+    }
+  }
+}
+
 function validateQuestionShape(args: {
   kind: "single" | "multi" | "trueFalse";
   options: Array<{ id: string; text: string }>;
@@ -283,38 +332,7 @@ export const createQuiz = mutation({
       throw new ConvexError("Max attempts must be a positive integer");
     }
 
-    const hasContent = args.contentId !== undefined;
-    const hasGroup = args.groupId !== undefined;
-    if (hasContent === hasGroup) {
-      throw new ConvexError(
-        "A quiz must attach to exactly one content item or one bundle"
-      );
-    }
-
-    if (args.contentId) {
-      const content = await ctx.db.get(args.contentId);
-      if (!content) throw new ConvexError("Content not found");
-      const existing = await ctx.db
-        .query("quizzes")
-        .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
-        .filter((q) => q.eq(q.field("isActive"), true))
-        .first();
-      if (existing) {
-        throw new ConvexError("This content already has an active quiz");
-      }
-    }
-    if (args.groupId) {
-      const group = await ctx.db.get(args.groupId);
-      if (!group) throw new ConvexError("Bundle not found");
-      const existing = await ctx.db
-        .query("quizzes")
-        .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
-        .filter((q) => q.eq(q.field("isActive"), true))
-        .first();
-      if (existing) {
-        throw new ConvexError("This bundle already has an active quiz");
-      }
-    }
+    await validateQuizTarget(ctx, args, { requireNoActiveQuiz: true });
 
     return await ctx.db.insert("quizzes", {
       title: args.title.trim(),
@@ -433,6 +451,73 @@ export const deleteQuiz = mutation({
     }
     await ctx.db.delete(args.quizId);
     return null;
+  },
+});
+
+/**
+ * Copy a quiz (settings + active questions) onto another content item or
+ * bundle — or the same target, to iterate on a v2. Quizzes can't be
+ * re-pointed in place: attempts store only quizId, so moving one would
+ * misattribute attempt history and certificate idempotency to the new
+ * target. The copy is created inactive; activating it goes through
+ * updateQuiz's one-active-quiz-per-target guard.
+ *
+ * Questions (including correctOptionIds/explanation) are copied entirely
+ * server-side; the mutation returns only the new quiz id, keeping
+ * getQuizForEditing the sole answer-bearing read path.
+ */
+export const duplicateQuiz = mutation({
+  args: {
+    sourceQuizId: v.id("quizzes"),
+    contentId: v.optional(v.id("content")),
+    groupId: v.optional(v.id("contentGroups")),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<"quizzes">> => {
+    const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_QUIZZES);
+
+    const source = await ctx.db.get(args.sourceQuizId);
+    if (!source) throw new ConvexError("Quiz not found");
+
+    if (args.title !== undefined && !args.title.trim()) {
+      throw new ConvexError("Title is required");
+    }
+    const title = args.title?.trim() || source.title;
+
+    await validateQuizTarget(ctx, args, { requireNoActiveQuiz: false });
+
+    const newQuizId = await ctx.db.insert("quizzes", {
+      title,
+      description: source.description,
+      contentId: args.contentId,
+      groupId: args.groupId,
+      passingScore: source.passingScore,
+      maxAttempts: source.maxAttempts,
+      shuffleQuestions: source.shuffleQuestions,
+      revealAnswers: source.revealAnswers,
+      requireContentCompletion: source.requireContentCompletion,
+      isActive: false,
+      createdBy: userId,
+      updatedAt: Date.now(),
+    });
+
+    const questions = await getActiveQuestions(ctx, args.sourceQuizId);
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      await ctx.db.insert("quizQuestions", {
+        quizId: newQuizId,
+        order: i + 1,
+        prompt: q.prompt,
+        kind: q.kind,
+        options: q.options,
+        correctOptionIds: q.correctOptionIds,
+        explanation: q.explanation,
+        points: q.points,
+        isActive: true,
+      });
+    }
+
+    return newQuizId;
   },
 });
 

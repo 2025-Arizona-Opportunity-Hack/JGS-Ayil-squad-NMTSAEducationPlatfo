@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, FolderOpen, Lock, Edit, DollarSign, Image, Trash2, Package } from "lucide-react";
+import { Plus, FolderOpen, Lock, Edit, DollarSign, Image, Trash2, Package, Link as LinkIcon } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { AccessManagementModal } from "./AccessManagementModal";
 import { ContentGroupContentModal } from "./ContentGroupContentModal";
@@ -70,6 +71,16 @@ export function ContentGroupManager() {
   const setBundlePricing = useMutation(api.contentGroups.setBundlePricing);
   const removeBundlePricing = useMutation(api.contentGroups.removeBundlePricing);
   const generateUploadUrl = useMutation(api.contentGroups.generateBundleThumbnailUploadUrl);
+
+  const handleCopyLink = async (group: any) => {
+    const url = `${window.location.origin}/bundles/${group._id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Bundle link copied to clipboard!");
+    } catch {
+      toast.error("Couldn't copy the link. You can copy it manually: " + url);
+    }
+  };
 
   const handleManageAccess = (group: any) => {
     setSelectedGroup(group);
@@ -369,7 +380,15 @@ export function ContentGroupManager() {
                   <DollarSign className="w-4 h-4 mr-1" />
                   Pricing
                 </Button>
-                <Button 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void handleCopyLink(group); }}
+                >
+                  <LinkIcon className="w-4 h-4 mr-1" />
+                  Copy Link
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => handleEdit(group)}

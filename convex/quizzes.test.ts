@@ -877,6 +877,241 @@ describe("quiz authoring permissions and validation", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// Duplicate quiz
+// ═══════════════════════════════════════════════════════════════════
+
+describe("duplicateQuiz", () => {
+  it("clients cannot duplicate quizzes", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-1@test.local");
+    const clientId = await seedUser(t, "client", "client-dup-1@test.local");
+    const contentId = await seedContent(t, ownerId);
+    const quizId = await seedQuiz(t, ownerId, { contentId });
+
+    await expect(
+      t.withIdentity({ subject: clientId }).mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        contentId,
+      })
+    ).rejects.toThrow(/permission/i);
+  });
+
+  it("copies settings and active questions to another content, inactive, returning only the id", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-2@test.local");
+    const editorId = await seedUser(t, "editor", "editor-dup-2@test.local");
+    const contentA = await seedContent(t, ownerId);
+    const contentB = await seedContent(t, ownerId, { title: "Second video" });
+    const quizId = await seedQuiz(t, ownerId, { contentId: contentA }, {
+      description: "Original description",
+      passingScore: 85,
+      maxAttempts: 3,
+      shuffleQuestions: true,
+      revealAnswers: "correctness",
+      requireContentCompletion: true,
+    });
+    // Out-of-order source questions: relative order must survive renumbering
+    await seedQuestion(t, quizId, {
+      order: 5,
+      prompt: "Later question",
+      points: 4,
+    });
+    await seedQuestion(t, quizId, { order: 2, prompt: "Earlier question" });
+
+    const returned = await t
+      .withIdentity({ subject: editorId })
+      .mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        contentId: contentB,
+      });
+
+    expect(typeof returned).toBe("string");
+    expect(findKeyDeep(returned, "correctOptionIds")).toBe(false);
+
+    const copy = await t.run(async (ctx) => ctx.db.get(returned));
+    expect(copy).not.toBeNull();
+    expect(copy!.contentId).toBe(contentB);
+    expect(copy!.groupId).toBeUndefined();
+    expect(copy!.isActive).toBe(false);
+    expect(copy!.title).toBe("Comprehension Check");
+    expect(copy!.description).toBe("Original description");
+    expect(copy!.passingScore).toBe(85);
+    expect(copy!.maxAttempts).toBe(3);
+    expect(copy!.shuffleQuestions).toBe(true);
+    expect(copy!.revealAnswers).toBe("correctness");
+    expect(copy!.requireContentCompletion).toBe(true);
+    expect(copy!.createdBy).toBe(editorId);
+
+    const copiedQuestions = await t.run(async (ctx) =>
+      ctx.db
+        .query("quizQuestions")
+        .withIndex("by_quiz", (q) => q.eq("quizId", returned))
+        .collect()
+    );
+    expect(copiedQuestions).toHaveLength(2);
+    const sorted = [...copiedQuestions].sort((a, b) => a.order - b.order);
+    expect(sorted.map((q) => q.order)).toEqual([1, 2]);
+    expect(sorted[0].prompt).toBe("Earlier question");
+    expect(sorted[1].prompt).toBe("Later question");
+    expect(sorted[1].points).toBe(4);
+    expect(sorted[0].correctOptionIds).toEqual(["a"]);
+    expect(sorted[0].explanation).toBe(
+      "Impact on the nonprofit comes first."
+    );
+    expect(sorted.every((q) => q.isActive === true)).toBe(true);
+
+    // Source untouched
+    const source = await t.run(async (ctx) => ctx.db.get(quizId));
+    expect(source!.contentId).toBe(contentA);
+    expect(source!.isActive).toBe(true);
+    const sourceQuestions = await t.run(async (ctx) =>
+      ctx.db
+        .query("quizQuestions")
+        .withIndex("by_quiz", (q) => q.eq("quizId", quizId))
+        .collect()
+    );
+    expect(sourceQuestions.map((q) => q.order).sort()).toEqual([2, 5]);
+  });
+
+  it("excludes soft-deleted questions and honors a title override", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-3@test.local");
+    const contentA = await seedContent(t, ownerId);
+    const contentB = await seedContent(t, ownerId, { title: "Other" });
+    const quizId = await seedQuiz(t, ownerId, { contentId: contentA });
+    await seedQuestion(t, quizId, { prompt: "Keep me" });
+    await seedQuestion(t, quizId, {
+      order: 2,
+      prompt: "Tombstone",
+      isActive: false,
+    });
+    const asOwner = t.withIdentity({ subject: ownerId });
+
+    const newId = await asOwner.mutation(api.quizzes.duplicateQuiz, {
+      sourceQuizId: quizId,
+      contentId: contentB,
+      title: "  Renamed copy  ",
+    });
+
+    const copy = await t.run(async (ctx) => ctx.db.get(newId));
+    expect(copy!.title).toBe("Renamed copy");
+    const copiedQuestions = await t.run(async (ctx) =>
+      ctx.db
+        .query("quizQuestions")
+        .withIndex("by_quiz", (q) => q.eq("quizId", newId))
+        .collect()
+    );
+    expect(copiedQuestions).toHaveLength(1);
+    expect(copiedQuestions[0].prompt).toBe("Keep me");
+
+    await expect(
+      asOwner.mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        contentId: contentB,
+        title: "   ",
+      })
+    ).rejects.toThrow(/title is required/i);
+  });
+
+  it("validates the target: exactly one, and it must exist", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-4@test.local");
+    const contentId = await seedContent(t, ownerId);
+    const groupId = await t.run(async (ctx) =>
+      ctx.db.insert("contentGroups", {
+        name: "Bundle",
+        createdBy: ownerId,
+        isActive: true,
+      })
+    );
+    const quizId = await seedQuiz(t, ownerId, { contentId });
+    const asOwner = t.withIdentity({ subject: ownerId });
+
+    await expect(
+      asOwner.mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        contentId,
+        groupId,
+      })
+    ).rejects.toThrow(/exactly one/i);
+
+    await expect(
+      asOwner.mutation(api.quizzes.duplicateQuiz, { sourceQuizId: quizId })
+    ).rejects.toThrow(/exactly one/i);
+
+    const deletedContent = await seedContent(t, ownerId, { title: "Gone" });
+    await t.run(async (ctx) => ctx.db.delete(deletedContent));
+    await expect(
+      asOwner.mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        contentId: deletedContent,
+      })
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it("allows duplicating onto the same target; activation goes through the conflict guard", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-5@test.local");
+    const contentId = await seedContent(t, ownerId);
+    const quizId = await seedQuiz(t, ownerId, { contentId });
+    await seedQuestion(t, quizId);
+    const asOwner = t.withIdentity({ subject: ownerId });
+
+    const copyId = await asOwner.mutation(api.quizzes.duplicateQuiz, {
+      sourceQuizId: quizId,
+      contentId,
+    });
+    const copy = await t.run(async (ctx) => ctx.db.get(copyId));
+    expect(copy!.isActive).toBe(false);
+
+    // While the source is active, the copy cannot be activated…
+    await expect(
+      asOwner.mutation(api.quizzes.updateQuiz, {
+        quizId: copyId,
+        isActive: true,
+      })
+    ).rejects.toThrow(/another active quiz/i);
+
+    // …but after deactivating the source it can.
+    await asOwner.mutation(api.quizzes.updateQuiz, {
+      quizId,
+      isActive: false,
+    });
+    await asOwner.mutation(api.quizzes.updateQuiz, {
+      quizId: copyId,
+      isActive: true,
+    });
+    const activated = await t.run(async (ctx) => ctx.db.get(copyId));
+    expect(activated!.isActive).toBe(true);
+  });
+
+  it("duplicates a content quiz onto a bundle", async () => {
+    const t = convexTest(schema);
+    const ownerId = await seedUser(t, "owner", "owner-dup-6@test.local");
+    const contentId = await seedContent(t, ownerId);
+    const groupId = await t.run(async (ctx) =>
+      ctx.db.insert("contentGroups", {
+        name: "Bundle",
+        createdBy: ownerId,
+        isActive: true,
+      })
+    );
+    const quizId = await seedQuiz(t, ownerId, { contentId });
+
+    const newId = await t
+      .withIdentity({ subject: ownerId })
+      .mutation(api.quizzes.duplicateQuiz, {
+        sourceQuizId: quizId,
+        groupId,
+      });
+
+    const copy = await t.run(async (ctx) => ctx.db.get(newId));
+    expect(copy!.groupId).toBe(groupId);
+    expect(copy!.contentId).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // Public quiz summary (signed-out nudge on /view/)
 // ═══════════════════════════════════════════════════════════════════
 

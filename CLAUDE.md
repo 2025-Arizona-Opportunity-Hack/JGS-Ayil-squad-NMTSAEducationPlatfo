@@ -106,6 +106,10 @@ regression suite, and these rules are what it enforces:
   results. Learner queries go through the `sanitizeQuestion` whitelist in
   `convex/quizzes.ts` — never spread a question doc. Grading is server-side
   only. Regression cluster C1 in `convex/security.test.ts`.
+- **Quizzes are never re-pointed to a different target** — attempts store only
+  `quizId`, so moving one corrupts attempt history and certificate idempotency.
+  `duplicateQuiz` copies settings + active questions to a new target instead
+  (copy starts inactive; answers copied server-side, returns only the new id).
 - **Certificates are issued server-side only** — from a graded passing
   `quizAttempts` row (`issueCertificateIfNeeded` in `convex/certificates.ts`
   is the single copy; `submitQuizAttempt` auto-issues, `claimMyCertificate`
