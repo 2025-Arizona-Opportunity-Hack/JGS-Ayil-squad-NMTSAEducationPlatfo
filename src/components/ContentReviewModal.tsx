@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
+import { useMediaUrl } from "@/lib/useMediaUrl";
+import { ContentMediaPlayer } from "./media/ContentMediaPlayer";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +60,12 @@ export function ContentReviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const content = useQuery(api.content.getContent, { contentId: contentId as any });
+  // Chunked media has no direct fileUrl; reviewers mint a signed URL.
+  const media = useMediaUrl({
+    contentId,
+    fileUrl: content?.fileUrl ?? null,
+    requiresSignedUrl: content?.requiresSignedUrl,
+  });
   const approveContent = useMutation(api.content.approveContent);
   const requestChanges = useMutation(api.content.requestChanges);
   const rejectContent = useMutation(api.content.rejectContent);
@@ -163,10 +171,8 @@ export function ContentReviewModal({
       case "video":
         return (
           <div className="aspect-video bg-black rounded-lg overflow-hidden">
-            {content.fileUrl ? (
-              <video src={content.fileUrl} controls className="w-full h-full">
-                Your browser does not support video playback.
-              </video>
+            {content.fileUrl || content.requiresSignedUrl ? (
+              <ContentMediaPlayer kind="video" media={media} />
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-muted-foreground">
@@ -180,10 +186,8 @@ export function ContentReviewModal({
       case "audio":
         return (
           <div className="space-y-4">
-            {content.fileUrl ? (
-              <audio src={content.fileUrl} controls className="w-full">
-                Your browser does not support audio playback.
-              </audio>
+            {content.fileUrl || content.requiresSignedUrl ? (
+              <ContentMediaPlayer kind="audio" media={media} />
             ) : (
               <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
                 <div className="text-center text-muted-foreground">
@@ -197,19 +201,25 @@ export function ContentReviewModal({
       case "document":
         return (
           <div className="space-y-4">
-            {content.fileUrl ? (
+            {content.fileUrl || content.requiresSignedUrl ? (
               <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
                 <FileText className="w-10 h-10 text-primary" />
                 <div className="flex-1">
                   <p className="font-medium">Document File</p>
                   <p className="text-sm text-muted-foreground">Click to download or view</p>
                 </div>
-                <Button asChild variant="outline" size="sm">
-                  <a href={content.fileUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    Open
-                  </a>
-                </Button>
+                {media.url ? (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={media.url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Open
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" disabled>
+                    {media.status === "loading" ? "Preparing…" : "Unavailable"}
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-center py-12 bg-muted rounded-lg">

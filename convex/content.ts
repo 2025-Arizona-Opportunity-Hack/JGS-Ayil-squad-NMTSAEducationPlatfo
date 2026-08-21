@@ -2,8 +2,15 @@ import { query, mutation, internalQuery, action } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "./externalAuth";
 import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
-import { getContentFileUrl, checkContentAccess, computeMediaSignature, deriveContentType } from "./helpers";
+import {
+  getContentMediaInfo,
+  checkContentAccess,
+  computeMediaSignature,
+  deriveContentType,
+} from "./helpers";
+import { normalizeMimeType } from "./mimeTypes";
 import { internal, api } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Create content (as draft)
 export const createContent = mutation({
@@ -129,6 +136,9 @@ export const createChunkedContent = mutation({
 
     const contentId = await ctx.db.insert("content", {
       ...rest,
+      // Serve-time Content-Type comes from this field; store the canonical
+      // type (e.g. video/x-m4v → video/mp4) so every client plays it.
+      mimeType: normalizeMimeType(args.mimeType) ?? args.mimeType,
       fileSize: totalSize,
       createdBy: userId,
       status: "draft",
@@ -270,7 +280,7 @@ export const listContent = query({
       }
 
       // Get file and thumbnail URLs
-      const fileUrl = await getContentFileUrl(ctx, content);
+      const mediaInfo = await getContentMediaInfo(ctx, content);
       const thumbnailUrl = content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null;
 
       // Map attachmentType to legacy type field for frontend compatibility
@@ -278,10 +288,16 @@ export const listContent = query({
       const contentWithNames = {
         ...content,
         type: deriveContentType(content.attachmentType, content.type),
-        fileUrl,
+        fileUrl: mediaInfo.fileUrl,
+        requiresSignedUrl: mediaInfo.requiresSignedUrl,
         thumbnailUrl,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
         reviewerName,
+        // The content password gates anonymous access; only editors (who
+        // prefill it in the edit form) get it back.
+        password: hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)
+          ? content.password
+          : undefined,
       };
 
       // Users with VIEW_ALL_CONTENT permission can see all content regardless of status and availability
@@ -459,16 +475,49 @@ export const getChunkedContentInternal = internalQuery({
 // signed query string instead. This must be an `action` (not a query or
 // mutation) because signing requires `crypto.subtle`, which the action
 // runtime exposes and the query/mutation runtime does not.
+// Long enough that a signed URL survives a full viewing session (the <video>
+// element keeps issuing Range requests for hours on long content); the player
+// re-mints on error as a fallback. A leaked URL exposes one content id for
+// this window — comparable to a share link, which never expires.
+const MEDIA_URL_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 export const getSignedMediaUrl = action({
-  args: { contentId: v.id("content") },
+  args: {
+    contentId: v.id("content"),
+    password: v.optional(v.string()),
+    shareToken: v.optional(v.string()),
+  },
   handler: async (ctx, args): Promise<string> => {
-    // Reuse the exact same entitlement logic as `getContent`: it returns
-    // null for anyone who isn't authorized to view this content, and the
-    // full record (including permission-gated fileUrl) for anyone who is.
-    const content: unknown = await ctx.runQuery(api.content.getContent, {
+    // Entitlement reuses the canonical viewer queries, so every gate
+    // (publication, availability window, paywall, password, share expiry)
+    // applies verbatim — never a second copy of an access check.
+
+    // 1. Authenticated viewers, incl. staff previewing drafts: getContent
+    //    returns null for anyone not authorized to view this content.
+    let entitled = !!(await ctx.runQuery(api.content.getContent, {
       contentId: args.contentId,
-    });
-    if (!content) {
+    }));
+
+    // 2. Share-link viewers (possibly anonymous): the token's own query
+    //    enforces publication, expiry, and the paywall re-check.
+    if (!entitled && args.shareToken) {
+      const shared = (await ctx.runQuery(
+        api.contentShares.getContentByShareToken,
+        { accessToken: args.shareToken }
+      )) as { content: { _id: Id<"content"> } | null } | null;
+      entitled = shared?.content?._id === args.contentId;
+    }
+
+    // 3. Anonymous/public viewers, optionally proving a content password.
+    if (!entitled) {
+      const pub = (await ctx.runQuery(api.publicContent.getPublicContent, {
+        contentId: args.contentId,
+        password: args.password,
+      })) as { content: { _id: Id<"content"> } | null } | null;
+      entitled = pub?.content?._id === args.contentId;
+    }
+
+    if (!entitled) {
       throw new ConvexError("You don't have access to this content");
     }
 
@@ -479,7 +528,7 @@ export const getSignedMediaUrl = action({
       throw new ConvexError("Media URL signing is not configured");
     }
 
-    const exp = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const exp = Date.now() + MEDIA_URL_TTL_MS;
     const sig = await computeMediaSignature(args.contentId, exp, secret);
     const siteUrl = process.env.CONVEX_SITE_URL ?? "";
     return `${siteUrl}/api/serve-chunked/${args.contentId}?exp=${exp}&sig=${sig}`;
@@ -573,18 +622,29 @@ export const getContent = query({
     // Map attachmentType to legacy type field for frontend compatibility
 
     const contentType = deriveContentType(content.attachmentType, content.type);
-
-    // Users with VIEW_ALL_CONTENT permission can see all content
     const permissions = getEffectivePermissions(profile);
-    if (hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
+
+    const enrich = async () => {
+      const mediaInfo = await getContentMediaInfo(ctx, content);
       return {
         ...content,
         type: contentType,
-        fileUrl: await getContentFileUrl(ctx, content),
+        fileUrl: mediaInfo.fileUrl,
+        requiresSignedUrl: mediaInfo.requiresSignedUrl,
         thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
         creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
         reviewerName,
+        // The content password gates anonymous access; only editors (who
+        // prefill it in the edit form) get it back.
+        password: hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)
+          ? content.password
+          : undefined,
       };
+    };
+
+    // Users with VIEW_ALL_CONTENT permission can see all content
+    if (hasPermission(permissions, PERMISSIONS.VIEW_ALL_CONTENT)) {
+      return await enrich();
     }
 
     // Non-admin/editor users need published content that is available
@@ -592,33 +652,40 @@ export const getContent = query({
       return null;
     }
 
+    // Paywall: priced content is served only to entitled viewers — creator,
+    // VIEW_ALL_CONTENT (above), or a contentAccess grant (what a completed
+    // purchase writes). On priced content `isPublic` means "the purchase page
+    // is public", never "the media is free", so it must not short-circuit
+    // this check. getSignedMediaUrl relies on this query as its entitlement
+    // gate for chunked media, so the gate has to hold here, not in the UI.
+    const activePricing = await ctx.db
+      .query("contentPricing")
+      .withIndex("by_content", (q) => q.eq("contentId", args.contentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    if (activePricing) {
+      const entitledToPriced =
+        content.createdBy === userId ||
+        (await checkContentAccess(ctx, content._id, userId, profile.role));
+      if (!entitledToPriced) return null;
+      return await enrich();
+    }
+
     // Check access for public or specifically granted content
     if (content.isPublic) {
-      return {
-        ...content,
-        type: contentType,
-        fileUrl: await getContentFileUrl(ctx, content),
-        thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
-        creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
-        reviewerName,
-      };
+      return await enrich();
     }
 
     const hasAccess = await checkContentAccess(ctx, content._id, userId, profile.role);
     if (!hasAccess) return null;
 
-    return {
-      ...content,
-      type: contentType,
-      fileUrl: await getContentFileUrl(ctx, content),
-      thumbnailUrl: content.thumbnailId ? await ctx.storage.getUrl(content.thumbnailId) : null,
-      creatorName: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown",
-      reviewerName,
-    };
+    return await enrich();
   },
 });
 
-// Update content
+// Update content. `fileId` / `chunks` are replacement-file parameters: pass
+// one of them (never both) only when the media file itself is being replaced;
+// omit both to leave the current file untouched.
 export const updateContent = mutation({
   args: {
     contentId: v.id("content"),
@@ -632,6 +699,16 @@ export const updateContent = mutation({
       v.literal("richtext")
     ),
     fileId: v.optional(v.id("_storage")),
+    chunks: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          size: v.number(),
+        })
+      )
+    ),
+    mimeType: v.optional(v.string()),
+    thumbnailId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     isPublic: v.boolean(),
     authorName: v.optional(v.string()),
@@ -678,9 +755,80 @@ export const updateContent = mutation({
       throw new ConvexError("Start date must be before end date");
     }
 
-    // Update content
-    const { contentId, ...updateData } = args;
-    await ctx.db.patch(contentId, updateData);
+    if (args.fileId !== undefined && args.chunks !== undefined) {
+      throw new ConvexError("Provide either a replacement fileId or chunks, not both");
+    }
+    if (args.chunks !== undefined) {
+      if (args.chunks.length === 0) {
+        throw new ConvexError("chunks array must not be empty");
+      }
+      for (const c of args.chunks) {
+        if (c.size <= 0) throw new ConvexError("chunk size must be positive");
+      }
+    }
+
+    const isNewSingleFile =
+      args.fileId !== undefined && args.fileId !== content.fileId;
+    const isReplacingFile = isNewSingleFile || args.chunks !== undefined;
+
+    // Replacing the media file orphans the old chunk objects, which this row
+    // owns exclusively (same reasoning as deleteContent's cleanup — a
+    // chunked video is dozens of 25 MB blobs). Single-file blobs are
+    // deliberately left alone since a fileId could be referenced elsewhere.
+    if (isReplacingFile && content.chunks && content.chunks.length > 0) {
+      const keep = new Set((args.chunks ?? []).map((c) => c.storageId));
+      for (const chunk of content.chunks) {
+        if (keep.has(chunk.storageId)) continue;
+        try {
+          await ctx.storage.delete(chunk.storageId);
+        } catch (err) {
+          console.error(
+            "Failed to delete replaced chunk storage object:",
+            chunk.storageId,
+            err
+          );
+        }
+      }
+    }
+
+    const { contentId, chunks, mimeType, thumbnailId, ...updateData } = args;
+    const normalizedMime = mimeType
+      ? normalizeMimeType(mimeType) ?? mimeType
+      : undefined;
+
+    if (chunks !== undefined) {
+      // Patching a field to undefined removes it — a row is either
+      // single-file (fileId) or chunked (chunks), never both.
+      const totalSize = chunks.reduce((sum, c) => sum + c.size, 0);
+      await ctx.db.patch(contentId, {
+        ...updateData,
+        chunks,
+        fileId: undefined,
+        mimeType: normalizedMime ?? content.mimeType,
+        fileSize: totalSize,
+        ...(thumbnailId !== undefined ? { thumbnailId } : {}),
+      });
+      return;
+    }
+
+    if (isNewSingleFile) {
+      const meta = args.fileId
+        ? await ctx.db.system.get("_storage", args.fileId)
+        : null;
+      await ctx.db.patch(contentId, {
+        ...updateData,
+        chunks: undefined,
+        ...(normalizedMime ? { mimeType: normalizedMime } : {}),
+        ...(meta ? { fileSize: meta.size } : {}),
+        ...(thumbnailId !== undefined ? { thumbnailId } : {}),
+      });
+      return;
+    }
+
+    await ctx.db.patch(contentId, {
+      ...updateData,
+      ...(thumbnailId !== undefined ? { thumbnailId } : {}),
+    });
   },
 });
 
@@ -1598,7 +1746,7 @@ export const listArchivedContent = query({
     // Get file URLs and creator names
     const contentWithDetails = await Promise.all(
       archivedContent.map(async (content) => {
-        const fileUrl = await getContentFileUrl(ctx, content);
+        const mediaInfo = await getContentMediaInfo(ctx, content);
         const thumbnailUrl = content.thumbnailId
           ? await ctx.storage.getUrl(content.thumbnailId)
           : null;
@@ -1628,10 +1776,16 @@ export const listArchivedContent = query({
 
         return {
           ...content,
-          fileUrl,
+          // Derived, not stored — viewers switch on it (see deriveContentType).
+          type: deriveContentType(content.attachmentType, content.type),
+          fileUrl: mediaInfo.fileUrl,
+          requiresSignedUrl: mediaInfo.requiresSignedUrl,
           thumbnailUrl,
           creatorName,
           archivedByName,
+          password: hasPermission(permissions, PERMISSIONS.EDIT_CONTENT)
+            ? content.password
+            : undefined,
         };
       })
     );

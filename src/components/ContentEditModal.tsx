@@ -31,6 +31,17 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertCircle, Calendar as CalendarIcon, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getEffectiveFileType, matchesAttachmentType } from "@/lib/mediaMime";
+import {
+  uploadContentFile,
+  ContentUploadError,
+  type ContentUploadResult,
+} from "@/lib/uploadContentFile";
+import { uploadBlobWithProgress, UploadHttpError } from "@/lib/uploadWithProgress";
+import { generateVideoThumbnail } from "@/lib/generateVideoThumbnail";
+import { useUploadFailureLogger } from "@/lib/useUploadFailureLogger";
+import { useMediaUrl } from "@/lib/useMediaUrl";
+import { Progress } from "@/components/ui/progress";
 
 interface ContentEditModalProps {
   isOpen: boolean;
@@ -64,6 +75,22 @@ interface ContentEditModalProps {
 export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQuizzes }: ContentEditModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    uploadedBytes: number;
+    totalBytes: number;
+  } | null>(null);
+
+  // Closing the tab mid-upload silently abandons the replacement (and any
+  // already-uploaded chunks); make the browser ask first.
+  useEffect(() => {
+    if (!uploading) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploading]);
 
   const {
     register,
@@ -114,26 +141,87 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
   const updateContent = useMutation(api.content.updateContent);
+  const reportUploadFailure = useUploadFailureLogger();
+  // Chunked media has no direct fileUrl; mint a signed one for the
+  // "current file" View link (editors can mint for anything they can edit).
+  const currentFileMedia = useMediaUrl({
+    contentId: content._id,
+    fileUrl: contentWithFile?.fileUrl ?? null,
+    requiresSignedUrl: contentWithFile?.requiresSignedUrl,
+  });
 
   const handleSubmit = async (data: ContentFormData) => {
     setUploading(true);
-    
+    setUploadProgress(null);
+
     try {
-      let fileId = content.fileId;
-      
-      // Handle file upload for videos, pdfs, images, and audio if a new file is selected
-      if (selectedFile && (data.attachmentType === "video" || data.attachmentType === "pdf" || data.attachmentType === "audio" || data.attachmentType === "image")) {
-        const uploadUrl = await generateUploadUrl();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
-        const json = await result.json();
-        if (!result.ok) {
-          throw new Error(`Upload failed: ${JSON.stringify(json)}`);
+      const isFileAttachment =
+        selectedFile &&
+        (data.attachmentType === "video" ||
+          data.attachmentType === "pdf" ||
+          data.attachmentType === "audio" ||
+          data.attachmentType === "image");
+
+      // Set only when a replacement file is uploaded; otherwise updateContent
+      // is called without fileId/chunks and leaves the current file untouched.
+      let replacement: ContentUploadResult | null = null;
+      let newThumbnailId: string | undefined;
+      let effectiveMimeType: string | undefined;
+
+      if (isFileAttachment) {
+        // Canonical MIME type: normalizes aliases like video/x-m4v and falls
+        // back to the extension when the OS reports no type.
+        effectiveMimeType =
+          getEffectiveFileType(selectedFile) || "application/octet-stream";
+
+        // Regenerate the poster thumbnail with the replacement video so a
+        // frame of the old video doesn't linger. Non-fatal on failure.
+        if (data.attachmentType === "video") {
+          try {
+            toast.loading("Generating thumbnail...", { id: "edit-thumbnail" });
+            const thumbnailBlob = await generateVideoThumbnail(selectedFile);
+            newThumbnailId = await uploadBlobWithProgress({
+              getUploadUrl: () => generateUploadUrl(),
+              blob: thumbnailBlob,
+              contentType: "image/jpeg",
+            });
+            toast.success("Thumbnail generated!", { id: "edit-thumbnail" });
+          } catch (error) {
+            reportUploadFailure({
+              step: "thumbnail_upload",
+              error,
+              file: selectedFile,
+              source: "local",
+              attachmentType: data.attachmentType,
+              metadata: { phase: "generation_or_upload", edit: true },
+            });
+            toast.error("Thumbnail generation failed - video format may not be supported", { id: "edit-thumbnail" });
+          }
         }
-        fileId = json.storageId;
+
+        setUploadProgress({ uploadedBytes: 0, totalBytes: selectedFile.size });
+        try {
+          replacement = await uploadContentFile({
+            file: selectedFile,
+            contentType: effectiveMimeType,
+            getUploadUrl: () => generateUploadUrl(),
+            onProgress: (uploadedBytes, totalBytes) =>
+              setUploadProgress({ uploadedBytes, totalBytes }),
+          });
+        } catch (error) {
+          const uploadError = error instanceof ContentUploadError ? error : null;
+          const cause = uploadError?.cause ?? error;
+          reportUploadFailure({
+            step: "convex_upload",
+            error: cause,
+            file: selectedFile,
+            source: "local",
+            attachmentType: data.attachmentType,
+            httpStatus: cause instanceof UploadHttpError ? cause.status : undefined,
+            metadata: { ...(uploadError?.info ?? {}), edit: true },
+          });
+          throw error;
+        }
       }
 
       await updateContent({
@@ -141,7 +229,6 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
         title: data.title,
         description: data.description || undefined,
         attachmentType: data.attachmentType,
-        fileId: fileId as any,
         externalUrl: data.externalUrl || undefined,
         isPublic: data.isPublic,
         authorName: data.authorName || undefined,
@@ -150,8 +237,15 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
         startDate: data.startDate ? new Date(data.startDate + "T12:00:00").getTime() : undefined,
         endDate: data.endDate ? new Date(data.endDate + "T12:00:00").getTime() : undefined,
         password: data.password || undefined,
+        ...(replacement?.kind === "single"
+          ? { fileId: replacement.storageId as any, mimeType: effectiveMimeType }
+          : {}),
+        ...(replacement?.kind === "chunked"
+          ? { chunks: replacement.chunks as any, mimeType: effectiveMimeType }
+          : {}),
+        ...(newThumbnailId ? { thumbnailId: newThumbnailId as any } : {}),
       });
-      
+
       toast.success("Content updated successfully!");
       onClose();
     } catch (error) {
@@ -159,29 +253,33 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
       toast.error(error instanceof Error ? error.message : "Failed to update content");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file type based on attachment type
-      if (formAttachmentType === "video" && !file.type.startsWith('video/')) {
+      // Check file type based on attachment type. getEffectiveFileType falls
+      // back to the extension when the OS reports no MIME type (common for
+      // .m4v on Windows/Linux), so those files aren't rejected outright.
+      const mime = getEffectiveFileType(file);
+      if (formAttachmentType === "video" && !matchesAttachmentType(mime, "video")) {
         toast.error('Please select a video file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "audio" && !file.type.startsWith('audio/')) {
+      if (formAttachmentType === "audio" && !matchesAttachmentType(mime, "audio")) {
         toast.error('Please select an audio file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "pdf" && !file.type.includes('pdf')) {
+      if (formAttachmentType === "pdf" && !matchesAttachmentType(mime, "pdf")) {
         toast.error('Please select a PDF file');
         e.target.value = '';
         return;
       }
-      if (formAttachmentType === "image" && !file.type.startsWith('image/')) {
+      if (formAttachmentType === "image" && !matchesAttachmentType(mime, "image")) {
         toast.error('Please select an image file');
         e.target.value = '';
         return;
@@ -340,27 +438,33 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
                  formAttachmentType === "image" ? "Image File" : "PDF File"}
               </Label>
               
-              {contentWithFile?.fileUrl && !selectedFile && (
+              {(contentWithFile?.fileUrl || contentWithFile?.requiresSignedUrl) && !selectedFile && (
                 <div className="p-3 bg-muted border rounded-md">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">Current {formAttachmentType} file</p>
                       <p className="text-xs text-muted-foreground">Choose a new file to replace</p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      asChild
-                    >
-                    <a
-                      href={contentWithFile.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      View
-                    </a>
-                    </Button>
+                    {currentFileMedia.url ? (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        asChild
+                      >
+                        <a
+                          href={currentFileMedia.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="link" size="sm" disabled>
+                        {currentFileMedia.status === "loading" ? "Preparing…" : "Unavailable"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -369,8 +473,8 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
                 id="file"
                 type="file"
                 accept={
-                  formAttachmentType === "video" ? "video/*" : 
-                  formAttachmentType === "audio" ? "audio/*" : 
+                  formAttachmentType === "video" ? "video/*,.mp4,.m4v,.mov,.webm" :
+                  formAttachmentType === "audio" ? "audio/*,.mp3,.m4a,.wav,.ogg" :
                   formAttachmentType === "image" ? "image/*" :
                   ".pdf"
                 }
@@ -584,13 +688,32 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
             </div>
           )}
 
+          {uploadProgress && uploadProgress.totalBytes > 0 && (
+            <div className="space-y-1 pt-2">
+              <Progress
+                value={(uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100}
+                label="File upload progress"
+              />
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                Uploading {selectedFile?.name}:{" "}
+                {(uploadProgress.uploadedBytes / 1024 / 1024).toFixed(0)} MB of{" "}
+                {(uploadProgress.totalBytes / 1024 / 1024).toFixed(0)} MB — keep this
+                tab open until the upload finishes
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-4">
             <Button
               type="submit"
               disabled={uploading}
               className="flex-1"
             >
-              {uploading ? "Updating..." : "Update Content"}
+              {uploading
+                ? uploadProgress && uploadProgress.totalBytes > 0
+                  ? `Uploading… ${Math.round((uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100)}%`
+                  : "Updating..."
+                : "Update Content"}
             </Button>
             <Button
               type="button"

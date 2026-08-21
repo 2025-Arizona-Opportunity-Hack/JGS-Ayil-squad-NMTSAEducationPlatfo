@@ -175,6 +175,108 @@ export async function getStorageUrls(
   return { fileUrl, thumbnailUrl };
 }
 
+/**
+ * The single copy of the /api/serve-chunked signature-exemption predicate:
+ * chunked media is served WITHOUT an HMAC signature only when the content is
+ * public, published, active, unpriced, and password-free — i.e. when it was
+ * never gated on anything else either. Shared by the HTTP router (which
+ * enforces it) and the anonymous-capable queries (which use it to decide
+ * whether to hand out an unsigned URL or require `getSignedMediaUrl`).
+ */
+export function isSignedMediaExempt(flags: {
+  isPublic: boolean;
+  status?: string;
+  active: boolean;
+  hasPassword: boolean;
+  isPriced: boolean;
+}): boolean {
+  return (
+    flags.isPublic &&
+    flags.status === "published" &&
+    flags.active &&
+    !flags.hasPassword &&
+    !flags.isPriced
+  );
+}
+
+type MediaContent = {
+  _id: Id<"content">;
+  fileId?: Id<"_storage"> | null;
+  chunks?: Array<{ storageId: Id<"_storage">; size: number }> | null;
+  isPublic?: boolean | null;
+  status?: string;
+  active?: boolean | null;
+  password?: string | null;
+} | null | undefined;
+
+export type ContentMediaInfo = {
+  fileUrl: string | null;
+  requiresSignedUrl: boolean;
+};
+
+/**
+ * fileUrl/requiresSignedUrl pair for queries whose callers are authenticated
+ * and already entitled to the row. Chunked content never gets an unsigned
+ * /api/serve-chunked URL here — the router would 403 anything non-exempt, and
+ * an authed entitled caller can always mint via `content.getSignedMediaUrl`
+ * (over-flagging exempt content is harmless: the router ignores signature
+ * params on exempt content).
+ */
+export async function getContentMediaInfo(
+  ctx: QueryCtx,
+  content: MediaContent
+): Promise<ContentMediaInfo> {
+  if (!content) return { fileUrl: null, requiresSignedUrl: false };
+  if (content.fileId) {
+    return {
+      fileUrl: await ctx.storage.getUrl(content.fileId),
+      requiresSignedUrl: false,
+    };
+  }
+  if (content.chunks && content.chunks.length > 0) {
+    return { fileUrl: null, requiresSignedUrl: true };
+  }
+  return { fileUrl: null, requiresSignedUrl: false };
+}
+
+/**
+ * Like `getContentMediaInfo`, but for queries anonymous visitors can call
+ * (getPublicContent, getContentByShareToken). Exempt chunked content gets the
+ * unsigned URL so anonymous playback needs no action call; everything else
+ * flags `requiresSignedUrl` so the client mints (passing its password or
+ * share token through `getSignedMediaUrl`, where the same viewer gates apply).
+ */
+export async function getAnonymousContentMediaInfo(
+  ctx: QueryCtx,
+  content: MediaContent,
+  hasActivePricing: boolean
+): Promise<ContentMediaInfo> {
+  if (!content) return { fileUrl: null, requiresSignedUrl: false };
+  if (content.fileId) {
+    return {
+      fileUrl: await ctx.storage.getUrl(content.fileId),
+      requiresSignedUrl: false,
+    };
+  }
+  if (content.chunks && content.chunks.length > 0) {
+    const exempt = isSignedMediaExempt({
+      isPublic: !!content.isPublic,
+      status: content.status,
+      active: !!content.active,
+      hasPassword: !!content.password,
+      isPriced: hasActivePricing,
+    });
+    if (exempt) {
+      return {
+        fileUrl: await getContentFileUrl(ctx, content),
+        requiresSignedUrl: false,
+      };
+    }
+    return { fileUrl: null, requiresSignedUrl: true };
+  }
+  return { fileUrl: null, requiresSignedUrl: false };
+}
+
 // ─── Content Access Helpers ─────────────────────────────────────────
 
 /**

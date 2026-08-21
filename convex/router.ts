@@ -2,7 +2,12 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { computeMediaSignature, timingSafeEqual } from "./helpers";
+import {
+  computeMediaSignature,
+  isSignedMediaExempt,
+  timingSafeEqual,
+} from "./helpers";
+import { normalizeMimeType } from "./mimeTypes";
 
 const http = httpRouter();
 
@@ -333,12 +338,7 @@ async function handleChunkedServe(
   // was never gated on anything else either); everything else — private,
   // password-protected, or priced — requires a valid, unexpired HMAC
   // signature minted by `content.getSignedMediaUrl`.
-  const isExemptFromSigning =
-    content.isPublic &&
-    content.status === "published" &&
-    content.active &&
-    !content.hasPassword &&
-    !content.isPriced;
+  const isExemptFromSigning = isSignedMediaExempt(content);
 
   if (!isExemptFromSigning) {
     const verified = await verifySignedMediaRequest(url, contentId);
@@ -354,7 +354,9 @@ async function handleChunkedServe(
     (sum: number, c: { size: number }) => sum + c.size,
     0
   );
-  const mimeType = content.mimeType || "application/octet-stream";
+  // Normalized so already-uploaded rows recorded as e.g. video/x-m4v (which
+  // Chromium's demuxer rejects) start playing without a re-upload.
+  const mimeType = normalizeMimeType(content.mimeType) ?? "application/octet-stream";
 
   const range = parseRange(request.headers.get("range"), totalSize);
 

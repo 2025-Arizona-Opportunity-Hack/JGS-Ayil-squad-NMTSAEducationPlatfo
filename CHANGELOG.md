@@ -3,6 +3,64 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.18.0 — 2026-08-20
+
+- Fix: **chunked video playback.** Videos uploaded via the chunked path
+  (> the size threshold) never played: queries handed out an unsigned
+  `/api/serve-chunked` URL, the router 403'd it (fresh uploads are drafts,
+  which are never signature-exempt), and no `<video>` element surfaced the
+  error. Queries now return `requiresSignedUrl` for non-exempt chunked
+  media (with `fileUrl: null`), and the shared `useMediaUrl` hook
+  (`src/lib/useMediaUrl.ts`) mints a signed URL via
+  `content.getSignedMediaUrl` — extended to accept the viewer's content
+  password or share token so anonymous password/share viewing works, with
+  the same server-side gates (publication, paywall, password, share
+  expiry) applied verbatim. Signed-URL TTL raised 15 min → 4 h to survive
+  long viewing sessions; the shared `ContentMediaPlayer` re-mints once on
+  playback error and resumes, then shows a visible error with Retry
+  (replacing the silent black box) in all four playback surfaces.
+  The exemption predicate now has one copy (`isSignedMediaExempt` in
+  `convex/helpers.ts`), shared by the router and queries.
+- Fix: **.m4v uploads.** `video/x-m4v` (which Chromium refuses to decode)
+  is normalized to `video/mp4` at upload, at `createChunkedContent`, and at
+  serve time (fixing already-uploaded rows without re-upload); files whose
+  OS reports no MIME type are accepted by extension
+  (`convex/mimeTypes.ts`, `src/lib/mediaMime.ts`).
+- Security: **`getContent` paywall gate.** Priced content was returned —
+  including `fileUrl` — to any signed-in user when `isPublic` was set;
+  it now requires creator / `VIEW_ALL_CONTENT` / a `contentAccess` grant,
+  matching `getPublicContent`. Content passwords are no longer returned to
+  viewers without `EDIT_CONTENT`. Tests: clusters A3b/A5 in
+  `convex/security.test.ts`.
+- Feature: **upload progress + reliability.** Real progress bar (accessible,
+  with percent text) and "Uploading… N%" on the submit button; uploads go
+  through an XHR helper with per-attempt progress and retry w/ backoff on
+  network errors and 5xx (`src/lib/uploadWithProgress.ts`); chunked
+  threshold lowered 500 MB → 50 MB (the old value was far above Convex's
+  ~2-min single-POST window on ordinary uplinks; 100–500 MB uploads used to
+  time out), chunk size 25 MB; chunked videos now get poster thumbnails
+  (generated from the original file before chunking); a `beforeunload`
+  warning guards mid-upload navigation; archived-content rows now derive
+  `type` so their players render.
+- Feature: **edit-flow parity.** Replacing a file in Edit Content now goes
+  through the same shared upload pipeline as Create
+  (`src/lib/uploadContentFile.ts`): chunked above 50 MB, progress bar with
+  percent, per-chunk retry, MIME normalization + extension fallback,
+  upload-failure logging, a `beforeunload` guard, and a regenerated poster
+  thumbnail for replacement videos. `updateContent` accepts replacement
+  `chunks`/`mimeType`/`thumbnailId`, keeps a row either single-file or
+  chunked (never both), and deletes replaced chunk blobs (exclusively owned
+  by the row) instead of orphaning them; file metadata (`fileSize`,
+  `mimeType`) stays accurate. The edit modal's "current file — View" link
+  now mints a signed URL for chunked media. Tests:
+  `convex/contentUpdate.test.ts`.
+- Deferred follow-ups: chunks uploaded before a mid-upload failure are
+  orphaned (no content row to own them); Google Drive import buffers the
+  whole file in memory and its MIME allowlist omits `video/x-m4v`;
+  `uploadLogs.list` has no admin UI. Deploy note: `MEDIA_URL_SECRET` must
+  be set (already required) or non-exempt chunked media shows the new
+  visible error instead of playing.
+
 ## 0.17.0 — 2026-08-20
 
 - Feature: **duplicate quiz.** Admins can copy an existing quiz — settings

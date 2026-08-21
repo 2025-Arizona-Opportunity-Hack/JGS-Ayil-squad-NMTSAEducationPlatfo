@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageMeta } from "@/lib/usePageMeta";
+import { useMediaUrl } from "@/lib/useMediaUrl";
+import { ContentMediaPlayer } from "./media/ContentMediaPlayer";
 
 export function SharedContentViewer() {
   const { accessToken } = useParams<{ accessToken: string }>();
@@ -20,6 +22,15 @@ export function SharedContentViewer() {
     accessToken ? { accessToken } : ("skip" as any)
   );
   const trackView = useMutation(api.contentShares.trackShareView);
+
+  // Chunked media has no direct fileUrl; mint a signed URL, proving this
+  // share token so the server re-applies the share gates.
+  const media = useMediaUrl({
+    contentId: result?.content?._id,
+    fileUrl: result?.content?.fileUrl ?? null,
+    requiresSignedUrl: result?.content?.requiresSignedUrl,
+    shareToken: accessToken,
+  });
 
   // Share links are semi-secret tokenized URLs — title them for humans but
   // keep them out of search indexes.
@@ -181,19 +192,12 @@ export function SharedContentViewer() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Media Content */}
-        {content.type === "video" && (content.fileUrl || content.externalUrl) && (
+        {content.type === "video" && (content.fileUrl || content.requiresSignedUrl || content.externalUrl) && (
           <Card className="mb-8">
             <CardContent className="p-0">
               <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                {content.fileUrl ? (
-                  <video
-                    src={content.fileUrl}
-                    controls
-                    className="w-full h-full"
-                    preload="metadata"
-                  >
-                    Your browser does not support video playback.
-                  </video>
+                {content.fileUrl || content.requiresSignedUrl ? (
+                  <ContentMediaPlayer kind="video" media={media} />
                 ) : content.externalUrl && (
                   <iframe
                     src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be') 
@@ -211,13 +215,11 @@ export function SharedContentViewer() {
           </Card>
         )}
 
-        {content.type === "audio" && (content.fileUrl || content.externalUrl) && (
+        {content.type === "audio" && (content.fileUrl || content.requiresSignedUrl || content.externalUrl) && (
           <Card className="mb-8">
             <CardContent className="p-6">
-              {content.fileUrl ? (
-                <audio src={content.fileUrl} controls className="w-full">
-                  Your browser does not support audio playback.
-                </audio>
+              {content.fileUrl || content.requiresSignedUrl ? (
+                <ContentMediaPlayer kind="audio" media={media} />
               ) : content.externalUrl && (
                 <div className="space-y-4">
                   <audio src={content.externalUrl} controls className="w-full">
@@ -235,7 +237,7 @@ export function SharedContentViewer() {
           </Card>
         )}
 
-        {content.type === "document" && content.fileUrl && (
+        {content.type === "document" && (content.fileUrl || content.requiresSignedUrl) && (
           <Card className="mb-8">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -244,12 +246,18 @@ export function SharedContentViewer() {
                   <h3 className="font-semibold text-lg">Document File</h3>
                   <p className="text-sm text-muted-foreground">Click to download or view</p>
                 </div>
-                <Button asChild>
-                  <a href={content.fileUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Open Document
-                  </a>
-                </Button>
+                {media.url ? (
+                  <Button asChild>
+                    <a href={media.url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open Document
+                    </a>
+                  </Button>
+                ) : (
+                  <Button disabled>
+                    {media.status === "loading" ? "Preparing…" : "Unavailable"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

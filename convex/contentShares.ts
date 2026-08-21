@@ -6,7 +6,7 @@ import {
   requireAuth,
   getUserProfile,
   formatUserName,
-  getContentFileUrl,
+  getAnonymousContentMediaInfo,
   deriveContentType,
 } from "./helpers";
 import {
@@ -145,11 +145,12 @@ export const getContentByShareToken = query({
       return { error: "This content is no longer available via this link", content: null };
     }
 
-    const [fileUrl, thumbnailUrl] = await Promise.all([
-      getContentFileUrl(ctx, content),
+    // Priced content was rejected above, so hasActivePricing is always false
+    // here; the exemption still depends on isPublic/password/status.
+    const [mediaInfo, thumbnailUrl] = await Promise.all([
+      getAnonymousContentMediaInfo(ctx, content, false),
       content.thumbnailId ? ctx.storage.getUrl(content.thumbnailId) : null,
     ]);
-    const urls = { fileUrl, thumbnailUrl };
 
     const creatorName = await (async () => {
       const p = await getUserProfile(ctx, content.createdBy);
@@ -167,7 +168,11 @@ export const getContentByShareToken = query({
         ...content,
         // Derived, not stored — SharedContentViewer switches on it.
         type: deriveContentType(content.attachmentType, content.type),
-        ...urls,
+        fileUrl: mediaInfo.fileUrl,
+        // Non-exempt chunked media has no direct URL; SharedContentViewer
+        // mints one via content.getSignedMediaUrl with this share's token.
+        requiresSignedUrl: mediaInfo.requiresSignedUrl,
+        thumbnailUrl,
         creatorName,
         password: undefined,
       },

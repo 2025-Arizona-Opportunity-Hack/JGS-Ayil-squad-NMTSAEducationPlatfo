@@ -11,6 +11,8 @@ import { RecommendButton } from "./RecommendButton";
 import { QuizPanel } from "./quiz/QuizPanel";
 import { QuizSignInNudge } from "./quiz/QuizSignInNudge";
 import { usePageMeta } from "@/lib/usePageMeta";
+import { useMediaUrl } from "@/lib/useMediaUrl";
+import { ContentMediaPlayer } from "./media/ContentMediaPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -71,6 +73,15 @@ export function PublicContentViewer() {
       result?.content?.description ?? previewMeta?.description ?? null,
   });
   const isMarkedWatched = !!(contentId && myProgress?.[contentId]?.completed);
+
+  // Chunked media has no direct fileUrl; mint a signed one, proving the same
+  // password this viewer used for getPublicContent.
+  const media = useMediaUrl({
+    contentId,
+    fileUrl: result?.content?.fileUrl ?? null,
+    requiresSignedUrl: result?.content?.requiresSignedUrl,
+    password: attemptedPassword,
+  });
 
   const handleMediaTimeUpdate = (
     e: React.SyntheticEvent<HTMLVideoElement | HTMLAudioElement>
@@ -446,21 +457,17 @@ export function PublicContentViewer() {
         {/* Main Content */}
         <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-10 max-w-5xl">
           {/* Media Content */}
-          {content.type === "video" && (content.fileUrl || content.externalUrl) && (
+          {content.type === "video" && (content.fileUrl || content.requiresSignedUrl || content.externalUrl) && (
             <Card className="mb-6 sm:mb-10 shadow-lg rounded-lg sm:rounded-xl overflow-hidden border">
               <CardContent className="p-0">
                 <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                  {content.fileUrl ? (
-                    <video
-                      src={content.fileUrl}
-                      controls
-                      className="w-full h-full"
-                      preload="metadata"
+                  {content.fileUrl || content.requiresSignedUrl ? (
+                    <ContentMediaPlayer
+                      kind="video"
+                      media={media}
                       onTimeUpdate={handleMediaTimeUpdate}
                       onEnded={handleMediaEnded}
-                    >
-                      Your browser does not support video playback.
-                    </video>
+                    />
                   ) : content.externalUrl && (
                     <iframe
                       src={content.externalUrl.includes('youtube.com') || content.externalUrl.includes('youtu.be')
@@ -476,7 +483,7 @@ export function PublicContentViewer() {
                 </div>
                 {/* Embedded players can't emit playback events, so completion
                     is a manual acknowledgement for external videos. */}
-                {isSignedIn && !content.fileUrl && content.externalUrl && (
+                {isSignedIn && !content.fileUrl && !content.requiresSignedUrl && content.externalUrl && (
                   <div className="p-3 sm:p-4 border-t">
                     {isMarkedWatched ? (
                       <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
@@ -495,19 +502,16 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {content.type === "audio" && (content.fileUrl || content.externalUrl) && (
+          {content.type === "audio" && (content.fileUrl || content.requiresSignedUrl || content.externalUrl) && (
             <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
               <CardContent className="p-4 sm:p-6 md:p-8">
-                {content.fileUrl ? (
-                  <audio
-                    src={content.fileUrl}
-                    controls
-                    className="w-full"
+                {content.fileUrl || content.requiresSignedUrl ? (
+                  <ContentMediaPlayer
+                    kind="audio"
+                    media={media}
                     onTimeUpdate={handleMediaTimeUpdate}
                     onEnded={handleMediaEnded}
-                  >
-                    Your browser does not support audio playback.
-                  </audio>
+                  />
                 ) : content.externalUrl && (
                   <div className="space-y-4">
                     <audio
@@ -531,7 +535,7 @@ export function PublicContentViewer() {
             </Card>
           )}
 
-          {content.type === "document" && content.fileUrl && (
+          {content.type === "document" && (content.fileUrl || content.requiresSignedUrl) && (
             <Card className="mb-6 sm:mb-10 shadow-sm rounded-lg sm:rounded-xl border">
               <CardContent className="p-4 sm:p-6 md:p-8">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -540,13 +544,19 @@ export function PublicContentViewer() {
                     <h3 className="font-semibold text-base sm:text-lg">Document File</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground">Click to download or view</p>
                   </div>
-                  <Button asChild className="w-full sm:w-auto">
-                    <a href={content.fileUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      <span className="hidden sm:inline">Open Document</span>
-                      <span className="sm:hidden">Open</span>
-                    </a>
-                  </Button>
+                  {media.url ? (
+                    <Button asChild className="w-full sm:w-auto">
+                      <a href={media.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">Open Document</span>
+                        <span className="sm:hidden">Open</span>
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button disabled className="w-full sm:w-auto">
+                      {media.status === "loading" ? "Preparing…" : "Unavailable"}
+                    </Button>
+                  )}
                 </div>
                 {/* Documents have no playback events; completion is manual. */}
                 {isSignedIn && (
