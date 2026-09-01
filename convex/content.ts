@@ -9,6 +9,8 @@ import {
   deriveContentType,
 } from "./helpers";
 import { normalizeMimeType } from "./mimeTypes";
+import { deleteUnreferencedStorage } from "./maintenance";
+import { getGcsConfig, signGcsUrl, GCS_CONTENT_PATH_PATTERN } from "./gcs";
 import { internal, api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -25,6 +27,12 @@ export const createContent = mutation({
       v.literal("richtext")
     ),
     fileId: v.optional(v.id("_storage")),
+    // GCS-backed media (convex/gcs.ts): the object path a
+    // gcs.generateGcsUploadUrl ticket minted, plus the metadata Convex can't
+    // read from the bucket. Mutually exclusive with fileId.
+    gcsPath: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
     thumbnailId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
     isPublic: v.boolean(),
@@ -46,7 +54,7 @@ export const createContent = mutation({
       .unique();
 
     if (!profile) throw new ConvexError("Profile not found");
-    
+
     const permissions = getEffectivePermissions(profile);
     if (!hasPermission(permissions, PERMISSIONS.CREATE_CONTENT)) {
       throw new ConvexError("You don't have permission to create content");
@@ -57,9 +65,23 @@ export const createContent = mutation({
       throw new ConvexError("Start date must be before end date");
     }
 
+    if (args.gcsPath !== undefined) {
+      if (args.fileId !== undefined) {
+        throw new ConvexError("Provide either fileId or gcsPath, not both");
+      }
+      // Only paths our upload action minted (uuid segment) are attachable —
+      // a row must never point at an arbitrary bucket object.
+      if (!GCS_CONTENT_PATH_PATTERN.test(args.gcsPath)) {
+        throw new ConvexError("Invalid media path");
+      }
+    }
+
     // All new content starts as draft
     const contentId = await ctx.db.insert("content", {
       ...args,
+      mimeType: args.mimeType
+        ? normalizeMimeType(args.mimeType) ?? args.mimeType
+        : undefined,
       createdBy: userId,
       status: "draft",
       isArchived: false,
@@ -469,6 +491,18 @@ export const getChunkedContentInternal = internalQuery({
   },
 });
 
+// Where a content row's media bytes live, for getSignedMediaUrl (which runs
+// in the action runtime and has no ctx.db). Internal: entitlement is proven
+// by the viewer-query chain before this is consulted.
+export const getMediaSourceInternal = internalQuery({
+  args: { contentId: v.id("content") },
+  handler: async (ctx, args) => {
+    const content = await ctx.db.get(args.contentId);
+    if (!content) return null;
+    return { gcsPath: content.gcsPath ?? null };
+  },
+});
+
 // Short-lived, HMAC-signed URL for /api/serve-chunked (A3). Media tags
 // (<video src>, <audio src>) can't send an Authorization header, so
 // entitlement for protected/priced/private chunked content is proven via a
@@ -519,6 +553,26 @@ export const getSignedMediaUrl = action({
 
     if (!entitled) {
       throw new ConvexError("You don't have access to this content");
+    }
+
+    // GCS-backed media: mint a V4 signed URL against the private bucket.
+    // Same TTL as the HMAC scheme; GCS serves Range requests natively.
+    const mediaSource: { gcsPath: string | null } | null = await ctx.runQuery(
+      internal.content.getMediaSourceInternal,
+      { contentId: args.contentId }
+    );
+    if (mediaSource?.gcsPath) {
+      const gcsConfig = getGcsConfig();
+      if (!gcsConfig) {
+        // Fail closed, like the missing-MEDIA_URL_SECRET case below.
+        throw new ConvexError("Media storage is not configured");
+      }
+      return await signGcsUrl({
+        config: gcsConfig,
+        method: "GET",
+        objectPath: mediaSource.gcsPath,
+        expiresSeconds: MEDIA_URL_TTL_MS / 1000,
+      });
     }
 
     const secret = process.env.MEDIA_URL_SECRET;
@@ -683,9 +737,9 @@ export const getContent = query({
   },
 });
 
-// Update content. `fileId` / `chunks` are replacement-file parameters: pass
-// one of them (never both) only when the media file itself is being replaced;
-// omit both to leave the current file untouched.
+// Update content. `fileId` / `chunks` / `gcsPath` are replacement-file
+// parameters: pass one of them (never several) only when the media file
+// itself is being replaced; omit all to leave the current file untouched.
 export const updateContent = mutation({
   args: {
     contentId: v.id("content"),
@@ -707,6 +761,8 @@ export const updateContent = mutation({
         })
       )
     ),
+    gcsPath: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
     thumbnailId: v.optional(v.id("_storage")),
     externalUrl: v.optional(v.string()),
@@ -755,8 +811,13 @@ export const updateContent = mutation({
       throw new ConvexError("Start date must be before end date");
     }
 
-    if (args.fileId !== undefined && args.chunks !== undefined) {
-      throw new ConvexError("Provide either a replacement fileId or chunks, not both");
+    const replacementParams = [args.fileId, args.chunks, args.gcsPath].filter(
+      (p) => p !== undefined
+    );
+    if (replacementParams.length > 1) {
+      throw new ConvexError(
+        "Provide only one of fileId, chunks, or gcsPath as the replacement file"
+      );
     }
     if (args.chunks !== undefined) {
       if (args.chunks.length === 0) {
@@ -766,10 +827,25 @@ export const updateContent = mutation({
         if (c.size <= 0) throw new ConvexError("chunk size must be positive");
       }
     }
+    if (
+      args.gcsPath !== undefined &&
+      !GCS_CONTENT_PATH_PATTERN.test(args.gcsPath)
+    ) {
+      throw new ConvexError("Invalid media path");
+    }
 
     const isNewSingleFile =
       args.fileId !== undefined && args.fileId !== content.fileId;
-    const isReplacingFile = isNewSingleFile || args.chunks !== undefined;
+    const isReplacingFile =
+      isNewSingleFile || args.chunks !== undefined || args.gcsPath !== undefined;
+
+    // The old GCS object has exactly one owner (uuid path) — schedule its
+    // deletion once this row stops pointing at it (mutations can't fetch).
+    if (isReplacingFile && content.gcsPath && content.gcsPath !== args.gcsPath) {
+      await ctx.scheduler.runAfter(0, internal.gcs.deleteGcsObject, {
+        objectPath: content.gcsPath,
+      });
+    }
 
     // Replacing the media file orphans the old chunk objects, which this row
     // owns exclusively (same reasoning as deleteContent's cleanup — a
@@ -791,44 +867,65 @@ export const updateContent = mutation({
       }
     }
 
-    const { contentId, chunks, mimeType, thumbnailId, ...updateData } = args;
+    const { contentId, chunks, gcsPath, fileSize, mimeType, thumbnailId, ...updateData } =
+      args;
     const normalizedMime = mimeType
       ? normalizeMimeType(mimeType) ?? mimeType
       : undefined;
 
+    // Blobs this update stops referencing: the old single file when the
+    // media is replaced, and the old thumbnail when it's repointed. Freed
+    // after the patch, and only if nothing else still references them.
+    const replacedBlobs: Array<Id<"_storage"> | undefined> = [
+      isReplacingFile ? content.fileId : undefined,
+      thumbnailId !== undefined && thumbnailId !== content.thumbnailId
+        ? content.thumbnailId
+        : undefined,
+    ];
+
     if (chunks !== undefined) {
-      // Patching a field to undefined removes it — a row is either
-      // single-file (fileId) or chunked (chunks), never both.
+      // Patching a field to undefined removes it — a row is single-file
+      // (fileId), chunked (chunks), or GCS-backed (gcsPath), never several.
       const totalSize = chunks.reduce((sum, c) => sum + c.size, 0);
       await ctx.db.patch(contentId, {
         ...updateData,
         chunks,
         fileId: undefined,
+        gcsPath: undefined,
         mimeType: normalizedMime ?? content.mimeType,
         fileSize: totalSize,
         ...(thumbnailId !== undefined ? { thumbnailId } : {}),
       });
-      return;
-    }
-
-    if (isNewSingleFile) {
+    } else if (gcsPath !== undefined) {
+      await ctx.db.patch(contentId, {
+        ...updateData,
+        gcsPath,
+        fileId: undefined,
+        chunks: undefined,
+        mimeType: normalizedMime ?? content.mimeType,
+        ...(fileSize !== undefined ? { fileSize } : {}),
+        ...(thumbnailId !== undefined ? { thumbnailId } : {}),
+      });
+    } else if (isNewSingleFile) {
       const meta = args.fileId
         ? await ctx.db.system.get("_storage", args.fileId)
         : null;
       await ctx.db.patch(contentId, {
         ...updateData,
         chunks: undefined,
+        gcsPath: undefined,
         ...(normalizedMime ? { mimeType: normalizedMime } : {}),
         ...(meta ? { fileSize: meta.size } : {}),
         ...(thumbnailId !== undefined ? { thumbnailId } : {}),
       });
-      return;
+    } else {
+      await ctx.db.patch(contentId, {
+        ...updateData,
+        ...(thumbnailId !== undefined ? { thumbnailId } : {}),
+      });
     }
 
-    await ctx.db.patch(contentId, {
-      ...updateData,
-      ...(thumbnailId !== undefined ? { thumbnailId } : {}),
-    });
+    await deleteUnreferencedStorage(ctx, replacedBlobs);
   },
 });
 
@@ -1142,12 +1239,21 @@ export const deleteContent = mutation({
       }
     }
 
+    // GCS-backed media: the object has exactly one owner (uuid path), so
+    // schedule its deletion outright (mutations can't fetch).
+    if (content.gcsPath) {
+      await ctx.scheduler.runAfter(0, internal.gcs.deleteGcsObject, {
+        objectPath: content.gcsPath,
+      });
+    }
+
     // Finally, delete the content itself
     await ctx.db.delete(args.contentId);
 
-    // Note: Single-file content (content.fileId) and thumbnails are NOT
-    // auto-deleted from storage to avoid breaking other references. A
-    // separate cleanup job is the right place for that.
+    // Single-file blob and thumbnail: freed only if no other row still
+    // references them (the row above is already gone from the reference
+    // scan, since a mutation reads its own writes).
+    await deleteUnreferencedStorage(ctx, [content.fileId, content.thumbnailId]);
   },
 });
 
@@ -1180,10 +1286,13 @@ export const updateContentThumbnailId = mutation({
       }
     }
 
-    // Update thumbnail
+    // Update thumbnail, then free the old blob if nothing else uses it
     await ctx.db.patch(args.contentId, {
       thumbnailId: args.thumbnailId,
     });
+    if (content.thumbnailId && content.thumbnailId !== args.thumbnailId) {
+      await deleteUnreferencedStorage(ctx, [content.thumbnailId]);
+    }
   },
 });
 
@@ -1926,6 +2035,7 @@ export const bulkDeleteContent = mutation({
     }
 
     let deleted = 0;
+    const storageCandidates: Array<Id<"_storage"> | undefined> = [];
     for (const contentId of args.contentIds) {
       const content = await ctx.db.get(contentId);
       if (!content) continue;
@@ -1958,9 +2068,36 @@ export const bulkDeleteContent = mutation({
         await ctx.db.delete(share._id);
       }
 
+      // Chunk blobs are owned exclusively by this row — same cleanup as
+      // deleteContent (this path used to skip it and orphan them).
+      if (content.chunks && content.chunks.length > 0) {
+        for (const chunk of content.chunks) {
+          try {
+            await ctx.storage.delete(chunk.storageId);
+          } catch (err) {
+            console.error(
+              "Failed to delete chunk storage object:",
+              chunk.storageId,
+              err
+            );
+          }
+        }
+      }
+      storageCandidates.push(content.fileId, content.thumbnailId);
+
+      // GCS-backed media is owned exclusively by this row — same cleanup as
+      // deleteContent.
+      if (content.gcsPath) {
+        await ctx.scheduler.runAfter(0, internal.gcs.deleteGcsObject, {
+          objectPath: content.gcsPath,
+        });
+      }
+
       await ctx.db.delete(contentId);
       deleted++;
     }
+
+    await deleteUnreferencedStorage(ctx, storageCandidates);
 
     return { deleted };
   },

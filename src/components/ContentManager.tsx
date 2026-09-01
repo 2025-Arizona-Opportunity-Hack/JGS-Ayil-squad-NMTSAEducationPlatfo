@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -189,6 +189,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
   const createContent = useMutation(api.content.createContent);
   const createChunkedContent = useMutation(api.content.createChunkedContent);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
+  const generateGcsUploadUrl = useAction(api.gcs.generateGcsUploadUrl);
   const reportUploadFailure = useUploadFailureLogger();
   const deleteContentMutation = useMutation(api.content.deleteContent);
   const archiveContentMutation = useMutation(api.content.archiveContent);
@@ -432,6 +433,7 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
 
     try {
       let fileId: string | undefined = undefined;
+      let gcsPath: string | undefined = undefined;
       let thumbnailId: string | undefined = undefined;
       let chunkedUploadResult:
         | { chunks: Array<{ storageId: string; size: number }>; mimeType: string }
@@ -474,6 +476,12 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
             file: selectedFile,
             contentType: effectiveMimeType,
             getUploadUrl: () => generateUploadUrl(),
+            getGcsUpload: () =>
+              generateGcsUploadUrl({
+                fileName: selectedFile.name,
+                mimeType: effectiveMimeType,
+                fileSize: selectedFile.size,
+              }),
             onProgress: (uploadedBytes, totalBytes) =>
               setUploadProgress({ uploadedBytes, totalBytes }),
           });
@@ -500,6 +508,9 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
         if (uploadResult.kind === "single") {
           fileId = uploadResult.storageId;
           console.log("[Upload] File uploaded with storageId:", fileId);
+        } else if (uploadResult.kind === "gcs") {
+          gcsPath = uploadResult.objectPath;
+          console.log("[Upload] File uploaded to GCS:", gcsPath);
         } else {
           chunkedUploadResult = { chunks: uploadResult.chunks, mimeType: effectiveMimeType };
         }
@@ -536,6 +547,13 @@ export function ContentManager({ onNavigateToQuizzes }: ContentManagerProps = {}
           description: data.description || undefined,
           attachmentType: data.attachmentType,
           fileId: fileId as any,
+          ...(gcsPath && selectedFile
+            ? {
+                gcsPath,
+                fileSize: selectedFile.size,
+                mimeType: effectiveMimeType,
+              }
+            : {}),
           thumbnailId: thumbnailId as any,
           externalUrl: data.externalUrl || undefined,
           isPublic: data.isPublic,

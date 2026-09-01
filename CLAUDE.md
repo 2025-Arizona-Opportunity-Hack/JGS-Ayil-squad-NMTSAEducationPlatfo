@@ -166,6 +166,61 @@ regression suite, and these rules are what it enforces:
   (`src/lib/appAuth.tsx`), not `useAuthActions` directly. Tests:
   `convex/externalAuth.test.ts`.
 
+## Storage lifecycle
+
+Convex never garbage-collects `_storage` blobs — anything not explicitly
+deleted lives (and bills) forever. `convex/maintenance.ts` owns the ONE copy
+of the storage reference map (`collectReferencedStorageIds`: content
+fileId/thumbnailId/chunks, group thumbnails, profile pictures, site
+logo/favicon — extend it when adding a `v.id("_storage")` field to the
+schema). Delete/replace mutations in `content.ts` call
+`deleteUnreferencedStorage` to free blobs when their last reference drops;
+`maintenance:pruneOrphanedFiles` (internal, dry-run by default, 24h min-age
+so in-flight uploads survive, paginated) sweeps historical orphans. Tests:
+`convex/maintenance.test.ts`.
+
+## Media storage: keep bytes off Convex (data egress)
+
+Convex data egress is metered; video streaming through Convex storage blew
+the free tier 21×. Two ways media bytes stay off Convex:
+
+**Public CDN via externalUrl (preferred for public content).** An
+`externalUrl` pointing straight at a media file (`https://cdn.ohack.dev/lms/…`,
+the ohack public bucket) is served as the playable `fileUrl` by the media-info
+helpers — native player + watch tracking, not the iframe embed path.
+`isDirectMediaUrl` (`convex/helpers.ts`) is the ONE copy of the
+direct-vs-embed predicate. Migrate a row with
+`npx convex run maintenance:attachExternalMedia '{"contentId":"…","url":"…"}' --prod`
+(also frees its Convex blobs). The CDN has **no entitlement gate** — never
+point priced/private/password content at it.
+
+**Private GCS bucket (for gated media).** `convex/gcs.ts`, configured per
+deployment via `GCS_BUCKET` + `GCS_SERVICE_ACCOUNT` (inline service-account
+JSON, same convention as backend-ohack.dev). **Unset ⇒ full fallback to
+Convex storage** — never assume a bucket exists.
+
+- The bucket has public-access-prevention enforced: there is NO unsigned URL
+  for `content.gcsPath` media, even exempt/public content. Queries return
+  `fileUrl: null` + `requiresSignedUrl: true`; `content.getSignedMediaUrl`
+  mints a V4 signed GET through the SAME canonical entitlement chain as
+  chunked media (getContent → shareToken → getPublicContent+password) and
+  fails closed when GCS is unconfigured.
+- Uploads: `gcs.generateGcsUploadUrl` (gated on `CREATE_CONTENT`) mints a
+  signed PUT whose signed `x-goog-content-length-range` caps the size; the
+  browser PUTs directly to GCS (`uploadContentFile` prefers GCS, falls back
+  to Convex single/chunked). `createContent`/`updateContent` accept only
+  paths matching `GCS_CONTENT_PATH_PATTERN` (uuid segment) so rows can't be
+  pointed at arbitrary bucket objects.
+- GCS never garbage-collects either: delete/replace mutations schedule
+  `internal.gcs.deleteGcsObject` (object paths are single-owner by uuid).
+- Migration without Convex egress: upload the file out-of-band (`gcloud
+  storage cp` from a local copy), then
+  `npx convex run maintenance:attachGcsMedia '{"contentId":"…","gcsPath":"…"}' --prod`
+  (frees the old Convex blobs; `maintenance:listGcsMigrationCandidates`
+  lists rows still on Convex storage).
+- V4 signing is hand-rolled with `crypto.subtle` (action runtime, no SDK) —
+  `signGcsUrl` in `convex/gcs.ts` is the one copy. Tests: `convex/gcs.test.ts`.
+
 ## SEO / unfurling
 
 The app is a client-rendered SPA; `vercel.json` rewrites known unfurl-bot

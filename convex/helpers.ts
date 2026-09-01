@@ -199,10 +199,31 @@ export function isSignedMediaExempt(flags: {
   );
 }
 
+/**
+ * True when an externalUrl points straight at a media/document file (public
+ * CDN object like https://cdn.ohack.dev/lms/foo.mp4) rather than an embed
+ * page (YouTube, Vimeo, ...). Direct URLs are served as the playable
+ * `fileUrl` so the native player + watch tracking work; embed pages keep the
+ * iframe path. The ONE copy of this predicate.
+ */
+const DIRECT_MEDIA_EXTENSIONS =
+  /\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|oga|pdf)$/i;
+
+export function isDirectMediaUrl(url: string): boolean {
+  if (!/^https:\/\//i.test(url)) return false;
+  try {
+    return DIRECT_MEDIA_EXTENSIONS.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
 type MediaContent = {
   _id: Id<"content">;
   fileId?: Id<"_storage"> | null;
   chunks?: Array<{ storageId: Id<"_storage">; size: number }> | null;
+  gcsPath?: string | null;
+  externalUrl?: string | null;
   isPublic?: boolean | null;
   status?: string;
   active?: boolean | null;
@@ -227,6 +248,11 @@ export async function getContentMediaInfo(
   content: MediaContent
 ): Promise<ContentMediaInfo> {
   if (!content) return { fileUrl: null, requiresSignedUrl: false };
+  // GCS-backed media lives in a private bucket — there is no unsigned URL,
+  // even for exempt content; getSignedMediaUrl mints a V4 signed one.
+  if (content.gcsPath) {
+    return { fileUrl: null, requiresSignedUrl: true };
+  }
   if (content.fileId) {
     return {
       fileUrl: await ctx.storage.getUrl(content.fileId),
@@ -235,6 +261,11 @@ export async function getContentMediaInfo(
   }
   if (content.chunks && content.chunks.length > 0) {
     return { fileUrl: null, requiresSignedUrl: true };
+  }
+  // No stored file: a direct-media externalUrl (public CDN object) is the
+  // playable URL. Embed pages (YouTube, ...) stay on the iframe path.
+  if (content.externalUrl && isDirectMediaUrl(content.externalUrl)) {
+    return { fileUrl: content.externalUrl, requiresSignedUrl: false };
   }
   return { fileUrl: null, requiresSignedUrl: false };
 }
@@ -252,6 +283,11 @@ export async function getAnonymousContentMediaInfo(
   hasActivePricing: boolean
 ): Promise<ContentMediaInfo> {
   if (!content) return { fileUrl: null, requiresSignedUrl: false };
+  // Private-bucket media is always signed; anonymous viewers mint through
+  // getSignedMediaUrl, whose getPublicContent/password gates apply verbatim.
+  if (content.gcsPath) {
+    return { fileUrl: null, requiresSignedUrl: true };
+  }
   if (content.fileId) {
     return {
       fileUrl: await ctx.storage.getUrl(content.fileId),
@@ -273,6 +309,9 @@ export async function getAnonymousContentMediaInfo(
       };
     }
     return { fileUrl: null, requiresSignedUrl: true };
+  }
+  if (content.externalUrl && isDirectMediaUrl(content.externalUrl)) {
+    return { fileUrl: content.externalUrl, requiresSignedUrl: false };
   }
   return { fileUrl: null, requiresSignedUrl: false };
 }
