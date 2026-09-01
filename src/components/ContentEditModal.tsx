@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -140,6 +140,7 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
   const contentWithFile = useQuery(api.content.getContent, { contentId: content._id as any });
   const userProfile = useQuery(api.users.getCurrentUserProfile);
   const generateUploadUrl = useMutation(api.content.generateUploadUrl);
+  const generateGcsUploadUrl = useAction(api.gcs.generateGcsUploadUrl);
   const updateContent = useMutation(api.content.updateContent);
   const reportUploadFailure = useUploadFailureLogger();
   // Chunked media has no direct fileUrl; mint a signed one for the
@@ -205,6 +206,12 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
             file: selectedFile,
             contentType: effectiveMimeType,
             getUploadUrl: () => generateUploadUrl(),
+            getGcsUpload: () =>
+              generateGcsUploadUrl({
+                fileName: selectedFile.name,
+                mimeType: effectiveMimeType!,
+                fileSize: selectedFile.size,
+              }),
             onProgress: (uploadedBytes, totalBytes) =>
               setUploadProgress({ uploadedBytes, totalBytes }),
           });
@@ -242,6 +249,13 @@ export function ContentEditModal({ isOpen, onClose, content, quizTitle, onOpenQu
           : {}),
         ...(replacement?.kind === "chunked"
           ? { chunks: replacement.chunks as any, mimeType: effectiveMimeType }
+          : {}),
+        ...(replacement?.kind === "gcs" && selectedFile
+          ? {
+              gcsPath: replacement.objectPath,
+              fileSize: selectedFile.size,
+              mimeType: effectiveMimeType,
+            }
           : {}),
         ...(newThumbnailId ? { thumbnailId: newThumbnailId as any } : {}),
       });

@@ -3,6 +3,50 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.20.0 — 2026-08-31
+
+- Feature: **public-CDN media playback.** A content row whose `externalUrl`
+  points straight at a media file (e.g. `https://cdn.ohack.dev/lms/*.mp4`)
+  now serves that URL as the playable `fileUrl` — native player, Range
+  streaming, and watch tracking instead of the iframe fallback, with zero
+  Convex egress. `isDirectMediaUrl` in `convex/helpers.ts` is the one copy of
+  the predicate (embed pages like YouTube keep the iframe path).
+  `maintenance:attachExternalMedia` repoints an existing row at a CDN URL and
+  frees its Convex blobs. Public objects only — never for priced/private/
+  password content.
+- Feature: **Google Cloud Storage media backend** (`convex/gcs.ts`) — content
+  media bytes move out of Convex storage (metered data egress; 21 GB streamed
+  against a 1 GB free-tier cap) into a private per-deployment GCS bucket.
+  Configured via `GCS_BUCKET` + `GCS_SERVICE_ACCOUNT` (inline SA JSON); when
+  unset, everything falls back to Convex storage, so deployments without a
+  bucket are unaffected. Uploads go browser→GCS with one V4 signed PUT
+  (size-capped via signed `x-goog-content-length-range`; no more 50 MB
+  chunking for new uploads), gated on `CREATE_CONTENT`. Reads are V4 signed
+  GET URLs minted only by `content.getSignedMediaUrl`'s canonical
+  entitlement chain — the bucket is private, so even public content has no
+  unsigned URL. Signing is hand-rolled V4 (crypto.subtle RSA, no SDK).
+  Delete/replace mutations schedule `gcs.deleteGcsObject`;
+  `maintenance:attachGcsMedia` + `maintenance:listGcsMigrationCandidates`
+  migrate existing rows to objects uploaded out-of-band (e.g. `gcloud
+  storage cp` from local copies — zero Convex egress). New `content.gcsPath`
+  schema field. Tests: `convex/gcs.test.ts` (sign/verify roundtrip, access
+  gating, upload permission, path-pattern validation, migration).
+
+## 0.19.0 — 2026-08-21
+
+- Feature/fix: **storage cleanup on delete + orphan pruning.** Deleting or
+  replacing content never freed its single-file blob or thumbnail (and
+  `bulkDeleteContent` didn't even free chunk blobs), so Convex storage
+  accumulated orphans forever. New `convex/maintenance.ts` owns the one copy
+  of "which storage ids are referenced" (`collectReferencedStorageIds` /
+  `deleteUnreferencedStorage`); `deleteContent`, `bulkDeleteContent`,
+  `updateContent` (media/thumbnail replacement), and
+  `updateContentThumbnailId` now free blobs the moment their last reference
+  drops. `maintenance:pruneOrphanedFiles` (internal mutation, dry-run by
+  default, 24h min-age guard, paginated) sweeps historical orphans:
+  `npx convex run maintenance:pruneOrphanedFiles '{"dryRun":false}' --prod`.
+  Tests: `convex/maintenance.test.ts`.
+
 ## 0.18.0 — 2026-08-20
 
 - Fix: **chunked video playback.** Videos uploaded via the chunked path

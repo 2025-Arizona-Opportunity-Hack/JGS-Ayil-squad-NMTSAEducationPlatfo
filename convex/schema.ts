@@ -123,6 +123,10 @@ const applicationTables = {
         })
       )
     ),
+    // Object path in the private GCS bucket (convex/gcs.ts). When present,
+    // fileId/chunks are empty and bytes are served ONLY via V4 signed URLs
+    // minted by content.getSignedMediaUrl — never through Convex (egress).
+    gcsPath: v.optional(v.string()),
     // File metadata
     thumbnailId: v.optional(v.id("_storage")),
     duration: v.optional(v.number()),

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatUserName,
+  isDirectMediaUrl,
   validateEmail,
   validatePhoneNumber,
   validatePrice,
@@ -119,5 +120,28 @@ describe("date timezone handling", () => {
     const startDate = "";
     const result = startDate ? new Date(startDate + "T12:00:00").getTime() : undefined;
     expect(result).toBeUndefined();
+  });
+});
+
+describe("isDirectMediaUrl", () => {
+  it("accepts https URLs pointing at media files, incl. percent-encoded names", () => {
+    expect(
+      isDirectMediaUrl(
+        "https://cdn.ohack.dev/lms/Using%20the%20Judging%20Tool%20v2.mp4"
+      )
+    ).toBe(true);
+    expect(isDirectMediaUrl("https://cdn.ohack.dev/a/b.webm")).toBe(true);
+    expect(isDirectMediaUrl("https://cdn.ohack.dev/a/b.MP3")).toBe(true);
+    expect(isDirectMediaUrl("https://cdn.ohack.dev/docs/guide.pdf")).toBe(true);
+  });
+
+  it("rejects embed pages, non-https, and non-media paths", () => {
+    expect(isDirectMediaUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
+    expect(isDirectMediaUrl("https://youtu.be/abc")).toBe(false);
+    expect(isDirectMediaUrl("http://cdn.ohack.dev/a.mp4")).toBe(false);
+    expect(isDirectMediaUrl("https://vimeo.com/12345")).toBe(false);
+    expect(isDirectMediaUrl("not a url")).toBe(false);
+    // Extension must be in the path, not the query string.
+    expect(isDirectMediaUrl("https://example.com/page?file=a.mp4")).toBe(false);
   });
 });
