@@ -461,6 +461,293 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "client-getting-around",
+    title: "Getting around",
+    summary: "A quick look at where everything lives in your portal.",
+    audience: "client",
+    tourStops: [
+      {
+        target: "client-nav-home",
+        title: "Home",
+        description:
+          "Your starting point. Recent content and anything recommended to you shows up here first.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-browse",
+        title: "Browse",
+        description:
+          "Search everything you have access to, or filter by the kind of content you want.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-shop",
+        title: "Shop",
+        description:
+          "Content you can buy. You ask for access first, and pay once a staff member approves it.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-profile",
+        title: "You",
+        description:
+          "Your name and photo, switching between light and dark, and signing out. That's the tour — click Done.",
+        position: "bottom",
+      },
+    ],
+    writtenSteps: [
+      {
+        title: "Home",
+        detail:
+          "Where you land when you sign in. Shows recent content and anything your therapist has recommended.",
+      },
+      {
+        title: "Browse",
+        detail:
+          "Everything you have access to, with a search box and filters by content type.",
+      },
+      {
+        title: "Shop",
+        detail:
+          "Content available to buy. See 'Getting access to paid content' for how buying works.",
+      },
+      {
+        title: "For You",
+        detail:
+          "Recommendations picked for you by a therapist, each with a note about why. On a phone, tap More to find it.",
+      },
+      {
+        title: "Orders and Requests",
+        detail:
+          "Orders holds what you've bought and your receipts; Requests tracks access you've asked for. On a phone, both are under More.",
+      },
+      {
+        title: "Your profile",
+        detail:
+          "Tap your photo in the top right to change your name or picture, switch between light and dark, or sign out.",
+      },
+    ],
+  },
+  {
+    id: "client-find-and-open",
+    title: "Find something and open it",
+    summary: "Search for content, open it, and get back again.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Start from Home or Browse",
+        detail:
+          "Home shows recent and recommended items. Browse shows everything you have access to.",
+      },
+      {
+        title: "Search or filter",
+        detail:
+          "In Browse, type into the search box to match titles and descriptions, or use the type filter to narrow to video, audio, documents, or articles.",
+      },
+      {
+        title: "Open an item",
+        detail: "Tap or click anywhere on a content card to open it.",
+      },
+      {
+        title: "Opening takes you out of the portal",
+        detail:
+          "Content opens in its own full-screen viewer, so the menus you were just using disappear. That's expected.",
+      },
+      {
+        title: "Getting back",
+        detail:
+          "Use your browser's Back button, or the Home button in the top bar of the viewer, to return to the portal.",
+      },
+    ],
+  },
+  {
+    id: "client-play-content",
+    title: "Watch, listen, or read",
+    summary: "How each kind of content opens, and how to download a copy.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Video",
+        detail:
+          "Plays in a player with the usual controls — play and pause, volume, and full screen.",
+      },
+      {
+        title: "Audio",
+        detail: "Plays in an audio bar with play, pause, and a position slider.",
+      },
+      {
+        title: "Documents",
+        detail:
+          "PDFs open in a viewer with a download button if you'd like your own copy.",
+      },
+      {
+        title: "Articles",
+        detail: "Written content appears directly on the page — just scroll to read.",
+      },
+      {
+        title: "If something asks for a password",
+        detail:
+          "Some shared items are protected. Enter the password whoever shared it gave you. If it asks you to sign in, use your usual account.",
+      },
+    ],
+  },
+  {
+    id: "client-paid-access",
+    title: "Getting access to paid content",
+    summary: "Request it, wait for approval, then pay — and where to finish if you stop partway.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Find it in Shop",
+        detail: "Paid content lives in Shop, each item showing its price.",
+      },
+      {
+        title: "Request to purchase",
+        detail:
+          "Choose Request to Purchase. You can't buy immediately — a staff member reviews the request first.",
+      },
+      {
+        title: "Wait for approval",
+        detail:
+          "Approval isn't instant and may take a day or two. You can check the status any time under Requests.",
+      },
+      {
+        title: "Complete the purchase",
+        detail:
+          "Once approved, open Requests and use Complete Purchase on the approved request to pay.",
+      },
+      {
+        title: "If you stop partway",
+        detail:
+          "An approved request stays in Requests until you use it, so you can come back and finish later.",
+      },
+      {
+        title: "After buying",
+        detail:
+          "The content is yours to open from Browse. Some purchases include an access period — check Orders for the expiry date.",
+      },
+    ],
+  },
+  {
+    id: "client-for-you",
+    title: "For You: your therapist's recommendations",
+    summary: "Content picked for you, and the note explaining why.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open For You",
+        detail: "It's a tab along the top; on a phone, tap More first.",
+      },
+      {
+        title: "Read the note",
+        detail:
+          "Each recommendation can carry a short message from whoever recommended it, explaining why it's relevant to you.",
+      },
+      {
+        title: "Open the content",
+        detail: "Choose the recommendation to open it, the same as anywhere else.",
+      },
+      {
+        title: "If it's paid content",
+        detail:
+          "Recommended items that cost money follow the normal route — request access from Shop and pay once approved. See 'Getting access to paid content'.",
+      },
+    ],
+  },
+  {
+    id: "client-orders",
+    title: "Your orders and receipts",
+    summary: "What you've bought, your receipts, and when access runs out.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open Orders",
+        detail: "A tab along the top; on a phone, tap More first.",
+      },
+      {
+        title: "Review an order",
+        detail: "Each row shows what you bought, what it cost, and the date.",
+      },
+      {
+        title: "Get a receipt",
+        detail: "Use the receipt action on an order to download a copy for your records.",
+      },
+      {
+        title: "Check access expiry",
+        detail:
+          "Some purchases grant access for a set period. Where that applies, the expiry date is shown on the order.",
+      },
+    ],
+  },
+  {
+    id: "client-profile",
+    title: "Your profile and appearance",
+    summary: "Change your name or photo, switch light and dark, and sign out.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open your profile",
+        detail: "Tap your photo in the top right corner.",
+      },
+      {
+        title: "Change your name",
+        detail: "Edit your first and last name, then save.",
+      },
+      {
+        title: "Add or change your photo",
+        detail: "Upload a picture, replace the one you have, or remove it entirely.",
+      },
+      {
+        title: "Light or dark",
+        detail:
+          "The theme toggle beside your photo switches between light and dark. Your choice is remembered.",
+      },
+      {
+        title: "Sign out",
+        detail:
+          "The sign-out button is next to your photo. Worth doing on a shared or family device.",
+      },
+    ],
+  },
+  {
+    id: "client-recommend",
+    title: "Recommending content to a client",
+    summary: "Send a client a piece of content with a note about why.",
+    audience: "client",
+    requiredPermission: PERMISSIONS.RECOMMEND_CONTENT,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open the content",
+        detail: "Find the item you want to recommend and open it.",
+      },
+      {
+        title: "Choose Recommend",
+        detail:
+          "The Recommend button appears on content you can recommend. Only professional accounts see it.",
+      },
+      {
+        title: "Enter the recipient",
+        detail: "Type the email address of the person you're recommending it to.",
+      },
+      {
+        title: "Add a note",
+        detail:
+          "Include a short message explaining why you're sending it — this is what they'll read in their For You tab.",
+      },
+      {
+        title: "Send it",
+        detail: "Once sent, the recommendation appears in that person's For You tab.",
+      },
+    ],
+  },
 ];
 
 /**

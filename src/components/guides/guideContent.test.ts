@@ -18,11 +18,18 @@ describe("GUIDES", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("every guide has a title, summary, written steps, and tour stops", () => {
+  it("every guide has a title, summary, and written steps", () => {
     for (const g of GUIDES) {
       expect(g.title.length).toBeGreaterThan(0);
       expect(g.summary.length).toBeGreaterThan(0);
       expect(g.writtenSteps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every admin guide has tour stops", () => {
+    // Client guides intentionally omit tour stops except for
+    // client-getting-around — see the "client guides" describe block below.
+    for (const g of GUIDES.filter((g) => g.audience === "admin")) {
       expect(g.tourStops.length).toBeGreaterThan(0);
     }
   });
@@ -82,5 +89,47 @@ describe("getGuidesFor", () => {
 describe("GUIDES metadata", () => {
   it("gives every guide an audience", () => {
     expect(GUIDES.every((g) => g.audience === "admin" || g.audience === "client")).toBe(true);
+  });
+});
+
+describe("client guides", () => {
+  const CLIENT_IDS = [
+    "client-getting-around",
+    "client-find-and-open",
+    "client-play-content",
+    "client-paid-access",
+    "client-for-you",
+    "client-orders",
+    "client-profile",
+  ];
+
+  it("includes all the expected client guides", () => {
+    const ids = getGuidesFor("client", []).map((g) => g.id);
+    for (const id of CLIENT_IDS) expect(ids).toContain(id);
+  });
+
+  it("offers the recommend guide only to holders of RECOMMEND_CONTENT", () => {
+    expect(getGuidesFor("client", []).map((g) => g.id)).not.toContain("client-recommend");
+    expect(
+      getGuidesFor("client", [PERMISSIONS.RECOMMEND_CONTENT]).map((g) => g.id)
+    ).toContain("client-recommend");
+  });
+
+  it("gives every client guide written steps", () => {
+    for (const g of getGuidesFor("client", [PERMISSIONS.RECOMMEND_CONTENT])) {
+      expect(g.writtenSteps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("only tours anchors that exist in both the mobile and desktop shells", () => {
+    const stable = new Set([
+      "client-nav-home",
+      "client-nav-browse",
+      "client-nav-shop",
+      "client-nav-profile",
+    ]);
+    for (const g of getGuidesFor("client", [PERMISSIONS.RECOMMEND_CONTENT])) {
+      for (const stop of g.tourStops) expect(stable.has(stop.target)).toBe(true);
+    }
   });
 });
