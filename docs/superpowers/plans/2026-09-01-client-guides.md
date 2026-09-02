@@ -19,7 +19,7 @@
 - **Run tests:** `npm test` (Vitest, single run).
 - **Typecheck/build:** `npx tsc -p convex --noEmit && npx tsc -p . --noEmit && npx vite build`.
 - **Permission type:** `requiredPermission` is typed `Permission` (from `@/lib/permissions`), not `string`, because `hasPermission(perms, p: Permission)` requires it.
-- **Versioning:** one **minor** bump for this whole feature — `0.6.0` → `0.7.0` — plus a dated `CHANGELOG.md` entry, both in the final commit (Task 9). Do **not** bump in earlier tasks.
+- **Versioning:** one **minor** bump for this whole feature — `0.6.0` → `0.7.0` — plus a dated `CHANGELOG.md` entry, both in the final commit (Task 8). Do **not** bump in earlier tasks.
 - **Client theme tokens:** client-portal markup uses `client-*` Tailwind tokens (`text-client-text`, `bg-client-card`, `border-client-border`, `text-client-primary`), not the admin tokens.
 
 ---
@@ -40,12 +40,16 @@ Pure data + one pure function. No rendering.
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `src/components/guides/guideContent.test.ts`:
+In `src/components/guides/guideContent.test.ts`, first widen the existing import on line 2 from `import { GUIDES } from "./guideContent";` to:
 
 ```ts
 import { GUIDES, getGuidesFor } from "./guideContent";
 import { PERMISSIONS } from "@/lib/permissions";
+```
 
+Do not add a second `./guideContent` import — TypeScript rejects the duplicate. Then append:
+
+```ts
 describe("getGuidesFor", () => {
   const ALL_STAFF = [
     PERMISSIONS.CREATE_CONTENT,
@@ -340,7 +344,64 @@ Change line 31 from `{GUIDES.map((guide) => (` to:
           {guides.map((guide) => (
 ```
 
-- [ ] **Step 5: Update the admin call site**
+- [ ] **Step 5: Hide "Start tour" for written-only guides**
+
+Most client guides are written-only (`tourStops: []`). The launcher currently
+renders a "Start tour" button for every guide unconditionally, which would mount
+`GuidedTour` with no stops. Wrap the tour button (lines 36-39) in a guard:
+
+```tsx
+                {guide.tourStops.length > 0 && (
+                  <Button size="sm" onClick={() => onStartTour(guide.id)}>
+                    <PlayCircle className="w-4 h-4 mr-2" />
+                    Start tour
+                  </Button>
+                )}
+```
+
+Leave the "Read steps" button unconditional — every guide has written steps.
+
+Add this test to `src/components/guides/GuidesLauncher.test.tsx`, inside the
+`describe("GuidesLauncher guide list", ...)` block added in Step 1:
+
+```tsx
+  it("offers no tour for a guide with no tour stops", () => {
+    render(
+      <GuidesLauncher
+        guides={ONE}
+        open
+        onClose={() => {}}
+        onReadSteps={() => {}}
+        onStartTour={() => {}}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /start tour/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /read steps/i })).toBeInTheDocument();
+  });
+
+  it("offers a tour for a guide that has stops", () => {
+    const withStops: Guide[] = [
+      {
+        ...ONE[0],
+        tourStops: [
+          { target: "x", title: "T", description: "D", position: "bottom" },
+        ],
+      },
+    ];
+    render(
+      <GuidesLauncher
+        guides={withStops}
+        open
+        onClose={() => {}}
+        onReadSteps={() => {}}
+        onStartTour={() => {}}
+      />
+    );
+    expect(screen.getByRole("button", { name: /start tour/i })).toBeInTheDocument();
+  });
+```
+
+- [ ] **Step 6: Update the admin call site**
 
 In `src/components/AdminDashboard.tsx`, change line 39 from `const guides = useGuides();` to:
 
@@ -366,17 +427,17 @@ Then pass the list to the launcher in the JSX at `AdminDashboard.tsx:128`:
       />
 ```
 
-- [ ] **Step 6: Run the full suite**
+- [ ] **Step 7: Run the full suite**
 
 Run: `npm test`
 Expected: PASS. Existing `GuidesLauncher` / `useGuides` tests that relied on the module-level catalog must be updated to pass a list rather than deleted — if any now fail, change the call to supply `getGuidesFor("admin", [PERMISSIONS.CREATE_CONTENT, PERMISSIONS.SET_CONTENT_PRICING, PERMISSIONS.MANAGE_CONTENT_GROUPS])`.
 
-- [ ] **Step 7: Typecheck**
+- [ ] **Step 8: Typecheck**
 
 Run: `npx tsc -p . --noEmit`
 Expected: no errors.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/components/guides/GuidesLauncher.tsx src/components/guides/GuidesLauncher.test.tsx src/components/guides/useGuides.ts src/components/guides/useGuides.test.ts src/components/AdminDashboard.tsx
@@ -896,231 +957,7 @@ mobile and desktop shells; the rest are covered in writing."
 
 ---
 
-### Task 5: Client shell — tour anchors and Help entry points
-
-**Files:**
-- Modify: `src/components/client/ClientHeader.tsx:15-17,53-70,77-98,100-116`
-- Modify: `src/components/client/BottomNav.tsx:9-13`
-- Modify: `src/components/client/MoreDrawer.tsx:11-17`
-- Test: `src/components/client/ClientHeader.test.tsx` (create), `src/components/client/MoreDrawer.test.tsx` (create)
-
-**Interfaces:**
-- Consumes: anchor names from Task 4.
-- Produces:
-  - `ClientHeader` props gain `onHelpClick: () => void`
-  - `MoreDrawer` props gain `onHelpClick: () => void`
-  - DOM anchors `client-nav-home`, `client-nav-browse`, `client-nav-shop`, `client-nav-profile`
-
-- [ ] **Step 1: Write the failing tests**
-
-Create `src/components/client/ClientHeader.test.tsx`:
-
-```tsx
-// @vitest-environment happy-dom
-import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-
-vi.mock("convex/react", () => ({
-  useQuery: () => undefined,
-  useMutation: () => vi.fn(),
-}));
-
-import { ClientHeader } from "./ClientHeader";
-
-function renderHeader(onHelpClick = () => {}) {
-  return render(
-    <MemoryRouter>
-      <ClientHeader onProfileClick={() => {}} onHelpClick={onHelpClick} />
-    </MemoryRouter>
-  );
-}
-
-describe("ClientHeader", () => {
-  it("renders a help button", () => {
-    renderHeader();
-    expect(screen.getAllByRole("button", { name: /help/i }).length).toBeGreaterThan(0);
-  });
-
-  it("calls onHelpClick when the help button is used", async () => {
-    const onHelpClick = vi.fn();
-    renderHeader(onHelpClick);
-    await userEvent.click(screen.getAllByRole("button", { name: /help/i })[0]);
-    expect(onHelpClick).toHaveBeenCalledTimes(1);
-  });
-
-  it("anchors the tour to home, browse, shop and profile", () => {
-    const { container } = renderHeader();
-    for (const anchor of ["client-nav-home", "client-nav-browse", "client-nav-shop", "client-nav-profile"]) {
-      expect(container.querySelector(`[data-tour="${anchor}"]`)).not.toBeNull();
-    }
-  });
-});
-```
-
-Create `src/components/client/MoreDrawer.test.tsx`:
-
-```tsx
-// @vitest-environment happy-dom
-import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { MoreDrawer } from "./MoreDrawer";
-
-describe("MoreDrawer", () => {
-  it("offers Help alongside the navigation items", () => {
-    render(
-      <MemoryRouter>
-        <MoreDrawer open onOpenChange={() => {}} onHelpClick={() => {}} />
-      </MemoryRouter>
-    );
-    expect(screen.getByRole("button", { name: /help/i })).toBeInTheDocument();
-  });
-
-  it("calls onHelpClick and closes the drawer", async () => {
-    const onHelpClick = vi.fn();
-    const onOpenChange = vi.fn();
-    render(
-      <MemoryRouter>
-        <MoreDrawer open onOpenChange={onOpenChange} onHelpClick={onHelpClick} />
-      </MemoryRouter>
-    );
-    await userEvent.click(screen.getByRole("button", { name: /help/i }));
-    expect(onHelpClick).toHaveBeenCalledTimes(1);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-});
-```
-
-- [ ] **Step 2: Run the tests to verify they fail**
-
-Run: `npm test -- src/components/client/ClientHeader.test.tsx src/components/client/MoreDrawer.test.tsx`
-Expected: FAIL — no help button, unknown props.
-
-- [ ] **Step 3: Add anchors and the help button to `ClientHeader`**
-
-Add `HelpCircle` to the existing `lucide-react` import on lines 3-6. Use `HelpCircle`, not another question-mark icon — it is what `AdminHeader.tsx:3` and `NewStaffPrompt.tsx:2` already use.
-
-Extend the props interface (lines 15-17):
-
-```ts
-interface ClientHeaderProps {
-  onProfileClick: () => void;
-  onHelpClick: () => void;
-}
-```
-
-and the destructure on line 30:
-
-```tsx
-export function ClientHeader({ onProfileClick, onHelpClick }: ClientHeaderProps) {
-```
-
-Add an anchor to the desktop nav buttons. Inside the `desktopTabs.map` at line 78, add this prop to the `<button>` alongside the existing `key`:
-
-```tsx
-                    data-tour={`client-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-```
-
-This yields `client-nav-home`, `client-nav-browse`, `client-nav-shop`, and also `client-nav-bundles`, `client-nav-orders`, `client-nav-shares`, `client-nav-requests`, `client-nav-for-you`. Only the first three are toured; the rest are harmless and available later.
-
-Add `data-tour="client-nav-profile"` to **both** profile buttons — the mobile one at line 55 and the desktop one at line 102.
-
-Add a help button immediately **before** `<ThemeToggle />` in both clusters. Mobile (line 54):
-
-```tsx
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onHelpClick}
-              aria-label="Help and guides"
-              className="min-w-[44px] min-h-[44px]"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </Button>
-```
-
-Desktop (line 101):
-
-```tsx
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onHelpClick}
-              aria-label="Help and guides"
-              className="min-h-[44px]"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </Button>
-```
-
-- [ ] **Step 4: Add anchors to `BottomNav`**
-
-In `src/components/client/BottomNav.tsx`, inside the `navItems.map` that renders each nav button, add:
-
-```tsx
-              data-tour={`client-nav-${label.toLowerCase()}`}
-```
-
-This gives the mobile Home, Browse and Shop buttons the *same* anchors as their desktop counterparts — which is exactly the duplication Task 3 handles. Leave the "More" button without an anchor; it is not toured.
-
-- [ ] **Step 5: Add the Help row to `MoreDrawer`**
-
-In `src/components/client/MoreDrawer.tsx`, add `HelpCircle` to the `lucide-react` import on line 2, and extend the props:
-
-```ts
-interface MoreDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onHelpClick: () => void;
-}
-
-export function MoreDrawer({ open, onOpenChange, onHelpClick }: MoreDrawerProps) {
-```
-
-After the list that renders `drawerItems`, add a Help entry styled to match the existing rows. Reuse whatever class string the existing item buttons use; the distinguishing part is the handler:
-
-```tsx
-        <button
-          onClick={() => {
-            onOpenChange(false);
-            onHelpClick();
-          }}
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left min-h-[44px] text-client-text-secondary hover:text-client-text hover:bg-client-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary"
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span>Help</span>
-        </button>
-```
-
-- [ ] **Step 6: Run the tests to verify they pass**
-
-Run: `npm test -- src/components/client/ClientHeader.test.tsx src/components/client/MoreDrawer.test.tsx`
-Expected: PASS.
-
-- [ ] **Step 7: Typecheck**
-
-Run: `npx tsc -p . --noEmit`
-Expected: FAIL, with errors at `ClientLayout.tsx:35,54` — `onHelpClick` is missing. That is correct; Task 7 supplies it. Do not fix it here.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add src/components/client/ClientHeader.tsx src/components/client/ClientHeader.test.tsx src/components/client/BottomNav.tsx src/components/client/MoreDrawer.tsx src/components/client/MoreDrawer.test.tsx
-git commit -m "feat(client): add help entry points and tour anchors to the shell
-
-Help button in both header layouts and a Help row in the mobile More drawer.
-Desktop tabs and mobile bottom-nav items share data-tour anchors so one tour
-stop addresses whichever is visible."
-```
-
----
-
-### Task 6: `ClientHelpPrompt`
+### Task 5: `ClientHelpPrompt`
 
 **Files:**
 - Create: `src/components/guides/ClientHelpPrompt.tsx`
@@ -1286,17 +1123,109 @@ family or clinic device does not hide it for everyone after one dismissal."
 
 ---
 
-### Task 7: Wire the guides into `ClientLayout`
+### Task 6: Client shell — anchors, help entry points, and wiring
+
+Anchors, entry points, and the `ClientLayout` wiring land together: `ClientHeader`
+and `MoreDrawer` gain a required `onHelpClick`, and `ClientLayout` is the only
+thing that can supply it. Split apart, neither half typechecks on its own.
 
 **Files:**
+- Modify: `src/components/client/ClientHeader.tsx:15-17,53-70,77-98,100-116`
+- Modify: `src/components/client/BottomNav.tsx:9-13`
+- Modify: `src/components/client/MoreDrawer.tsx:11-17`
 - Modify: `src/components/client/ClientLayout.tsx:1-19,32-70`
-- Test: `src/components/client/ClientLayout.test.tsx` (create)
+- Test: `src/components/client/ClientHeader.test.tsx` (create), `src/components/client/MoreDrawer.test.tsx` (create), `src/components/client/ClientLayout.test.tsx` (create)
 
 **Interfaces:**
-- Consumes: `getGuidesFor` (Task 1), `useGuides(guides)` and `GuidesLauncher guides` prop (Task 2), client guides (Task 4), `onHelpClick` props (Task 5), `ClientHelpPrompt` (Task 6).
-- Produces: the finished feature.
+- Consumes: `getGuidesFor` (Task 1), `useGuides(guides)` and the `GuidesLauncher` `guides` prop (Task 2), the `client-nav-*` anchor names and client guides (Task 4), `ClientHelpPrompt` (Task 5).
+- Produces: `ClientHeader` and `MoreDrawer` props gain `onHelpClick: () => void`; DOM anchors `client-nav-home`, `client-nav-browse`, `client-nav-shop`, `client-nav-profile`. This is the finished feature.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing shell tests**
+
+Create `src/components/client/ClientHeader.test.tsx`:
+
+```tsx
+// @vitest-environment happy-dom
+import "@testing-library/jest-dom/vitest";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+
+vi.mock("convex/react", () => ({
+  useQuery: () => undefined,
+  useMutation: () => vi.fn(),
+}));
+
+import { ClientHeader } from "./ClientHeader";
+
+function renderHeader(onHelpClick = () => {}) {
+  return render(
+    <MemoryRouter>
+      <ClientHeader onProfileClick={() => {}} onHelpClick={onHelpClick} />
+    </MemoryRouter>
+  );
+}
+
+describe("ClientHeader", () => {
+  it("renders a help button", () => {
+    renderHeader();
+    expect(screen.getAllByRole("button", { name: /help/i }).length).toBeGreaterThan(0);
+  });
+
+  it("calls onHelpClick when the help button is used", async () => {
+    const onHelpClick = vi.fn();
+    renderHeader(onHelpClick);
+    await userEvent.click(screen.getAllByRole("button", { name: /help/i })[0]);
+    expect(onHelpClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("anchors the tour to home, browse, shop and profile", () => {
+    const { container } = renderHeader();
+    for (const anchor of ["client-nav-home", "client-nav-browse", "client-nav-shop", "client-nav-profile"]) {
+      expect(container.querySelector(`[data-tour="${anchor}"]`)).not.toBeNull();
+    }
+  });
+});
+```
+
+Create `src/components/client/MoreDrawer.test.tsx`:
+
+```tsx
+// @vitest-environment happy-dom
+import "@testing-library/jest-dom/vitest";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { MoreDrawer } from "./MoreDrawer";
+
+describe("MoreDrawer", () => {
+  it("offers Help alongside the navigation items", () => {
+    render(
+      <MemoryRouter>
+        <MoreDrawer open onOpenChange={() => {}} onHelpClick={() => {}} />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("button", { name: /help/i })).toBeInTheDocument();
+  });
+
+  it("calls onHelpClick and closes the drawer", async () => {
+    const onHelpClick = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <MoreDrawer open onOpenChange={onOpenChange} onHelpClick={onHelpClick} />
+      </MemoryRouter>
+    );
+    await userEvent.click(screen.getByRole("button", { name: /help/i }));
+    expect(onHelpClick).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+```
+
+- [ ] **Step 2: Write the failing wiring test**
 
 Create `src/components/client/ClientLayout.test.tsx`:
 
@@ -1357,12 +1286,108 @@ describe("ClientLayout guides", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `npm test -- src/components/client/ClientLayout.test.tsx`
-Expected: FAIL — no help button is wired up.
+Run: `npm test -- src/components/client/`
+Expected: FAIL — no help button, unknown props, guides not mounted.
 
-- [ ] **Step 3: Wire it up**
+- [ ] **Step 4: Add anchors and the help button to `ClientHeader`**
+
+Add `HelpCircle` to the existing `lucide-react` import on lines 3-6. Use `HelpCircle`, not another question-mark icon — it is what `AdminHeader.tsx:3` and `NewStaffPrompt.tsx:2` already use.
+
+Extend the props interface (lines 15-17):
+
+```ts
+interface ClientHeaderProps {
+  onProfileClick: () => void;
+  onHelpClick: () => void;
+}
+```
+
+and the destructure on line 30:
+
+```tsx
+export function ClientHeader({ onProfileClick, onHelpClick }: ClientHeaderProps) {
+```
+
+Add an anchor to the desktop nav buttons. Inside the `desktopTabs.map` at line 78, add this prop to the `<button>` alongside the existing `key`:
+
+```tsx
+                    data-tour={`client-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+```
+
+This yields `client-nav-home`, `client-nav-browse`, `client-nav-shop`, and also `client-nav-bundles`, `client-nav-orders`, `client-nav-shares`, `client-nav-requests`, `client-nav-for-you`. Only the first three are toured; the rest are harmless and available later.
+
+Add `data-tour="client-nav-profile"` to **both** profile buttons — the mobile one at line 55 and the desktop one at line 102.
+
+Add a help button immediately **before** `<ThemeToggle />` in both clusters. Mobile (line 54):
+
+```tsx
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onHelpClick}
+              aria-label="Help and guides"
+              className="min-w-[44px] min-h-[44px]"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
+```
+
+Desktop (line 101):
+
+```tsx
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onHelpClick}
+              aria-label="Help and guides"
+              className="min-h-[44px]"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
+```
+
+- [ ] **Step 5: Add anchors to `BottomNav`**
+
+In `src/components/client/BottomNav.tsx`, inside the `navItems.map` that renders each nav button, add:
+
+```tsx
+              data-tour={`client-nav-${label.toLowerCase()}`}
+```
+
+This gives the mobile Home, Browse and Shop buttons the *same* anchors as their desktop counterparts — which is exactly the duplication Task 3 handles. Leave the "More" button without an anchor; it is not toured.
+
+- [ ] **Step 6: Add the Help row to `MoreDrawer`**
+
+In `src/components/client/MoreDrawer.tsx`, add `HelpCircle` to the `lucide-react` import on line 2, and extend the props:
+
+```ts
+interface MoreDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onHelpClick: () => void;
+}
+
+export function MoreDrawer({ open, onOpenChange, onHelpClick }: MoreDrawerProps) {
+```
+
+After the list that renders `drawerItems`, add a Help entry styled to match the existing rows. Reuse whatever class string the existing item buttons use; the distinguishing part is the handler:
+
+```tsx
+        <button
+          onClick={() => {
+            onOpenChange(false);
+            onHelpClick();
+          }}
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left min-h-[44px] text-client-text-secondary hover:text-client-text hover:bg-client-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <span>Help</span>
+        </button>
+```
+
+- [ ] **Step 7: Wire up `ClientLayout`**
 
 In `src/components/client/ClientLayout.tsx`, add to the imports:
 
@@ -1455,33 +1480,36 @@ Three deliberate differences from the admin host:
 - **`onClose={guides.closeTour}` directly**, not the admin's `handleTourClose` (`AdminDashboard.tsx:46-55`), whose synthesized global Escape would close whatever dialog happens to be topmost.
 - **`onStartTour` is conditional on the guide having stops**, because most client guides are written-only; offering "start the tour" on a guide with an empty `tourStops` array would open an immediately-broken tour.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 8: Run the tests to verify they pass**
 
-Run: `npm test -- src/components/client/ClientLayout.test.tsx`
+Run: `npm test -- src/components/client/`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full suite and typecheck**
+- [ ] **Step 9: Run the full suite and typecheck**
 
 Run: `npm test`
 Expected: PASS.
 
 Run: `npx tsc -p convex --noEmit && npx tsc -p . --noEmit && npx vite build`
-Expected: clean — including the `ClientLayout.tsx` errors Task 5 deliberately left open.
+Expected: clean. Unlike the intermediate tasks, this one must leave the tree
+fully green — the required `onHelpClick` prop and its only supplier both land here.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/components/client/ClientLayout.tsx src/components/client/ClientLayout.test.tsx
+git add src/components/client/ClientHeader.tsx src/components/client/ClientHeader.test.tsx src/components/client/BottomNav.tsx src/components/client/MoreDrawer.tsx src/components/client/MoreDrawer.test.tsx src/components/client/ClientLayout.tsx src/components/client/ClientLayout.test.tsx
 git commit -m "feat(client): mount Help & Guides in the client portal
 
-Filtered by audience and permission, with the tour, written guides, and the
-first-visit prompt. Omits GuideDemoHost and the admin Escape-on-teardown
-behaviour, neither of which applies here."
+Help button in both header layouts and a Help row in the mobile More drawer.
+Desktop tabs and mobile bottom-nav items share data-tour anchors so one tour
+stop addresses whichever is visible. Guides are filtered by audience and
+permission. Omits GuideDemoHost and the admin Escape-on-teardown behaviour,
+neither of which applies here."
 ```
 
 ---
 
-### Task 8: Gaps report
+### Task 7: Gaps report
 
 Customer-facing prose, not guide content.
 
@@ -1557,7 +1585,7 @@ git commit -m "docs: client portal gaps found while writing the user guides"
 
 ---
 
-### Task 9: Version bump and changelog
+### Task 8: Version bump and changelog
 
 The single bump for this whole feature.
 
@@ -1566,7 +1594,7 @@ The single bump for this whole feature.
 - Modify: `CHANGELOG.md` (new top entry)
 
 **Interfaces:**
-- Consumes: Tasks 1-8 complete.
+- Consumes: Tasks 1-7 complete.
 - Produces: nothing.
 
 - [ ] **Step 1: Bump the version**
@@ -1613,7 +1641,7 @@ git commit -m "chore: release v0.7.0 — client-side Help & Guides"
 
 ## Manual verification
 
-Automated tests do not cover viewport-dependent behaviour. After Task 9, check by hand:
+Automated tests do not cover viewport-dependent behaviour. After Task 8, check by hand:
 
 1. Sign in as a **client**. Confirm the first-visit prompt appears above the bottom nav on mobile and bottom-right on desktop.
 2. Open Help from the header. Confirm seven guides are listed and no staff guides appear.
