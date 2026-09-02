@@ -44,6 +44,20 @@ function findVisibleTarget(target: string): Element | null {
   );
 }
 
+/**
+ * Resolve a data-tour anchor for clicking.
+ *
+ * When duplicates exist, prefer the visible one (non-zero rect) so the click
+ * reaches the user-facing copy. But HTMLElement.click() bypasses hit-testing,
+ * so a zero-rect element is still clickable — e.g., mid-animation or before
+ * layout settles. Requiring visibility here would fail clicks that would have
+ * succeeded before duplicates existed, breaking tours with reveal animations.
+ * Prefer visible; fall back to any match.
+ */
+function findClickTarget(target: string): Element | null {
+  return findVisibleTarget(target) ?? document.querySelector(`[data-tour="${target}"]`);
+}
+
 export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   const [currentStop, setCurrentStop] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
@@ -104,7 +118,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
     // tab) before advancing so the next stop's element exists to point at.
     const current = stops[currentStop];
     if (current?.action === "click") {
-      const el = findVisibleTarget(current.target);
+      const el = findClickTarget(current.target);
       if (el instanceof HTMLElement) el.click();
     }
     setCurrentStop((prev) => {

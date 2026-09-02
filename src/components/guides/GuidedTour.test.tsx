@@ -148,4 +148,64 @@ describe("GuidedTour target resolution", () => {
     first.remove();
     second.remove();
   });
+
+  it("clicks a zero-rect element when action is 'click'", async () => {
+    const zeroRectOpener = document.createElement("button");
+    zeroRectOpener.setAttribute("data-tour", "zero-rect-opener");
+    // Zero rect: mid-animation or before layout settles
+    zeroRectOpener.getBoundingClientRect = () =>
+      ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0, toJSON: () => {} }) as DOMRect;
+    const onZeroRectClick = vi.fn();
+    zeroRectOpener.addEventListener("click", onZeroRectClick);
+    document.body.appendChild(zeroRectOpener);
+
+    const stops: TourStop[] = [
+      { target: "zero-rect-opener", title: "Click zero rect", description: "Mid-animation element.", position: "bottom", action: "click" },
+      { target: "revealed", title: "Revealed stop", description: "Was hidden, now revealed.", position: "bottom" },
+    ];
+
+    render(<GuidedTour stops={stops} onClose={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    // Click should fire even on zero-rect element
+    expect(onZeroRectClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Revealed stop")).toBeInTheDocument();
+
+    zeroRectOpener.remove();
+  });
+
+  it("prefers the visible element when clicking duplicated anchors", async () => {
+    const hidden = document.createElement("button");
+    hidden.setAttribute("data-tour", "dup-click");
+    hidden.getBoundingClientRect = () =>
+      ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0, toJSON: () => {} }) as DOMRect;
+    const onHiddenClick = vi.fn();
+    hidden.addEventListener("click", onHiddenClick);
+
+    const visible = document.createElement("button");
+    visible.setAttribute("data-tour", "dup-click");
+    visible.getBoundingClientRect = () =>
+      ({ top: 100, left: 40, width: 200, height: 50, bottom: 150, right: 240, x: 40, y: 100, toJSON: () => {} }) as DOMRect;
+    const onVisibleClick = vi.fn();
+    visible.addEventListener("click", onVisibleClick);
+
+    // Hidden first in document order, but visible should be clicked
+    document.body.append(hidden, visible);
+
+    const stops: TourStop[] = [
+      { target: "dup-click", title: "Click visible dup", description: "Should click visible one.", position: "bottom", action: "click" },
+      { target: "next-stop", title: "Next", description: "After visible click.", position: "bottom" },
+    ];
+
+    render(<GuidedTour stops={stops} onClose={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    // Visible element should be clicked, not hidden one
+    expect(onVisibleClick).toHaveBeenCalledTimes(1);
+    expect(onHiddenClick).toHaveBeenCalledTimes(0);
+    expect(screen.getByText("Next")).toBeInTheDocument();
+
+    hidden.remove();
+    visible.remove();
+  });
 });
