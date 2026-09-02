@@ -92,7 +92,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   useEffect(() => {
     const handleResize = () => {
       if (!stop) return;
-      const el = document.querySelector(`[data-tour="${stop.target}"]`);
+      const el = findVisibleTarget(stop.target);
       if (el) setTargetRect(el.getBoundingClientRect());
     };
     window.addEventListener("resize", handleResize);
@@ -104,7 +104,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
     // tab) before advancing so the next stop's element exists to point at.
     const current = stops[currentStop];
     if (current?.action === "click") {
-      const el = document.querySelector(`[data-tour="${current.target}"]`);
+      const el = findVisibleTarget(current.target);
       if (el instanceof HTMLElement) el.click();
     }
     setCurrentStop((prev) => {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GuidedTour, type TourStop } from "./GuidedTour";
 
@@ -41,6 +41,8 @@ describe("GuidedTour", () => {
   it("clicks the target element when advancing from a stop with action 'click'", async () => {
     const opener = document.createElement("button");
     opener.setAttribute("data-tour", "opener");
+    opener.getBoundingClientRect = () =>
+      ({ top: 50, left: 50, width: 100, height: 40, bottom: 90, right: 150, x: 50, y: 50, toJSON: () => {} }) as DOMRect;
     const onOpenerClick = vi.fn();
     opener.addEventListener("click", onOpenerClick);
     document.body.appendChild(opener);
@@ -59,8 +61,6 @@ describe("GuidedTour", () => {
     opener.remove();
   });
 });
-
-import { waitFor } from "@testing-library/react";
 
 describe("GuidedTour target resolution", () => {
   it("measures the visible node when two elements share a data-tour value", async () => {
@@ -95,5 +95,57 @@ describe("GuidedTour target resolution", () => {
 
     hidden.remove();
     visible.remove();
+  });
+
+  it("re-measures the visible node when viewport resize swaps visibility", async () => {
+    // Initially: first is visible, second is hidden
+    const first = document.createElement("div");
+    first.setAttribute("data-tour", "swap");
+    let firstRect = { top: 100, left: 40, width: 200, height: 50, bottom: 150, right: 240, x: 40, y: 100 };
+    first.getBoundingClientRect = () =>
+      ({ ...firstRect, toJSON: () => {} }) as DOMRect;
+
+    const second = document.createElement("div");
+    second.setAttribute("data-tour", "swap");
+    let secondRect = { top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0 };
+    second.getBoundingClientRect = () =>
+      ({ ...secondRect, toJSON: () => {} }) as DOMRect;
+
+    document.body.append(first, second);
+
+    const stops: TourStop[] = [
+      { target: "swap", title: "Resize test", description: "Checks resize handler", position: "bottom" },
+    ];
+    render(<GuidedTour stops={stops} onClose={() => {}} />);
+
+    // Initial spotlight should be on first (visible)
+    await waitFor(() => {
+      const spotlight = document.querySelector("rect[data-testid='tour-spotlight']");
+      expect(spotlight).not.toBeNull();
+      expect(Number(spotlight!.getAttribute("x"))).toBe(32); // 40 - 8
+      expect(Number(spotlight!.getAttribute("y"))).toBe(92); // 100 - 8
+    });
+
+    // Swap visibility: first becomes zero, second becomes visible
+    firstRect = { top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0 };
+    secondRect = { top: 80, left: 60, width: 180, height: 40, bottom: 120, right: 240, x: 60, y: 80 };
+
+    // Trigger resize
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    // Spotlight should now track the second (newly visible)
+    await waitFor(() => {
+      const spotlight = document.querySelector("rect[data-testid='tour-spotlight']");
+      expect(spotlight).not.toBeNull();
+      expect(Number(spotlight!.getAttribute("x"))).toBe(52); // 60 - 8
+      expect(Number(spotlight!.getAttribute("y"))).toBe(72); // 80 - 8
+      expect(Number(spotlight!.getAttribute("width"))).toBe(196); // 180 + 16
+      expect(Number(spotlight!.getAttribute("height"))).toBe(56); // 40 + 16
+    });
+
+    first.remove();
+    second.remove();
   });
 });
