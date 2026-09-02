@@ -59,3 +59,41 @@ describe("GuidedTour", () => {
     opener.remove();
   });
 });
+
+import { waitFor } from "@testing-library/react";
+
+describe("GuidedTour target resolution", () => {
+  it("measures the visible node when two elements share a data-tour value", async () => {
+    const hidden = document.createElement("div");
+    hidden.setAttribute("data-tour", "dup");
+    hidden.getBoundingClientRect = () =>
+      ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0, toJSON: () => {} }) as DOMRect;
+
+    const visible = document.createElement("div");
+    visible.setAttribute("data-tour", "dup");
+    visible.getBoundingClientRect = () =>
+      ({ top: 100, left: 40, width: 200, height: 50, bottom: 150, right: 240, x: 40, y: 100, toJSON: () => {} }) as DOMRect;
+
+    // Hidden one first in document order, so querySelector would pick it.
+    document.body.append(hidden, visible);
+
+    const stops: TourStop[] = [
+      { target: "dup", title: "Dup stop", description: "Points at the visible one.", position: "bottom" },
+    ];
+    render(<GuidedTour stops={stops} onClose={() => {}} />);
+
+    // padding is 8 (GuidedTour.tsx:114). Resolving the hidden node gives
+    // x=-8, y=-8; resolving the visible one gives x=32, y=92.
+    await waitFor(() => {
+      const spotlight = document.querySelector("rect[data-testid='tour-spotlight']");
+      expect(spotlight).not.toBeNull();
+      expect(Number(spotlight!.getAttribute("x"))).toBe(32);
+      expect(Number(spotlight!.getAttribute("y"))).toBe(92);
+      expect(Number(spotlight!.getAttribute("width"))).toBe(216);
+      expect(Number(spotlight!.getAttribute("height"))).toBe(66);
+    });
+
+    hidden.remove();
+    visible.remove();
+  });
+});

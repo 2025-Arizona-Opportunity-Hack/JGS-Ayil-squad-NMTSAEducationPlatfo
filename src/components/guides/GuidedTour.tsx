@@ -25,6 +25,25 @@ interface GuidedTourProps {
   onClose: () => void;
 }
 
+/**
+ * Resolve a data-tour anchor to the element the user can actually see.
+ *
+ * The client portal renders the same destination twice — a desktop tab and a
+ * mobile bottom-nav item — and hides one with CSS. document.querySelector
+ * returns whichever comes first in document order, which may be the hidden
+ * one; its rect is all zeros, so the spotlight collapses to a 0x0 box at the
+ * origin. Prefer the first node with a non-zero rect.
+ */
+function findVisibleTarget(target: string): Element | null {
+  const all = Array.from(document.querySelectorAll(`[data-tour="${target}"]`));
+  return (
+    all.find((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }) ?? null
+  );
+}
+
 export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   const [currentStop, setCurrentStop] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
@@ -43,14 +62,14 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
 
     const locate = () => {
       if (cancelled) return;
-      const el = document.querySelector(`[data-tour="${stop.target}"]`);
+      const el = findVisibleTarget(stop.target);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         setTargetRect(el.getBoundingClientRect());
         // Re-measure once after the open/scroll animation settles.
         setTimeout(() => {
           if (cancelled) return;
-          const settled = document.querySelector(`[data-tour="${stop.target}"]`);
+          const settled = findVisibleTarget(stop.target);
           if (settled) setTargetRect(settled.getBoundingClientRect());
         }, 300);
         return;
@@ -164,6 +183,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
                 height={targetRect.height + padding * 2}
                 rx="8"
                 fill="black"
+                data-testid="tour-spotlight"
               />
             )}
           </mask>
