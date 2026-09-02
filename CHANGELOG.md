@@ -24,6 +24,10 @@ All notable changes are recorded here. Versioning follows the policy in
   which left screen-reader users with no announced starting point and sighted
   keyboard users with no visible focus and no sign the tour responds to the arrow
   keys.
+- Fix: The Complete Purchase and Browse Shop buttons on the Requests page no
+  longer blank the screen. Both pointed at an address that does not exist, so
+  the whole portal disappeared with only the browser's Back button to recover;
+  they now take you to Shop, where an approved item is actually purchased.
 
 ## 0.6.0 — 2026-08-09
 

@@ -2,7 +2,7 @@
 
 Written 2026-09-01, while building the client-side Help & Guides feature.
 
-Documenting the portal surfaced six things that guides cannot paper over.
+Documenting the portal surfaced five things that guides cannot paper over.
 The guides deliberately route around each; none is fixed by that work.
 
 ## 1. Bundles is always empty for clients
@@ -35,7 +35,7 @@ underlying operation requires an approved purchase request that this flow never
 creates (`src/components/RecommendedContent.tsx:67-78`, `convex/orders.ts:52-82`).
 
 Buying the same content through Shop works correctly. This is a genuine defect
-rather than a design gap, as is gap 5 below.
+rather than a design gap.
 
 ## 4. There is nothing for clients to "organise"
 
@@ -48,25 +48,7 @@ showing a progress bar, but nothing ever supplies a value
 If "manage my content" is the goal, this is the feature gap to discuss — the
 guides can only describe what exists.
 
-## 5. Two buttons on the Requests page blank the screen
-
-On the Requests page, the Complete Purchase button shown on an approved request
-— and the Browse Shop button on that page's empty state — both send you to an
-address that does not exist (`src/components/MyPurchaseRequests.tsx:74,184`).
-Nothing is rendered in its place: the menus and the page all disappear, leaving
-a blank screen with no way back except the browser's Back button.
-
-Buying the same content from Shop works correctly. An approved item there shows
-a Request Approved badge beside a working Complete Purchase button, so the
-guides send people that way to finish a purchase.
-
-This is the most disruptive of the gaps listed here. The others show the wrong
-thing or nothing useful; this one takes the whole portal away.
-
-**Options:** point both buttons at Shop, or catch unrecognised addresses and
-return the user to Home instead of a blank page.
-
-## 6. "Recent Content" on the home page shows the oldest content
+## 5. "Recent Content" on the home page shows the oldest content
 
 The home page has a section headed Recent Content, and what it lists is the
 oldest content on the site rather than the newest. The query hands back items
