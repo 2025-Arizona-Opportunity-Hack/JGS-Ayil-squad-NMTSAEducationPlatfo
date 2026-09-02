@@ -33,6 +33,9 @@ interface GuidedTourProps {
  * returns whichever comes first in document order, which may be the hidden
  * one; its rect is all zeros, so the spotlight collapses to a 0x0 box at the
  * origin. Prefer the first node with a non-zero rect.
+ *
+ * Measuring only — never for clicking. Falling back to a hidden node here
+ * restores the 0x0-spotlight-at-origin bug.
  */
 function findVisibleTarget(target: string): Element | null {
   const all = Array.from(document.querySelectorAll(`[data-tour="${target}"]`));
@@ -53,6 +56,9 @@ function findVisibleTarget(target: string): Element | null {
  * layout settles. Requiring visibility here would fail clicks that would have
  * succeeded before duplicates existed, breaking tours with reveal animations.
  * Prefer visible; fall back to any match.
+ *
+ * Clicking only — never for measuring. Its zero-rect fallback is exactly what
+ * the measuring paths must not have.
  */
 function findClickTarget(target: string): Element | null {
   return findVisibleTarget(target) ?? document.querySelector(`[data-tour="${target}"]`);
@@ -62,6 +68,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   const [currentStop, setCurrentStop] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const stop = stops[currentStop];
 
@@ -131,6 +138,24 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   const handlePrev = useCallback(() => {
     setCurrentStop((prev) => (prev > 0 ? prev - 1 : prev));
   }, []);
+
+  // aria-modal="true" hides everything outside this dialog from assistive tech,
+  // so leaving focus on <body> strands AT users in an empty tree and gives
+  // sighted keyboard users no clue the tour is keyboard-driven. Move focus to
+  // the tooltip on mount and on every stop change (SC 2.4.3), and hand it back
+  // to whatever opened the tour when we unmount.
+  useEffect(() => {
+    const opener = document.activeElement;
+    return () => {
+      if (opener instanceof HTMLElement && document.contains(opener)) {
+        opener.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    tooltipRef.current?.focus();
+  }, [currentStop]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -216,7 +241,12 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
         className="fixed z-[10000] w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto"
         style={getTooltipStyle()}
       >
-        <Card>
+        <Card
+          ref={tooltipRef}
+          tabIndex={-1}
+          data-testid="tour-tooltip"
+          className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{stop.title}</CardTitle>

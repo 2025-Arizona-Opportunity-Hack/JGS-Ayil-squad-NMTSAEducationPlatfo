@@ -209,3 +209,37 @@ describe("GuidedTour target resolution", () => {
     visible.remove();
   });
 });
+
+describe("GuidedTour focus management", () => {
+  it("moves focus into the tour on mount", async () => {
+    render(<GuidedTour stops={STOPS} onClose={() => {}} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("tour-tooltip")).toHaveFocus()
+    );
+  });
+
+  it("moves focus back to the tooltip when the stop changes", async () => {
+    render(<GuidedTour stops={STOPS} onClose={() => {}} />);
+    const next = screen.getByRole("button", { name: /next/i });
+    await userEvent.click(next);
+    expect(screen.getByText("Second stop")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("tour-tooltip")).toHaveFocus()
+    );
+  });
+
+  it("returns focus to the control that opened it when the tour closes", async () => {
+    const opener = document.createElement("button");
+    opener.textContent = "Help and guides";
+    document.body.appendChild(opener);
+    opener.focus();
+    expect(opener).toHaveFocus();
+
+    const { unmount } = render(<GuidedTour stops={STOPS} onClose={() => {}} />);
+    await waitFor(() => expect(opener).not.toHaveFocus());
+
+    unmount();
+    expect(opener).toHaveFocus();
+    opener.remove();
+  });
+});
