@@ -37,6 +37,7 @@ export function BottomNav({ onMoreClick }: BottomNavProps) {
               key={path}
               onClick={() => navigate(path)}
               aria-current={active ? "page" : undefined}
+              data-tour={`client-nav-${label.toLowerCase()}`}
               className={cn(
                 "flex flex-col items-center justify-center min-w-[64px] min-h-[44px] gap-0.5 rounded-xl px-3 py-1.5 transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary focus-visible:ring-offset-2",

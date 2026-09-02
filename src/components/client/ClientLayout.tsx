@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useOutlet, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { ClientHeader } from "./ClientHeader";
@@ -8,6 +8,13 @@ import { SkipToContent } from "../SkipToContent";
 import { ProfileEditModal } from "../ProfileEditModal";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { getGuidesFor } from "../guides/guideContent";
+import { useGuides } from "../guides/useGuides";
+import { GuidesLauncher } from "../guides/GuidesLauncher";
+import { WrittenGuide } from "../guides/WrittenGuide";
+import { GuidedTour } from "../guides/GuidedTour";
+import { TourActiveProvider } from "../guides/TourActiveContext";
+import { ClientHelpPrompt } from "../guides/ClientHelpPrompt";
 
 export function ClientLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -17,6 +24,12 @@ export function ClientLayout() {
   const outlet = useOutlet();
   const shouldReduceMotion = useReducedMotion();
   const userProfile = useQuery(api.users.getCurrentUserProfile);
+
+  const clientGuides = useMemo(
+    () => getGuidesFor("client", userProfile?.effectivePermissions),
+    [userProfile?.effectivePermissions],
+  );
+  const guides = useGuides(clientGuides);
 
   // Focus management: move focus to main content on route change
   useEffect(() => {
@@ -30,9 +43,13 @@ export function ClientLayout() {
   }, [location.pathname]);
 
   return (
+    <TourActiveProvider active={guides.tourGuide !== null}>
     <div className="min-h-screen bg-client-surface text-client-text">
       <SkipToContent />
-      <ClientHeader onProfileClick={() => setProfileOpen(true)} />
+      <ClientHeader
+        onProfileClick={() => setProfileOpen(true)}
+        onHelpClick={guides.openLauncher}
+      />
 
       <main
         ref={mainRef}
@@ -51,7 +68,11 @@ export function ClientLayout() {
       </main>
 
       <BottomNav onMoreClick={() => setMoreOpen(true)} />
-      <MoreDrawer open={moreOpen} onOpenChange={setMoreOpen} />
+      <MoreDrawer
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        onHelpClick={guides.openLauncher}
+      />
 
       {userProfile && (
         <ProfileEditModal
@@ -66,6 +87,31 @@ export function ClientLayout() {
           }}
         />
       )}
+
+      <GuidesLauncher
+        guides={clientGuides}
+        open={guides.launcherOpen}
+        onClose={guides.closeLauncher}
+        onReadSteps={guides.readSteps}
+        onStartTour={guides.startTour}
+      />
+      <WrittenGuide
+        guide={guides.writtenGuide}
+        open={guides.writtenGuide !== null}
+        onClose={guides.closeWritten}
+        onStartTour={
+          guides.writtenGuide && guides.writtenGuide.tourStops.length > 0
+            ? () => guides.startTour(guides.writtenGuide!.id)
+            : undefined
+        }
+      />
+      {guides.tourGuide && (
+        <GuidedTour stops={guides.tourGuide.tourStops} onClose={guides.closeTour} />
+      )}
+      {userProfile && (
+        <ClientHelpPrompt userId={userProfile._id} onOpenGuides={guides.openLauncher} />
+      )}
     </div>
+    </TourActiveProvider>
   );
 }
