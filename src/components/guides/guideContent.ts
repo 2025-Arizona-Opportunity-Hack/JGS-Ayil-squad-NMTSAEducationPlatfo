@@ -1,4 +1,5 @@
 import type { TourStop } from "./GuidedTour";
+import { hasPermission, PERMISSIONS, type Permission } from "@/lib/permissions";
 
 export interface WrittenStep {
   title: string;
@@ -9,6 +10,15 @@ export interface Guide {
   id: string;
   title: string;
   summary: string;
+  /** Which portal this guide is offered in. */
+  audience: "admin" | "client";
+  /**
+   * When set, the guide is only offered to users holding this permission.
+   * Prevents offering a workflow the user cannot perform — and, for guides
+   * whose first tour stop targets a permission-gated nav item, prevents a
+   * tour that spotlights nothing.
+   */
+  requiredPermission?: Permission;
   writtenSteps: WrittenStep[];
   tourStops: TourStop[];
 }
@@ -18,6 +28,7 @@ export const GUIDES: Guide[] = [
     id: "upload-content",
     title: "Create content (all the fields)",
     summary: "Add a video, audio file, document, image, or article — with what every field on the form means.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -154,6 +165,7 @@ export const GUIDES: Guide[] = [
     id: "share-content",
     title: "Share content",
     summary: "Send a piece of content to someone with a shareable link.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -221,6 +233,7 @@ export const GUIDES: Guide[] = [
     id: "content-statuses",
     title: "Content statuses & review",
     summary: "Understand how content moves from a draft to published, and how the review step works.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -277,6 +290,8 @@ export const GUIDES: Guide[] = [
     id: "pricing-store",
     title: "Pricing & the store",
     summary: "Put a price on content so clients can buy it in the Shop.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.SET_CONTENT_PRICING,
     tourStops: [
       {
         target: "tab-content",
@@ -345,6 +360,8 @@ export const GUIDES: Guide[] = [
     id: "create-bundle",
     title: "Create a bundle",
     summary: "Group several pieces of content into a bundle so they can be shared or sold together.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.MANAGE_CONTENT_GROUPS,
     tourStops: [
       {
         target: "tab-contentGroups",
@@ -392,6 +409,7 @@ export const GUIDES: Guide[] = [
     id: "write-article",
     title: "Write an article",
     summary: "Add formatted text, headings, and links — written in a content item's rich-text Description.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -444,3 +462,19 @@ export const GUIDES: Guide[] = [
     ],
   },
 ];
+
+/**
+ * The guides a given user should be offered. Single filtering point for both
+ * portals — consumers must never read GUIDES directly.
+ */
+export function getGuidesFor(
+  audience: Guide["audience"],
+  permissions: string[] | undefined,
+): Guide[] {
+  return GUIDES.filter(
+    (g) =>
+      g.audience === audience &&
+      (g.requiredPermission === undefined ||
+        hasPermission(permissions, g.requiredPermission)),
+  );
+}

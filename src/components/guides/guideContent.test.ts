@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { GUIDES } from "./guideContent";
+import { GUIDES, getGuidesFor } from "./guideContent";
+import { PERMISSIONS } from "@/lib/permissions";
 
 describe("GUIDES", () => {
   it("includes all the expected guides", () => {
@@ -38,5 +39,48 @@ describe("GUIDES", () => {
         expect(t.description.length).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe("getGuidesFor", () => {
+  const ALL_STAFF = [
+    PERMISSIONS.CREATE_CONTENT,
+    PERMISSIONS.SET_CONTENT_PRICING,
+    PERMISSIONS.MANAGE_CONTENT_GROUPS,
+  ];
+
+  it("returns only guides for the requested audience", () => {
+    const admin = getGuidesFor("admin", ALL_STAFF);
+    expect(admin.length).toBeGreaterThan(0);
+    expect(admin.every((g) => g.audience === "admin")).toBe(true);
+  });
+
+  it("omits a guide whose requiredPermission the user lacks", () => {
+    const ids = getGuidesFor("admin", [PERMISSIONS.CREATE_CONTENT]).map((g) => g.id);
+    expect(ids).not.toContain("create-bundle");
+    expect(ids).not.toContain("pricing-store");
+  });
+
+  it("includes a permission-gated guide when the user holds the permission", () => {
+    const ids = getGuidesFor("admin", ALL_STAFF).map((g) => g.id);
+    expect(ids).toContain("create-bundle");
+    expect(ids).toContain("pricing-store");
+  });
+
+  it("includes ungated guides regardless of permissions", () => {
+    const ids = getGuidesFor("admin", []).map((g) => g.id);
+    expect(ids).toContain("upload-content");
+  });
+
+  it("treats undefined permissions as holding nothing", () => {
+    const ids = getGuidesFor("admin", undefined).map((g) => g.id);
+    expect(ids).toContain("upload-content");
+    expect(ids).not.toContain("create-bundle");
+  });
+});
+
+describe("GUIDES metadata", () => {
+  it("gives every guide an audience", () => {
+    expect(GUIDES.every((g) => g.audience === "admin" || g.audience === "client")).toBe(true);
   });
 });
