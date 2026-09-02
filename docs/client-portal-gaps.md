@@ -2,7 +2,7 @@
 
 Written 2026-09-01, while building the client-side Help & Guides feature.
 
-Documenting the portal surfaced five things that guides cannot paper over.
+Documenting the portal surfaced six things that guides cannot paper over.
 The guides deliberately route around each; none is fixed by that work.
 
 ## 1. Bundles is always empty for clients
@@ -65,3 +65,24 @@ thing or nothing useful; this one takes the whole portal away.
 
 **Options:** point both buttons at Shop, or catch unrecognised addresses and
 return the user to Home instead of a blank page.
+
+## 6. "Recent Content" on the home page shows the oldest content
+
+The home page has a section headed Recent Content, and what it lists is the
+oldest content on the site rather than the newest. The query hands back items
+in the order they were created, oldest first, and the page takes the first few
+from the top of that list (`convex/content.ts:242`,
+`src/pages/client/HomePage.tsx:16-17`).
+
+The practical effect is that something added today does not show up there at
+all, while the same long-standing items sit at the top for everyone, every
+visit. Browse is unaffected — it lists everything, so nothing is missing from
+it; only the ordering is arbitrary.
+
+The guides work around this by not claiming recency: they describe Home as
+showing "a selection of the content available to you".
+
+**Options:** ask the query for newest-first, or rename the section to match
+what it actually shows. The first is the likely intent, but it changes what
+every client and staff user sees on opening the portal, so it is a product
+decision rather than a wording fix.

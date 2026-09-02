@@ -471,7 +471,7 @@ export const GUIDES: Guide[] = [
         target: "client-nav-home",
         title: "Home",
         description:
-          "Your starting point, with a quick look at your most recent content.",
+          "Your starting point, with a quick look at the content available to you.",
         position: "bottom",
       },
       {
@@ -500,7 +500,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Home",
         detail:
-          "Where you land when you sign in. Shows your most recent content. Recommendations from your therapist are under For You.",
+          "Where you land when you sign in. Shows a selection of the content available to you. Recommendations from your therapist are under For You.",
       },
       {
         title: "Browse",
@@ -539,7 +539,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Start from Home or Browse",
         detail:
-          "Home shows your most recent content. Browse shows everything you have access to.",
+          "Home shows a selection of your content. Browse shows everything you have access to.",
       },
       {
         title: "Search for it",
