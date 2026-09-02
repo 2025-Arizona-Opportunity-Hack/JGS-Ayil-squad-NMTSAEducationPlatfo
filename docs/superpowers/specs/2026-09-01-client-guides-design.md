@@ -209,14 +209,19 @@ guides feature has never needed.
 
 ## The interactive tour: "Getting around"
 
-One tour, six stops, all inside `ClientLayout` so nothing unmounts:
+One tour, four stops, all inside `ClientLayout` so nothing unmounts:
 
-Home → Browse → Shop → For You → More (Orders, Requests) → Profile.
+Home → Browse → Shop → Profile.
 
-Point-and-guide: **no `action: "click"`**, so the tour does not yank people
-between pages while they are being oriented. The single exception is the mobile
-More trigger, which uses `action: "click"` because the drawer's contents do not
-exist in the DOM until it is opened (`MoreDrawer.tsx:11-17`).
+Point-and-guide: **no `action: "click"`** anywhere, so the tour does not yank
+people between pages while they are being oriented.
+
+Shipped with four stops rather than the six planned, and without the mobile
+More exception: For You, Orders and Requests live in the mobile More drawer and
+are absent from the DOM until it is opened, so no single stop ordering resolves
+on both viewports. The four kept are the destinations both the desktop tabs and
+the mobile bar render. The written "Getting around" guide still covers all six,
+and says where to find the drawer ones on a phone.
 
 Bundles and Shares are omitted — they are dead ends.
 

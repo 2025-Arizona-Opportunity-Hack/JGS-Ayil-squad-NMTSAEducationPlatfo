@@ -10,13 +10,20 @@ All notable changes are recorded here. Versioning follows the policy in
   menu. Reachable from the `?` button in the header or Help in the More menu.
 - New: A one-time prompt points new users at the guides. It is remembered per user
   rather than per browser, so a shared family or clinic device does not hide it
-  for everyone after one person dismisses it.
+  for everyone after one person dismisses it, and it stops appearing once you have
+  opened the guides by any route — not only from the prompt's own buttons.
 - Fix: Staff guides are now filtered by permission. Users are no longer offered the
   bundle or pricing guides unless they can perform those workflows — previously
   the bundle tour opened on a sidebar tab that permission filtering had removed,
   so it highlighted nothing.
 - Fix: Tour highlighting now picks the visible element when a page renders the same
   control twice for different screen sizes.
+- Fix: Guided tours now move keyboard focus into the tour when it opens, and return
+  it to the button you opened it from when it closes. Tours previously asked screen
+  readers to ignore everything outside the tour without placing focus inside it,
+  which left screen-reader users with no announced starting point and sighted
+  keyboard users with no visible focus and no sign the tour responds to the arrow
+  keys.
 
 ## 0.6.0 — 2026-08-09
 
