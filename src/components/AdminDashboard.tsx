@@ -142,7 +142,11 @@ export function AdminDashboard() {
         open={guides.writtenGuide !== null}
         onClose={guides.closeWritten}
         onStartTour={
-          guides.writtenGuide
+          /* Only offer the tour when there is one. A written-only guide would
+             otherwise start a GuidedTour that renders null on an empty stop
+             list — an unclosable no-op leaving TourActiveProvider active.
+             ClientLayout carries the same guard. */
+          guides.writtenGuide && guides.writtenGuide.tourStops.length > 0
             ? () => guides.startTour(guides.writtenGuide!.id)
             : undefined
         }

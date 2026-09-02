@@ -37,6 +37,21 @@ describe("ClientHelpPrompt", () => {
     expect(screen.getByText(/first time here/i)).toBeInTheDocument();
   });
 
+  // The point of the prompt is to get the user to the launcher. Someone who
+  // finds the header ? button unaided has arrived, and must stop being nudged.
+  it("records dismissal when the launcher is opened by another route", () => {
+    const { rerender } = render(
+      <ClientHelpPrompt userId="u1" onOpenGuides={() => {}} guidesOpened={false} />
+    );
+    expect(screen.getByText(/first time here/i)).toBeInTheDocument();
+
+    rerender(
+      <ClientHelpPrompt userId="u1" onOpenGuides={() => {}} guidesOpened={true} />
+    );
+    expect(localStorage.getItem("guides-client-prompt-seen:u1")).toBe("true");
+    expect(screen.queryByText(/first time here/i)).not.toBeInTheDocument();
+  });
+
   it("opens the guides and records dismissal", async () => {
     const onOpenGuides = vi.fn();
     render(<ClientHelpPrompt userId="u1" onOpenGuides={onOpenGuides} />);

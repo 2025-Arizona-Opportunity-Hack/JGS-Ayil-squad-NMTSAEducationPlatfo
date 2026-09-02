@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HelpCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -14,9 +14,18 @@ function seenKey(userId: string) {
 interface ClientHelpPromptProps {
   userId: string;
   onOpenGuides: () => void;
+  /**
+   * Whether the guides launcher is currently open, by whatever route — this
+   * prompt's "Show me", the header's ? button, or the More drawer.
+   */
+  guidesOpened?: boolean;
 }
 
-export function ClientHelpPrompt({ userId, onOpenGuides }: ClientHelpPromptProps) {
+export function ClientHelpPrompt({
+  userId,
+  onOpenGuides,
+  guidesOpened = false,
+}: ClientHelpPromptProps) {
   const [visible, setVisible] = useState(
     () => localStorage.getItem(seenKey(userId)) !== "true"
   );
@@ -25,6 +34,16 @@ export function ClientHelpPrompt({ userId, onOpenGuides }: ClientHelpPromptProps
     localStorage.setItem(seenKey(userId), "true");
     setVisible(false);
   };
+
+  // Reaching the launcher at all is the whole point of the prompt, so any
+  // route in counts as seen. Recording only our own buttons meant a user who
+  // found the ? button unaided was nudged towards it again on every load,
+  // forever.
+  useEffect(() => {
+    if (!guidesOpened) return;
+    localStorage.setItem(seenKey(userId), "true");
+    setVisible(false);
+  }, [guidesOpened, userId]);
 
   if (!visible) return null;
 

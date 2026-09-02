@@ -43,6 +43,11 @@ export function ClientLayout() {
   }, [location.pathname]);
 
   return (
+    /* Forward-looking: nothing in the client portal consumes this yet — its
+       only consumers today are admin surfaces. It is here so client-side
+       modals and popovers can opt into tour-aware behaviour (standing aside
+       while a tour runs) without rewiring the shell. Additive by design; not
+       dead code. */
     <TourActiveProvider active={guides.tourGuide !== null}>
     <div className="min-h-screen bg-client-surface text-client-text">
       <SkipToContent />
@@ -109,7 +114,11 @@ export function ClientLayout() {
         <GuidedTour stops={guides.tourGuide.tourStops} onClose={guides.closeTour} />
       )}
       {userProfile && (
-        <ClientHelpPrompt userId={userProfile._id} onOpenGuides={guides.openLauncher} />
+        <ClientHelpPrompt
+          userId={userProfile._id}
+          onOpenGuides={guides.openLauncher}
+          guidesOpened={guides.launcherOpen}
+        />
       )}
     </div>
     </TourActiveProvider>

@@ -33,6 +33,16 @@ describe("WrittenGuide", () => {
     expect(onStartTour).toHaveBeenCalledTimes(1);
   });
 
+  // Both shells withhold onStartTour for a guide with no stops, so that a
+  // written-only guide never offers a tour that would mount an unclosable
+  // no-op GuidedTour.
+  it("offers no tour button when onStartTour is omitted", () => {
+    render(<WrittenGuide guide={GUIDE} open onClose={() => {}} />);
+    expect(
+      screen.queryByRole("button", { name: /interactive tour/i })
+    ).not.toBeInTheDocument();
+  });
+
   it("renders nothing when guide is null", () => {
     const { container } = render(<WrittenGuide guide={null} open onClose={() => {}} />);
     expect(container).toBeEmptyDOMElement();

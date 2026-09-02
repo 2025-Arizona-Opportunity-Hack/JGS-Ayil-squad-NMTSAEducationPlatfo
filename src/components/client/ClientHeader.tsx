@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "../ThemeToggle";
 import { SignOutButton } from "../../SignOutButton";
 import { cn } from "@/lib/utils";
+import { navAnchor } from "@/lib/tourAnchors";
 
 interface ClientHeaderProps {
   onProfileClick: () => void;
@@ -93,7 +94,7 @@ export function ClientHeader({ onProfileClick, onHelpClick }: ClientHeaderProps)
                     key={path}
                     onClick={() => navigate(path)}
                     aria-current={active ? "page" : undefined}
-                    data-tour={`client-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    data-tour={navAnchor(label)}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary focus-visible:ring-offset-2",
