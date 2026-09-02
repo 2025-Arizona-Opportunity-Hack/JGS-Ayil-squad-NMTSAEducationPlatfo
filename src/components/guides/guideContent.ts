@@ -471,14 +471,14 @@ export const GUIDES: Guide[] = [
         target: "client-nav-home",
         title: "Home",
         description:
-          "Your starting point. Recent content and anything recommended to you shows up here first.",
+          "Your starting point, with a quick look at your most recent content.",
         position: "bottom",
       },
       {
         target: "client-nav-browse",
         title: "Browse",
         description:
-          "Search everything you have access to, or filter by the kind of content you want.",
+          "Search everything you have access to by typing part of its title.",
         position: "bottom",
       },
       {
@@ -500,12 +500,12 @@ export const GUIDES: Guide[] = [
       {
         title: "Home",
         detail:
-          "Where you land when you sign in. Shows recent content and anything your therapist has recommended.",
+          "Where you land when you sign in. Shows your most recent content. Recommendations from your therapist are under For You.",
       },
       {
         title: "Browse",
         detail:
-          "Everything you have access to, with a search box and filters by content type.",
+          "Everything you have access to, with a search box that matches titles.",
       },
       {
         title: "Shop",
@@ -539,12 +539,12 @@ export const GUIDES: Guide[] = [
       {
         title: "Start from Home or Browse",
         detail:
-          "Home shows recent and recommended items. Browse shows everything you have access to.",
+          "Home shows your most recent content. Browse shows everything you have access to.",
       },
       {
-        title: "Search or filter",
+        title: "Search for it",
         detail:
-          "In Browse, type into the search box to match titles and descriptions, or use the type filter to narrow to video, audio, documents, or articles.",
+          "In Browse, type into the search box. It matches the title of each item, so try a word from the name of what you're looking for.",
       },
       {
         title: "Open an item",
@@ -581,7 +581,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Documents",
         detail:
-          "PDFs open in a viewer with a download button if you'd like your own copy.",
+          "Choose Open Document and the file opens in a new tab, where you can read it or save your own copy.",
       },
       {
         title: "Articles",
@@ -618,12 +618,12 @@ export const GUIDES: Guide[] = [
       {
         title: "Complete the purchase",
         detail:
-          "Once approved, open Requests and use Complete Purchase on the approved request to pay.",
+          "Once approved, go back to Shop. The item now shows Request Approved with a Complete Purchase button — use that to pay.",
       },
       {
         title: "If you stop partway",
         detail:
-          "An approved request stays in Requests until you use it, so you can come back and finish later.",
+          "An approved request stays approved until you use it, so you can come back and finish from Shop later. You can check its status any time under Requests.",
       },
       {
         title: "After buying",
