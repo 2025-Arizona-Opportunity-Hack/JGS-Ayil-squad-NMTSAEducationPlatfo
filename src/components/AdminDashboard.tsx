@@ -152,7 +152,11 @@ export function AdminDashboard() {
         }
       />
       {guides.tourGuide && (
-        <GuidedTour stops={guides.tourGuide.tourStops} onClose={handleTourClose} />
+        <GuidedTour
+          stops={guides.tourGuide.tourStops}
+          onClose={handleTourClose}
+          restoreFocusTo={guides.launcherOpener}
+        />
       )}
       <GuideDemoHost activeTourId={guides.tourGuide?.id ?? null} />
       <NewStaffPrompt onOpenGuides={guides.openLauncher} />

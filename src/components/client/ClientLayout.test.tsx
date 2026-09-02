@@ -79,6 +79,23 @@ describe("ClientLayout guides", () => {
     expect(screen.getByText(/recommending content to a client/i)).toBeInTheDocument();
   });
 
+  // The whole chain on the real path: the opener is captured when the launcher
+  // opens, survives the single commit in which the launcher unmounts and the
+  // tour mounts, and is focused again when the tour closes.
+  it("returns focus to the help button after a tour opened from it is closed", async () => {
+    renderLayout();
+    const help = screen.getAllByRole("button", { name: /help and guides/i })[0];
+
+    await userEvent.click(help);
+    await userEvent.click(screen.getByRole("button", { name: /start tour/i }));
+    expect(screen.getByTestId("tour-tooltip")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /close tour/i }));
+
+    expect(screen.queryByTestId("tour-tooltip")).not.toBeInTheDocument();
+    expect(help).toHaveFocus();
+  });
+
   it("stops prompting once the header help button has been used", async () => {
     renderLayout();
     expect(screen.getByText(/first time here/i)).toBeInTheDocument();

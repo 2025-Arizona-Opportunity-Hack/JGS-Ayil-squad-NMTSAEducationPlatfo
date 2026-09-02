@@ -23,6 +23,14 @@ export interface TourStop {
 interface GuidedTourProps {
   stops: TourStop[];
   onClose: () => void;
+  /**
+   * Where to put focus when the tour closes — normally the control that opened
+   * the guides launcher. The tour cannot work this out for itself: the launcher
+   * closes and the tour opens in one React commit, so by the time the tour
+   * mounts, the "Start tour" button it was launched from is already detached
+   * and document.activeElement has fallen back to <body>.
+   */
+  restoreFocusTo?: HTMLElement | null;
 }
 
 /**
@@ -38,13 +46,31 @@ interface GuidedTourProps {
  * restores the 0x0-spotlight-at-origin bug.
  */
 function findVisibleTarget(target: string): Element | null {
-  const all = Array.from(document.querySelectorAll(`[data-tour="${target}"]`));
+  return firstVisibleMatch(`[data-tour="${target}"]`);
+}
+
+/**
+ * The first element matching `selector` that the user can actually see.
+ *
+ * A responsive shell renders the same control once per breakpoint and hides
+ * one with CSS; the hidden copy still matches a selector but measures 0x0.
+ * Shared by target resolution and by focus restoration, which has the same
+ * problem — the header's help button exists twice.
+ */
+function firstVisibleMatch(selector: string): Element | null {
   return (
-    all.find((el) => {
+    Array.from(document.querySelectorAll(selector)).find((el) => {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
     }) ?? null
   );
+}
+
+/** Focusable only if it is still in the document and not the bare <body>. */
+function focusableOrNull(el: unknown): HTMLElement | null {
+  return el instanceof HTMLElement && el.isConnected && el !== document.body
+    ? el
+    : null;
 }
 
 /**
@@ -64,7 +90,7 @@ function findClickTarget(target: string): Element | null {
   return findVisibleTarget(target) ?? document.querySelector(`[data-tour="${target}"]`);
 }
 
-export function GuidedTour({ stops, onClose }: GuidedTourProps) {
+export function GuidedTour({ stops, onClose, restoreFocusTo }: GuidedTourProps) {
   const [currentStop, setCurrentStop] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
@@ -145,11 +171,20 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   // the tooltip on mount and on every stop change (SC 2.4.3), and hand it back
   // to whatever opened the tour when we unmount.
   useEffect(() => {
-    const opener = document.activeElement;
+    const activeAtMount = document.activeElement;
     return () => {
-      if (opener instanceof HTMLElement && document.contains(opener)) {
-        opener.focus();
-      }
+      // In order of preference: the control that opened the launcher; whatever
+      // held focus when we mounted (covers a tour opened directly); and failing
+      // both, the visible help button, since the launcher is always reachable
+      // from there. The recorded opener can legitimately be gone — the
+      // first-visit prompt's "Show me" button unmounts itself on dismissal.
+      const target =
+        focusableOrNull(restoreFocusTo) ??
+        focusableOrNull(activeAtMount) ??
+        focusableOrNull(firstVisibleMatch('[aria-label="Help and guides"]'));
+      // Nothing sensible to return to: leave focus alone rather than move it
+      // somewhere arbitrary.
+      target?.focus();
     };
   }, []);
 
@@ -159,9 +194,16 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight" || e.key === "Enter") handleNext();
-      if (e.key === "ArrowLeft") handlePrev();
+      if (e.key === "Escape") return onClose();
+      if (e.key === "ArrowLeft") return handlePrev();
+      if (e.key === "ArrowRight") return handleNext();
+      if (e.key !== "Enter") return;
+      // A focused button already fires its own click for Enter, so the button's
+      // own handler runs. Advancing here as well would skip a stop — and on the
+      // second-to-last stop, advance and immediately close. Focus sits on the
+      // tooltip container (a div) on mount, where Enter still advances.
+      if (e.target instanceof HTMLElement && e.target.closest("button")) return;
+      handleNext();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);

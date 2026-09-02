@@ -111,7 +111,11 @@ export function ClientLayout() {
         }
       />
       {guides.tourGuide && (
-        <GuidedTour stops={guides.tourGuide.tourStops} onClose={guides.closeTour} />
+        <GuidedTour
+          stops={guides.tourGuide.tourStops}
+          onClose={guides.closeTour}
+          restoreFocusTo={guides.launcherOpener}
+        />
       )}
       {userProfile && (
         <ClientHelpPrompt
