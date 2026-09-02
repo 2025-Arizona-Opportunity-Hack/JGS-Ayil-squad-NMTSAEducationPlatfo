@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
-## 0.7.0 — 2026-09-01
+## 0.8.0 — 2026-09-02
 
 - New: Help & Guides in the client portal: written guides for finding, watching,
   buying, and managing your account, plus a short interactive tour of the main
@@ -28,6 +28,14 @@ All notable changes are recorded here. Versioning follows the policy in
   longer blank the screen. Both pointed at an address that does not exist, so
   the whole portal disappeared with only the browser's Back button to recover;
   they now take you to Shop, where an approved item is actually purchased.
+## 0.7.0 — 2026-08-09
+
+- Improve: the welcome notification is now much harder to miss. It shows your
+  profile picture (or your initials) beside a heading-sized greeting, stays on
+  screen for 10 seconds instead of 5, and carries its own close button so you
+  can dismiss it as soon as you have seen it. Feedback was that the original
+  was too easy to overlook — the people it reassures are the ones least likely
+  to catch a small notification.
 
 ## 0.6.0 — 2026-08-09
 
