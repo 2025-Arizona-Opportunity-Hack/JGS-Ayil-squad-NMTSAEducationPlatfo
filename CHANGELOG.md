@@ -3,6 +3,21 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.7.0 — 2026-09-01
+
+- New: Help & Guides in the client portal: written guides for finding, watching,
+  buying, and managing your account, plus a short interactive tour of the main
+  menu. Reachable from the `?` button in the header or Help in the More menu.
+- New: A one-time prompt points new users at the guides. It is remembered per user
+  rather than per browser, so a shared family or clinic device does not hide it
+  for everyone after one person dismisses it.
+- Fix: Staff guides are now filtered by permission. Users are no longer offered the
+  bundle or pricing guides unless they can perform those workflows — previously
+  the bundle tour opened on a sidebar tab that permission filtering had removed,
+  so it highlighted nothing.
+- Fix: Tour highlighting now picks the visible element when a page renders the same
+  control twice for different screen sizes.
+
 ## 0.6.0 — 2026-08-09
 
 - New: dark mode is now the default. Anyone who has previously chosen light
