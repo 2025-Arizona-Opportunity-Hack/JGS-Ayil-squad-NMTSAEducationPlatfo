@@ -1145,14 +1145,23 @@ export function ContentManager() {
               </div>
 
               <div className="flex items-center space-x-2" data-tour="field-visibility">
-                <Checkbox
-                id="isPublic"
-                  {...register("isPublic")}
-              />
-                <Label htmlFor="isPublic" className="font-normal">
-                Make this content public
-                </Label>
-            </div>
+                <Controller
+                  name="isPublic"
+                  control={control}
+                  render={({ field }) => (
+                    <>
+                      <Checkbox
+                        id="isPublic"
+                        checked={field.value}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                      />
+                      <Label htmlFor="isPublic" className="font-normal">
+                        Make this content public
+                      </Label>
+                    </>
+                  )}
+                />
+              </div>
 
               <Separator className="my-6" />
 

@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "convex/react";
 import {
   House, Search, Folder, ShoppingCart, ClipboardList,
-  ExternalLink, MessageSquare, Star,
+  ExternalLink, MessageSquare, Star, HelpCircle,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Logo } from "../Logo";
@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "../ThemeToggle";
 import { SignOutButton } from "../../SignOutButton";
 import { cn } from "@/lib/utils";
+import { navAnchor } from "@/lib/tourAnchors";
 
 interface ClientHeaderProps {
   onProfileClick: () => void;
+  onHelpClick: () => void;
 }
 
 const desktopTabs = [
@@ -27,7 +29,7 @@ const desktopTabs = [
   { path: "/for-you", label: "For You", icon: Star },
 ] as const;
 
-export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
+export function ClientHeader({ onProfileClick, onHelpClick }: ClientHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const userProfile = useQuery(api.users.getCurrentUserProfile);
@@ -51,6 +53,15 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
             </span>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onHelpClick}
+              aria-label="Help and guides"
+              className="min-w-[44px] min-h-[44px]"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
             <ThemeToggle />
             <Button
               variant="ghost"
@@ -58,6 +69,7 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
               onClick={onProfileClick}
               aria-label="Open profile"
               className="min-w-[44px] min-h-[44px]"
+              data-tour="client-nav-profile"
             >
               <Avatar className="w-8 h-8">
                 <AvatarImage src={userProfile?.profilePictureUrl || undefined} alt="" />
@@ -82,6 +94,7 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
                     key={path}
                     onClick={() => navigate(path)}
                     aria-current={active ? "page" : undefined}
+                    data-tour={navAnchor(label)}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary focus-visible:ring-offset-2",
@@ -98,12 +111,22 @@ export function ClientHeader({ onProfileClick }: ClientHeaderProps) {
             </nav>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onHelpClick}
+              aria-label="Help and guides"
+              className="min-h-[44px]"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
             <ThemeToggle />
             <Button
               variant="ghost"
               onClick={onProfileClick}
               aria-label="Open profile"
               className="flex items-center gap-2 min-h-[44px]"
+              data-tour="client-nav-profile"
             >
               <Avatar className="w-8 h-8">
                 <AvatarImage src={userProfile?.profilePictureUrl || undefined} alt="" />

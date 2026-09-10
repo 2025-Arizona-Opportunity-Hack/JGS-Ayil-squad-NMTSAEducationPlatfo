@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { GUIDES, type Guide } from "./guideContent";
+import { type Guide } from "./guideContent";
 
 export interface UseGuides {
   launcherOpen: boolean;
@@ -11,19 +11,34 @@ export interface UseGuides {
   startTour: (guideId: string) => void;
   closeWritten: () => void;
   closeTour: () => void;
+  /**
+   * The control focused when the launcher was last opened — the header's help
+   * button, the More drawer's Help row, or the first-visit prompt. Captured
+   * here because it is the last moment at which it is still on screen: opening
+   * a guide or a tour unmounts the dialog above it in the same commit, after
+   * which document.activeElement has already fallen back to <body>.
+   */
+  launcherOpener: HTMLElement | null;
 }
 
-function findGuide(id: string | null): Guide | null {
-  if (!id) return null;
-  return GUIDES.find((g) => g.id === id) ?? null;
-}
-
-export function useGuides(): UseGuides {
+export function useGuides(guides: Guide[]): UseGuides {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [writtenGuideId, setWrittenGuideId] = useState<string | null>(null);
   const [tourGuideId, setTourGuideId] = useState<string | null>(null);
 
-  const openLauncher = useCallback(() => setLauncherOpen(true), []);
+  const findGuide = useCallback(
+    (id: string | null): Guide | null =>
+      id ? (guides.find((g) => g.id === id) ?? null) : null,
+    [guides],
+  );
+
+  const [launcherOpener, setLauncherOpener] = useState<HTMLElement | null>(null);
+
+  const openLauncher = useCallback(() => {
+    const active = document.activeElement;
+    setLauncherOpener(active instanceof HTMLElement ? active : null);
+    setLauncherOpen(true);
+  }, []);
   const closeLauncher = useCallback(() => setLauncherOpen(false), []);
 
   const readSteps = useCallback((guideId: string) => {
@@ -41,8 +56,8 @@ export function useGuides(): UseGuides {
   const closeWritten = useCallback(() => setWrittenGuideId(null), []);
   const closeTour = useCallback(() => setTourGuideId(null), []);
 
-  const writtenGuide = useMemo(() => findGuide(writtenGuideId), [writtenGuideId]);
-  const tourGuide = useMemo(() => findGuide(tourGuideId), [tourGuideId]);
+  const writtenGuide = useMemo(() => findGuide(writtenGuideId), [findGuide, writtenGuideId]);
+  const tourGuide = useMemo(() => findGuide(tourGuideId), [findGuide, tourGuideId]);
 
   return {
     launcherOpen,
@@ -54,5 +69,6 @@ export function useGuides(): UseGuides {
     startTour,
     closeWritten,
     closeTour,
+    launcherOpener,
   };
 }

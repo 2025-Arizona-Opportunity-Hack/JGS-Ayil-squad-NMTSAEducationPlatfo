@@ -71,7 +71,7 @@ export function MyPurchaseRequests() {
           </p>
           <Button 
             className="mt-4" 
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/shop")}
           >
             <ShoppingCart className="w-4 h-4 mr-2" />
             Browse Shop
@@ -181,7 +181,7 @@ export function MyPurchaseRequests() {
                 </div>
 
                 {request.status === "approved" && !request.purchaseCompletedAt && (
-                  <Button onClick={() => navigate("/dashboard")}>
+                  <Button onClick={() => navigate("/shop")}>
                     <ShoppingCart className="w-4 h-4 mr-2" />
                     Complete Purchase
                   </Button>

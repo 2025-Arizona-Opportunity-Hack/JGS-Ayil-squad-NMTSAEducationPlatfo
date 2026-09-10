@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { UserManager } from "./UserManager";
@@ -19,6 +19,7 @@ import { AdminLayout } from "./admin/AdminLayout";
 import { OnboardingTour } from "./setup/OnboardingTour";
 import { useGuides } from "./guides/useGuides";
 import { GuidesLauncher } from "./guides/GuidesLauncher";
+import { getGuidesFor } from "./guides/guideContent";
 import { WrittenGuide } from "./guides/WrittenGuide";
 import { GuidedTour } from "./guides/GuidedTour";
 import { NewStaffPrompt } from "./guides/NewStaffPrompt";
@@ -36,7 +37,11 @@ export function AdminDashboard() {
     return localStorage.getItem("adminDashboardTab") || "content";
   });
 
-  const guides = useGuides();
+  const adminGuides = useMemo(
+    () => getGuidesFor("admin", userProfile?.effectivePermissions),
+    [userProfile?.effectivePermissions],
+  );
+  const guides = useGuides(adminGuides);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -126,6 +131,7 @@ export function AdminDashboard() {
 
       {/* Help & Guides */}
       <GuidesLauncher
+        guides={adminGuides}
         open={guides.launcherOpen}
         onClose={guides.closeLauncher}
         onReadSteps={guides.readSteps}
@@ -136,13 +142,21 @@ export function AdminDashboard() {
         open={guides.writtenGuide !== null}
         onClose={guides.closeWritten}
         onStartTour={
-          guides.writtenGuide
+          /* Only offer the tour when there is one. A written-only guide would
+             otherwise start a GuidedTour that renders null on an empty stop
+             list — an unclosable no-op leaving TourActiveProvider active.
+             ClientLayout carries the same guard. */
+          guides.writtenGuide && guides.writtenGuide.tourStops.length > 0
             ? () => guides.startTour(guides.writtenGuide!.id)
             : undefined
         }
       />
       {guides.tourGuide && (
-        <GuidedTour stops={guides.tourGuide.tourStops} onClose={handleTourClose} />
+        <GuidedTour
+          stops={guides.tourGuide.tourStops}
+          onClose={handleTourClose}
+          restoreFocusTo={guides.launcherOpener}
+        />
       )}
       <GuideDemoHost activeTourId={guides.tourGuide?.id ?? null} />
       <NewStaffPrompt onOpenGuides={guides.openLauncher} />

@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Folder, ClipboardList, ExternalLink, MessageSquare, Star } from "lucide-react";
+import { Folder, ClipboardList, ExternalLink, MessageSquare, Star, HelpCircle } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 interface MoreDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onHelpClick: () => void;
 }
 
 const drawerItems = [
@@ -16,7 +17,7 @@ const drawerItems = [
   { path: "/for-you", label: "For You", icon: Star },
 ] as const;
 
-export function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
+export function MoreDrawer({ open, onOpenChange, onHelpClick }: MoreDrawerProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -52,6 +53,16 @@ export function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
               </button>
             );
           })}
+          <button
+            onClick={() => {
+              onOpenChange(false);
+              onHelpClick();
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left min-h-[44px] text-client-text-secondary hover:text-client-text hover:bg-client-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span>Help</span>
+          </button>
         </nav>
       </SheetContent>
     </Sheet>

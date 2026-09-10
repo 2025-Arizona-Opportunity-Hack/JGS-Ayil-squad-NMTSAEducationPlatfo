@@ -1,4 +1,5 @@
 import type { TourStop } from "./GuidedTour";
+import { hasPermission, PERMISSIONS, type Permission } from "@/lib/permissions";
 
 export interface WrittenStep {
   title: string;
@@ -9,6 +10,15 @@ export interface Guide {
   id: string;
   title: string;
   summary: string;
+  /** Which portal this guide is offered in. */
+  audience: "admin" | "client";
+  /**
+   * When set, the guide is only offered to users holding this permission.
+   * Prevents offering a workflow the user cannot perform — and, for guides
+   * whose first tour stop targets a permission-gated nav item, prevents a
+   * tour that spotlights nothing.
+   */
+  requiredPermission?: Permission;
   writtenSteps: WrittenStep[];
   tourStops: TourStop[];
 }
@@ -18,6 +28,7 @@ export const GUIDES: Guide[] = [
     id: "upload-content",
     title: "Create content (all the fields)",
     summary: "Add a video, audio file, document, image, or article — with what every field on the form means.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -81,7 +92,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Open the form",
         detail:
-          "In the Content tab, click Create Content to open the 'Create New Content' form. The fields below appear top to bottom.",
+          "In the Content tab, click Add Content to open the 'Create New Content' form. The fields below appear top to bottom.",
       },
       {
         title: "Title (required)",
@@ -106,7 +117,17 @@ export const GUIDES: Guide[] = [
       {
         title: "The file",
         detail:
-          "Upload the file for the type you chose. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. For video and audio you can paste an External URL instead of uploading (next field).",
+          "Upload the file for the type you chose. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. For video and audio you can paste a link into the External URL field below instead of uploading.",
+      },
+      {
+        title: "Importing from Google Drive",
+        detail:
+          "Each file field also offers an Import from Google Drive button, which pulls a file straight from your Drive instead of your computer. If you don't see it, Drive hasn't been set up for this site — upload from your computer instead.",
+      },
+      {
+        title: "Very large files",
+        detail:
+          "Anything over 500 MB uploads in pieces so it doesn't time out. Two things to know. No picture is made for it while it uploads, and there's no thumbnail field on the create or edit form, so you can't add one yourself — for video the Content list tries to make one the first time it shows the item, and anything it can't make shows as a plain icon. And you can't swap a file that large from the Edit Content form afterwards.",
       },
       {
         title: "External URL (optional)",
@@ -116,12 +137,12 @@ export const GUIDES: Guide[] = [
       {
         title: "Tags",
         detail:
-          "Keywords that help you and clients find and group content. Type a tag and press Enter to add each one.",
+          "Keywords that help you find and group content. Type a tag and press Enter to add each one. Clients can see an item's tags but have no way to search or filter by them, so tags are for your benefit rather than theirs — see 'Tag content so you can find it again' for how to keep them consistent and how to filter by them.",
       },
       {
         title: "Make this content public",
         detail:
-          "Checked = anyone with the link can view it. Unchecked = restricted, so only people you give access to (through sharing, a recommendation, or a purchase) can see it.",
+          "Checked = anyone with the link can view it, once it is published. Unchecked = restricted, so only people you give access to can see it. If a client says they can't find something, see 'Why clients can't see it yet'.",
       },
       {
         title: "Availability — active vs. inactive",
@@ -144,9 +165,73 @@ export const GUIDES: Guide[] = [
           "If you have permission, you can set a password viewers must enter to open the content — on top of the other access rules above. Leave it blank for no password.",
       },
       {
-        title: "Save",
+        title: "Create the content",
         detail:
-          "Click Save to create the content. You'll see a 'Content created successfully' confirmation. New content starts as a Draft — see the 'Content statuses & review' guide for what happens next.",
+          "Click Create Content at the bottom of the form. You'll see a 'Content created successfully' confirmation. New content starts as a Draft — see the 'Content statuses & review' guide for what happens next.",
+      },
+    ],
+  },
+  {
+    id: "organize-with-tags",
+    title: "Tag content so you can find it again",
+    summary: "Add tags as you go, keep them consistent, and use the tag filter to pull a set back out.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Where tags live",
+        detail:
+          "There's a Tags field on the Create New Content form and on Edit Content. The box reads 'Type a tag and press Enter...'.",
+      },
+      {
+        title: "Add a tag",
+        detail:
+          "Type a word and press Enter. A comma or Tab adds it too, and so does clicking away from the box. Each tag becomes a small badge.",
+      },
+      {
+        title: "Add several at once",
+        detail:
+          "Paste a comma-separated list — balance, gait, warm-up — instead of typing them one at a time. Each one is added as you go, and the last one lands when you press Enter or click away. This is the quickest way to tag something.",
+      },
+      {
+        title: "Capital letters (and older tags that kept theirs)",
+        detail:
+          "Anything you type now is saved in lower case, so typing Autism saves autism. Older tags kept their capitals, though — the ones the site came with are written in Title Case — so the filter can show Autism and autism as two separate chips holding different items. Where a chip already says what you mean, reuse its wording; and when you filter, check both spellings. This is a known problem and is being tracked.",
+      },
+      {
+        title: "Remove a tag",
+        detail:
+          "Click the × on a badge to take it off. Pressing Backspace in an empty box removes the last one you added.",
+      },
+      {
+        title: "Change tags later",
+        detail:
+          "Open the ⋮ menu at the end of the item's row, choose Edit Content, and edit the Tags field the same way. Editing tags does not send the item back for review.",
+      },
+      {
+        title: "Find things by tag",
+        detail:
+          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click a chip to show only items carrying that tag. Picking more than one chip widens the list rather than narrowing it — you get every item carrying any of the tags you picked, not only the items carrying all of them. Use Clear at the top of the panel to reset everything.",
+      },
+      {
+        title: "No tags yet? No filter yet",
+        detail:
+          "The Filter by Tags section only appears once at least one item has a tag. If you can't see it, nothing has been tagged.",
+      },
+      {
+        title: "The search box does not search tags",
+        detail:
+          "Search Content matches titles and descriptions only. To find things by tag, use the chips instead. Two other places do search tags: the picker when you add content to a bundle, and the search in Archived.",
+      },
+      {
+        title: "Agree on your words",
+        detail:
+          "A tag is just text, so warmup and warm-up are two separate chips holding different items. Agree a short list as a team and stick to it — that is what makes tags worth having.",
+      },
+      {
+        title: "What clients see",
+        detail:
+          "Clients see an item's tags when they open it, but they have no way to search or filter by them. Tags are for finding things yourself.",
       },
     ],
   },
@@ -154,12 +239,13 @@ export const GUIDES: Guide[] = [
     id: "share-content",
     title: "Share content",
     summary: "Send a piece of content to someone with a shareable link.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
         title: "Sharing lives on your content",
         description:
-          "In real use you open a content item's ⋯ menu and choose Share. Next, I'll show you with a safe example.",
+          "In real use you open a content item's ⋮ menu and choose Share with 3rd Party. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
@@ -199,7 +285,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Use the item's Share action",
-        detail: "On the content row, choose Share. This opens the share dialog.",
+        detail: "On the content row, open the ⋮ menu and choose Share with 3rd Party. This opens the share dialog.",
       },
       {
         title: "Enter the recipient",
@@ -221,6 +307,7 @@ export const GUIDES: Guide[] = [
     id: "content-statuses",
     title: "Content statuses & review",
     summary: "Understand how content moves from a draft to published, and how the review step works.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -244,7 +331,7 @@ export const GUIDES: Guide[] = [
       {
         title: "How to submit for review",
         detail:
-          "On the item's row, open the ⋯ actions menu and choose Submit for review. This moves the item to 'In review' and hands it to a reviewer. Do this once the draft is complete.",
+          "On the item's row, open the ⋮ actions menu and choose Submit for Review. This moves the item to 'In review' and hands it to a reviewer. Do this once the draft is complete.",
       },
       {
         title: "In review",
@@ -259,7 +346,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Published",
         detail:
-          "Approved and live. Clients you've shared it with — or who purchased it — can now see it. Reviewers publish from the ⋯ menu via Approve / Publish. Note: a published item still needs to be active and within any start/end dates to actually appear to clients.",
+          "Approved and live. Clients you've shared it with — or who purchased it — can now see it. A reviewer opens Review Content from the ⋮ menu and chooses Approve & Publish. Note: a published item still needs to be active and within any start/end dates to actually appear to clients.",
       },
       {
         title: "Rejected",
@@ -277,12 +364,14 @@ export const GUIDES: Guide[] = [
     id: "pricing-store",
     title: "Pricing & the store",
     summary: "Put a price on content so clients can buy it in the Shop.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.SET_CONTENT_PRICING,
     tourStops: [
       {
         target: "tab-content",
         title: "Pricing lives on your content",
         description:
-          "In real use you open a content item's ⋯ menu and choose Set pricing. Next, I'll show you with a safe example.",
+          "In real use you open a content item's ⋮ menu and choose Set Pricing. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
@@ -322,12 +411,12 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Open the item's actions menu",
-        detail: "Click the ⋯ button on the content's row and choose Set pricing.",
+        detail: "Click the ⋮ button at the end of the content's row and choose Set Pricing.",
       },
       {
         title: "Set the price",
         detail:
-          "Enter the price and save. (Setting pricing needs the right permission — if you don't see Set pricing, ask an admin.)",
+          "Enter the price and save. (Setting pricing needs the right permission — if you don't see Set Pricing, ask an admin.)",
       },
       {
         title: "It appears in the Shop",
@@ -345,6 +434,8 @@ export const GUIDES: Guide[] = [
     id: "create-bundle",
     title: "Create a bundle",
     summary: "Group several pieces of content into a bundle so they can be shared or sold together.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.MANAGE_CONTENT_GROUPS,
     tourStops: [
       {
         target: "tab-contentGroups",
@@ -379,12 +470,12 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add content to it",
-        detail: "Choose which existing pieces of content belong in this bundle.",
+        detail: "On the bundle's card, click Content to open its 'Manage Content' window. Click Add Content, then use the 'Search available content...' box to find an item — that search matches titles, descriptions and tags, so if you tag consistently, one word pulls up everything that belongs together. Click Add on an item to put it in the bundle. The search closes each time you add something, so click Add Content again for the next one. Everything already in the bundle is listed above, each with a Remove button to take it back out.",
       },
       {
         title: "Save",
         detail:
-          "The bundle is now available to share or price as a group, just like a single piece of content.",
+          "There's no save step for a bundle's contents — adding and removing takes effect straight away, so click Close when you're finished. A bundle is a way of grouping content for yourself: it gives you Filter by Content Bundle in the Content tab's Filters panel. It doesn't hand clients anything on its own — a bundle can't be bought, and access granted on a bundle isn't read anywhere — so share, price and grant access on the individual items.",
       },
     ],
   },
@@ -392,6 +483,7 @@ export const GUIDES: Guide[] = [
     id: "write-article",
     title: "Write an article",
     summary: "Add formatted text, headings, and links — written in a content item's rich-text Description.",
+    audience: "admin",
     tourStops: [
       {
         target: "tab-content",
@@ -424,7 +516,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Open the create (or edit) form",
         detail:
-          "From the Content tab, click Create Content for new content — or open an existing item's ⋯ menu and choose Edit to add text to it.",
+          "From the Content tab, click Add Content for new content — or open an existing item's ⋮ menu and choose Edit Content to add text to it.",
       },
       {
         title: "Add the required basics",
@@ -443,4 +535,411 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "edit-content",
+    title: "Change content after you've saved it",
+    summary: "Find an item, change its details or swap the file, and act on a reviewer's feedback.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.EDIT_CONTENT,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Find the item",
+        detail:
+          "Go to the Content tab. Use Search Content for a word from the title, or narrow the list with Status, Attachment Type, or the tag chips.",
+      },
+      {
+        title: "Open it for editing",
+        detail:
+          "Click the ⋮ button at the end of the item's row and choose Edit Content.",
+      },
+      {
+        title: "Change the details",
+        detail:
+          "Title, description, attachment type, external URL, tags and visibility can all be changed here. Save with Update Content.",
+      },
+      {
+        title: "Swap the file",
+        detail:
+          "The file you have now sits in a grey box reading 'Current video file' (or audio, image, PDF) with a View link that opens it in a new tab. The box is only a label — to replace the file, use the file picker directly underneath it. Your choice is then listed as 'New:' with its size. Pick a file matching the attachment type; the form will tell you if it doesn't.",
+      },
+      {
+        title: "Files over 500 MB",
+        detail:
+          "Very large files can't be replaced from this form. Create the item again with the new file, or ask an admin.",
+      },
+      {
+        title: "If a reviewer sent it back",
+        detail:
+          "A Changes Requested or Content Rejected banner appears at the top with the reviewer's notes and the date. Make the changes, save, then submit it for review again from the ⋮ menu.",
+      },
+      {
+        title: "Editing does not restart review",
+        detail:
+          "Changing a published item leaves it published and the change is live straight away. Only Submit for Review and a reviewer's decision move an item between stages.",
+      },
+      {
+        title: "Two fields to leave alone for now",
+        detail:
+          "Author Name shows up blank on this form even when one is set, and saving clears it. Start and end dates don't save correctly from here either — set those when you first create the item. Both are known problems and are being tracked.",
+      },
+      {
+        title: "If saving is refused",
+        detail:
+          "Most staff can edit any item at any time. If your account has a custom permission set, you may be limited to items you created and only while they're a draft, rejected, or have changes requested — the message on screen will say which.",
+      },
+    ],
+  },
+  {
+    id: "content-visibility",
+    title: "Why clients can't see it yet",
+    summary: "Four things have to be true before a client sees an item — here's how to check each one.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Four things must all be true",
+        detail:
+          "An item reaches a client only when it is published, it is available, and either it is public or that client has been given access. Work down the list in order.",
+      },
+      {
+        title: "1. Is it published?",
+        detail:
+          "Check the item's status in the Content list. Draft, In review, Rejected and Changes Requested are all invisible to clients. Only Published is visible.",
+      },
+      {
+        title: "2. Is it available?",
+        detail:
+          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction. Read those dates here, but don't set them here: a date saved from Edit Content is stored as an invalid value and won't take effect. Dates set when the item is first created work correctly. It's a known problem and is being tracked.",
+      },
+      {
+        title: "3. Is it public?",
+        detail:
+          "A public item is visible to every signed-in client once it is published and available. The Make this content public checkbox is on both the create and edit forms.",
+      },
+      {
+        title: "4. Or has that client been given access?",
+        detail:
+          "If it isn't public, someone has to be granted access. Open the ⋮ menu on the item's row and choose Manage Access.",
+      },
+      {
+        title: "Granting access",
+        detail:
+          "In Manage Access you can grant to named people, to a whole role — client, parent or professional — or to a user group. An expiry date applies to every grant you make in that save. A grant reaches only the item you opened it from.",
+      },
+      {
+        title: "If you don't see Manage Access",
+        detail:
+          "Granting access needs a permission most staff don't have. If Manage Access isn't in the menu, ask an admin to grant it for you.",
+      },
+      {
+        title: "Quick checklist",
+        detail:
+          "A client says they can't find something: is it Published? Is Active on and are the dates right? Is it public, or were they — or their role or group — actually granted access? One of those four is almost always the answer.",
+      },
+    ],
+  },
+  {
+    id: "client-getting-around",
+    title: "Getting around",
+    summary: "A quick look at where everything lives in your portal.",
+    audience: "client",
+    tourStops: [
+      {
+        target: "client-nav-home",
+        title: "Home",
+        description:
+          "Your starting point, with a quick look at the content available to you.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-browse",
+        title: "Browse",
+        description:
+          "Search everything you have access to by typing part of its title.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-shop",
+        title: "Shop",
+        description:
+          "Content you can buy. You ask for access first, and pay once a staff member approves it.",
+        position: "bottom",
+      },
+      {
+        target: "client-nav-profile",
+        title: "You",
+        description:
+          "Your name and photo, switching between light and dark, and signing out. That's the tour — click Done.",
+        position: "bottom",
+      },
+    ],
+    writtenSteps: [
+      {
+        title: "Home",
+        detail:
+          "Where you land when you sign in. Shows a selection of the content available to you. Recommendations from your therapist are under For You.",
+      },
+      {
+        title: "Browse",
+        detail:
+          "Everything you have access to, with a search box that matches titles.",
+      },
+      {
+        title: "Shop",
+        detail:
+          "Content available to buy. See 'Getting access to paid content' for how buying works.",
+      },
+      {
+        title: "For You",
+        detail:
+          "Recommendations picked for you by a therapist, each with a note about why. On a phone, tap More to find it.",
+      },
+      {
+        title: "Orders and Requests",
+        detail:
+          "Orders holds what you've bought and your receipts; Requests tracks access you've asked for. On a phone, both are under More.",
+      },
+      {
+        title: "Your profile",
+        detail:
+          "Tap your photo in the top right to change your name or picture, switch between light and dark, or sign out.",
+      },
+    ],
+  },
+  {
+    id: "client-find-and-open",
+    title: "Find something and open it",
+    summary: "Search for content, open it, and get back again.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Start from Home or Browse",
+        detail:
+          "Home shows a selection of your content. Browse shows everything you have access to.",
+      },
+      {
+        title: "Search for it",
+        detail:
+          "In Browse, type into the search box. It matches the title of each item, so try a word from the name of what you're looking for.",
+      },
+      {
+        title: "Open an item",
+        detail: "Tap or click anywhere on a content card to open it.",
+      },
+      {
+        title: "Opening takes you out of the portal",
+        detail:
+          "Content opens in its own full-screen viewer, so the menus you were just using disappear. That's expected.",
+      },
+      {
+        title: "Getting back",
+        detail:
+          "Use your browser's Back button, or the Home button in the top bar of the viewer, to return to the portal.",
+      },
+    ],
+  },
+  {
+    id: "client-play-content",
+    title: "Watch, listen, or read",
+    summary: "How each kind of content opens, and how to download a copy.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Video",
+        detail:
+          "Plays in a player with the usual controls — play and pause, volume, and full screen.",
+      },
+      {
+        title: "Audio",
+        detail: "Plays in an audio bar with play, pause, and a position slider.",
+      },
+      {
+        title: "Documents",
+        detail:
+          "Choose Open Document and the file opens in a new tab, where you can read it or save your own copy.",
+      },
+      {
+        title: "Articles",
+        detail: "Written content appears directly on the page — just scroll to read.",
+      },
+      {
+        title: "If something asks for a password",
+        detail:
+          "Some shared items are protected. Enter the password whoever shared it gave you. If it asks you to sign in, use your usual account.",
+      },
+    ],
+  },
+  {
+    id: "client-paid-access",
+    title: "Getting access to paid content",
+    summary: "Request it, wait for approval, then pay — and where to finish if you stop partway.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Find it in Shop",
+        detail: "Paid content lives in Shop, each item showing its price.",
+      },
+      {
+        title: "Request to purchase",
+        detail:
+          "Choose Request to Purchase. You can't buy immediately — a staff member reviews the request first.",
+      },
+      {
+        title: "Wait for approval",
+        detail:
+          "Approval isn't instant and may take a day or two. You can check the status any time under Requests.",
+      },
+      {
+        title: "Complete the purchase",
+        detail:
+          "Once approved, go back to Shop. The item now shows Request Approved with a Complete Purchase button — use that to pay.",
+      },
+      {
+        title: "If you stop partway",
+        detail:
+          "An approved request stays approved until you use it, so you can come back and finish from Shop later. You can check its status any time under Requests.",
+      },
+      {
+        title: "After buying",
+        detail:
+          "The content is yours to open from Browse. Some purchases include an access period — check Orders for the expiry date.",
+      },
+    ],
+  },
+  {
+    id: "client-for-you",
+    title: "For You: your therapist's recommendations",
+    summary: "Content picked for you, and the note explaining why.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open For You",
+        detail: "It's a tab along the top; on a phone, tap More first.",
+      },
+      {
+        title: "Read the note",
+        detail:
+          "Each recommendation can carry a short message from whoever recommended it, explaining why it's relevant to you.",
+      },
+      {
+        title: "Open the content",
+        detail: "Choose the recommendation to open it, the same as anywhere else.",
+      },
+      {
+        title: "If it's paid content",
+        detail:
+          "Recommended items that cost money follow the normal route — request access from Shop and pay once approved. See 'Getting access to paid content'.",
+      },
+    ],
+  },
+  {
+    id: "client-orders",
+    title: "Your orders and receipts",
+    summary: "What you've bought, your receipts, and when access runs out.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open Orders",
+        detail: "A tab along the top; on a phone, tap More first.",
+      },
+      {
+        title: "Review an order",
+        detail: "Each row shows what you bought, what it cost, and the date.",
+      },
+      {
+        title: "Get a receipt",
+        detail: "Use the receipt action on an order to download a copy for your records.",
+      },
+      {
+        title: "Check access expiry",
+        detail:
+          "Some purchases grant access for a set period. Where that applies, the expiry date is shown on the order.",
+      },
+    ],
+  },
+  {
+    id: "client-profile",
+    title: "Your profile and appearance",
+    summary: "Change your name or photo, switch light and dark, and sign out.",
+    audience: "client",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open your profile",
+        detail: "Tap your photo in the top right corner.",
+      },
+      {
+        title: "Change your name",
+        detail: "Edit your first and last name, then save.",
+      },
+      {
+        title: "Add or change your photo",
+        detail: "Upload a picture, replace the one you have, or remove it entirely.",
+      },
+      {
+        title: "Light or dark",
+        detail:
+          "The theme toggle beside your photo switches between light and dark. Your choice is remembered.",
+      },
+      {
+        title: "Sign out",
+        detail:
+          "The sign-out button is next to your photo. Worth doing on a shared or family device.",
+      },
+    ],
+  },
+  {
+    id: "client-recommend",
+    title: "Recommending content to a client",
+    summary: "Send a client a piece of content with a note about why.",
+    audience: "client",
+    requiredPermission: PERMISSIONS.RECOMMEND_CONTENT,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Open the content",
+        detail: "Find the item you want to recommend and open it.",
+      },
+      {
+        title: "Choose Recommend",
+        detail:
+          "The Recommend button appears on content you can recommend. Only professional accounts see it.",
+      },
+      {
+        title: "Enter the recipient",
+        detail: "Type the email address of the person you're recommending it to.",
+      },
+      {
+        title: "Add a note",
+        detail:
+          "Include a short message explaining why you're sending it — this is what they'll read in their For You tab.",
+      },
+      {
+        title: "Send it",
+        detail: "Once sent, the recommendation appears in that person's For You tab.",
+      },
+    ],
+  },
 ];
+
+/**
+ * The guides a given user should be offered. Single filtering point for both
+ * portals — consumers must never read GUIDES directly.
+ */
+export function getGuidesFor(
+  audience: Guide["audience"],
+  permissions: string[] | undefined,
+): Guide[] {
+  return GUIDES.filter(
+    (g) =>
+      g.audience === audience &&
+      (g.requiredPermission === undefined ||
+        hasPermission(permissions, g.requiredPermission)),
+  );
+}

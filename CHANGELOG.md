@@ -3,7 +3,54 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.8.0 — 2026-09-02
+
+- New: Help & Guides in the client portal: written guides for finding, watching,
+  buying, and managing your account, plus a short interactive tour of the main
+  menu. Reachable from the `?` button in the header or Help in the More menu.
+- New: A one-time prompt points new users at the guides. It is remembered per user
+  rather than per browser, so a shared family or clinic device does not hide it
+  for everyone after one person dismisses it, and it stops appearing once you have
+  opened the guides by any route — not only from the prompt's own buttons.
+- Fix: Staff guides are now filtered by permission. Users are no longer offered the
+  bundle or pricing guides unless they can perform those workflows — previously
+  the bundle tour opened on a sidebar tab that permission filtering had removed,
+  so it highlighted nothing.
+- Fix: Tour highlighting now picks the visible element when a page renders the same
+  control twice for different screen sizes.
+- Fix: Guided tours now move keyboard focus into the tour when it opens, and return
+  it to the button you opened it from when it closes. Tours previously asked screen
+  readers to ignore everything outside the tour without placing focus inside it,
+  which left screen-reader users with no announced starting point and sighted
+  keyboard users with no visible focus and no sign the tour responds to the arrow
+  keys.
+- Fix: The Complete Purchase and Browse Shop buttons on the Requests page no
+  longer blank the screen. Both pointed at an address that does not exist, so
+  the whole portal disappeared with only the browser's Back button to recover;
+  they now take you to Shop, where an approved item is actually purchased.
+- New: Three staff guides — tagging content so you can find it again, changing
+  content after you've saved it, and why a client can't see an item yet. All
+  three are in the Help menu alongside the existing guides.
+- Fix: The Make this content public checkbox on the Create New Content form now
+  works. It previously ticked on screen but saved as unchecked, so every new
+  item was created restricted no matter what you chose. Items created before
+  this fix keep their stored setting and may need changing by hand.
+- Fix: Guide instructions now match the buttons on screen. Several referred to
+  a menu item by the wrong name, to the wrong menu icon, or to a control that
+  does not exist — adding content to a bundle is done with Add and Remove
+  buttons rather than tick boxes, the create form is saved with Create Content,
+  and there is no way to add a picture to a very large upload by hand. The
+  guides also no longer promise that clients can search by tag, that new tags
+  always match older ones, that extra tag chips narrow the list, or that a
+  bundle can be shared or sold as a group; and the warning about availability
+  dates not saving from the edit form now appears in the visibility guide too,
+  which staff can read without the edit guide.
+
 ## 0.7.0 — 2026-08-09
+- Fix: Access granted to a user group now applies only to the item it was
+  granted on. Previously a group grant on any single item let every member of
+  that group open every restricted item in the library, because the access
+  check matched the group without also matching the content.
 
 - Improve: the welcome notification is now much harder to miss. It shows your
   profile picture (or your initials) beside a heading-sized greeting, stays on

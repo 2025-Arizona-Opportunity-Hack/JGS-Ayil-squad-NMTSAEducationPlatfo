@@ -23,12 +23,78 @@ export interface TourStop {
 interface GuidedTourProps {
   stops: TourStop[];
   onClose: () => void;
+  /**
+   * Where to put focus when the tour closes — normally the control that opened
+   * the guides launcher. The tour cannot work this out for itself: the launcher
+   * closes and the tour opens in one React commit, so by the time the tour
+   * mounts, the "Start tour" button it was launched from is already detached
+   * and document.activeElement has fallen back to <body>.
+   */
+  restoreFocusTo?: HTMLElement | null;
 }
 
-export function GuidedTour({ stops, onClose }: GuidedTourProps) {
+/**
+ * Resolve a data-tour anchor to the element the user can actually see.
+ *
+ * The client portal renders the same destination twice — a desktop tab and a
+ * mobile bottom-nav item — and hides one with CSS. document.querySelector
+ * returns whichever comes first in document order, which may be the hidden
+ * one; its rect is all zeros, so the spotlight collapses to a 0x0 box at the
+ * origin. Prefer the first node with a non-zero rect.
+ *
+ * Measuring only — never for clicking. Falling back to a hidden node here
+ * restores the 0x0-spotlight-at-origin bug.
+ */
+function findVisibleTarget(target: string): Element | null {
+  return firstVisibleMatch(`[data-tour="${target}"]`);
+}
+
+/**
+ * The first element matching `selector` that the user can actually see.
+ *
+ * A responsive shell renders the same control once per breakpoint and hides
+ * one with CSS; the hidden copy still matches a selector but measures 0x0.
+ * Shared by target resolution and by focus restoration, which has the same
+ * problem — the header's help button exists twice.
+ */
+function firstVisibleMatch(selector: string): Element | null {
+  return (
+    Array.from(document.querySelectorAll(selector)).find((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }) ?? null
+  );
+}
+
+/** Focusable only if it is still in the document and not the bare <body>. */
+function focusableOrNull(el: unknown): HTMLElement | null {
+  return el instanceof HTMLElement && el.isConnected && el !== document.body
+    ? el
+    : null;
+}
+
+/**
+ * Resolve a data-tour anchor for clicking.
+ *
+ * When duplicates exist, prefer the visible one (non-zero rect) so the click
+ * reaches the user-facing copy. But HTMLElement.click() bypasses hit-testing,
+ * so a zero-rect element is still clickable — e.g., mid-animation or before
+ * layout settles. Requiring visibility here would fail clicks that would have
+ * succeeded before duplicates existed, breaking tours with reveal animations.
+ * Prefer visible; fall back to any match.
+ *
+ * Clicking only — never for measuring. Its zero-rect fallback is exactly what
+ * the measuring paths must not have.
+ */
+function findClickTarget(target: string): Element | null {
+  return findVisibleTarget(target) ?? document.querySelector(`[data-tour="${target}"]`);
+}
+
+export function GuidedTour({ stops, onClose, restoreFocusTo }: GuidedTourProps) {
   const [currentStop, setCurrentStop] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const stop = stops[currentStop];
 
@@ -43,14 +109,14 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
 
     const locate = () => {
       if (cancelled) return;
-      const el = document.querySelector(`[data-tour="${stop.target}"]`);
+      const el = findVisibleTarget(stop.target);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         setTargetRect(el.getBoundingClientRect());
         // Re-measure once after the open/scroll animation settles.
         setTimeout(() => {
           if (cancelled) return;
-          const settled = document.querySelector(`[data-tour="${stop.target}"]`);
+          const settled = findVisibleTarget(stop.target);
           if (settled) setTargetRect(settled.getBoundingClientRect());
         }, 300);
         return;
@@ -73,7 +139,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
   useEffect(() => {
     const handleResize = () => {
       if (!stop) return;
-      const el = document.querySelector(`[data-tour="${stop.target}"]`);
+      const el = findVisibleTarget(stop.target);
       if (el) setTargetRect(el.getBoundingClientRect());
     };
     window.addEventListener("resize", handleResize);
@@ -85,7 +151,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
     // tab) before advancing so the next stop's element exists to point at.
     const current = stops[currentStop];
     if (current?.action === "click") {
-      const el = document.querySelector(`[data-tour="${current.target}"]`);
+      const el = findClickTarget(current.target);
       if (el instanceof HTMLElement) el.click();
     }
     setCurrentStop((prev) => {
@@ -99,11 +165,45 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
     setCurrentStop((prev) => (prev > 0 ? prev - 1 : prev));
   }, []);
 
+  // aria-modal="true" hides everything outside this dialog from assistive tech,
+  // so leaving focus on <body> strands AT users in an empty tree and gives
+  // sighted keyboard users no clue the tour is keyboard-driven. Move focus to
+  // the tooltip on mount and on every stop change (SC 2.4.3), and hand it back
+  // to whatever opened the tour when we unmount.
+  useEffect(() => {
+    const activeAtMount = document.activeElement;
+    return () => {
+      // In order of preference: the control that opened the launcher; whatever
+      // held focus when we mounted (covers a tour opened directly); and failing
+      // both, the visible help button, since the launcher is always reachable
+      // from there. The recorded opener can legitimately be gone — the
+      // first-visit prompt's "Show me" button unmounts itself on dismissal.
+      const target =
+        focusableOrNull(restoreFocusTo) ??
+        focusableOrNull(activeAtMount) ??
+        focusableOrNull(firstVisibleMatch('[aria-label="Help and guides"]'));
+      // Nothing sensible to return to: leave focus alone rather than move it
+      // somewhere arbitrary.
+      target?.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    tooltipRef.current?.focus();
+  }, [currentStop]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight" || e.key === "Enter") handleNext();
-      if (e.key === "ArrowLeft") handlePrev();
+      if (e.key === "Escape") return onClose();
+      if (e.key === "ArrowLeft") return handlePrev();
+      if (e.key === "ArrowRight") return handleNext();
+      if (e.key !== "Enter") return;
+      // A focused button already fires its own click for Enter, so the button's
+      // own handler runs. Advancing here as well would skip a stop — and on the
+      // second-to-last stop, advance and immediately close. Focus sits on the
+      // tooltip container (a div) on mount, where Enter still advances.
+      if (e.target instanceof HTMLElement && e.target.closest("button")) return;
+      handleNext();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
@@ -164,6 +264,7 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
                 height={targetRect.height + padding * 2}
                 rx="8"
                 fill="black"
+                data-testid="tour-spotlight"
               />
             )}
           </mask>
@@ -182,7 +283,12 @@ export function GuidedTour({ stops, onClose }: GuidedTourProps) {
         className="fixed z-[10000] w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto"
         style={getTooltipStyle()}
       >
-        <Card>
+        <Card
+          ref={tooltipRef}
+          tabIndex={-1}
+          data-testid="tour-tooltip"
+          className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{stop.title}</CardTitle>
