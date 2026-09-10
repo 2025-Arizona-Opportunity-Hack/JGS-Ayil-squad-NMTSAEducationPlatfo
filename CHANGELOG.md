@@ -29,6 +29,10 @@ All notable changes are recorded here. Versioning follows the policy in
   the whole portal disappeared with only the browser's Back button to recover;
   they now take you to Shop, where an approved item is actually purchased.
 ## 0.7.0 — 2026-08-09
+- Fix: Access granted to a user group now applies only to the item it was
+  granted on. Previously a group grant on any single item let every member of
+  that group open every restricted item in the library, because the access
+  check matched the group without also matching the content.
 
 - Improve: the welcome notification is now much harder to miss. It shows your
   profile picture (or your initials) beside a heading-sized greeting, stays on

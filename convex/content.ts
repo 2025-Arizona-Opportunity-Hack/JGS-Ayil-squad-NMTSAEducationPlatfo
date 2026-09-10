@@ -398,9 +398,12 @@ async function checkContentAccess(ctx: any, contentId: any, userId: any, userRol
     .collect();
 
   for (const membership of userGroups) {
+    // Scope to THIS item. Querying by_group alone matches a grant on any
+    // item, which let one group grant unlock the whole restricted library.
     const groupAccess = await ctx.db
       .query("contentAccess")
-      .withIndex("by_group", (q: any) => q.eq("userGroupId", membership.groupId))
+      .withIndex("by_content", (q: any) => q.eq("contentId", contentId))
+      .filter((q: any) => q.eq(q.field("userGroupId"), membership.groupId))
       .first();
 
     if (groupAccess && (!groupAccess.expiresAt || groupAccess.expiresAt > Date.now())) {
