@@ -778,7 +778,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Add several at once",
         detail:
-          "Paste a comma-separated list — balance, gait, warm-up — and all of them are added together. This is the quickest way to tag something.",
+          "Paste a comma-separated list — balance, gait, warm-up — instead of typing them one at a time. Each one is added as you go, and the last one lands when you press Enter or click away. This is the quickest way to tag something.",
       },
       {
         title: "Capital letters are removed for you",
