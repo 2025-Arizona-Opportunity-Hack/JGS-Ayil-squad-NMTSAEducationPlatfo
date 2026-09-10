@@ -117,7 +117,17 @@ export const GUIDES: Guide[] = [
       {
         title: "The file",
         detail:
-          "Upload the file for the type you chose. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. For video and audio you can paste an External URL instead of uploading (next field).",
+          "Upload the file for the type you chose. Large files (over 500 MB) upload in chunks and can take several minutes — keep the tab open until it finishes. For video and audio you can paste a link into the External URL field below instead of uploading.",
+      },
+      {
+        title: "Importing from Google Drive",
+        detail:
+          "Each file field also offers an Import from Google Drive button, which pulls a file straight from your Drive instead of your computer. If you don't see it, Drive hasn't been set up for this site — upload from your computer instead.",
+      },
+      {
+        title: "Very large files",
+        detail:
+          "Anything over 500 MB uploads in pieces so it doesn't time out. Two things to know. No picture is made for it while it uploads, and there's no thumbnail field on the create or edit form, so you can't add one yourself — for video the Content list tries to make one the first time it shows the item, and anything it can't make shows as a plain icon. And you can't swap a file that large from the Edit Content form afterwards.",
       },
       {
         title: "External URL (optional)",
@@ -125,19 +135,9 @@ export const GUIDES: Guide[] = [
           "Instead of uploading, you can point to a video or audio file already hosted somewhere else (for example YouTube) by pasting its link here.",
       },
       {
-        title: "Very large files",
-        detail:
-          "Anything over 500 MB uploads in pieces so it doesn't time out. Two things to know: no thumbnail is made automatically for those, so add a picture yourself if you want one; and you can't swap a file that large from the Edit Content form afterwards.",
-      },
-      {
         title: "Tags",
         detail:
-          "Keywords that help you and clients find and group content. Type a tag and press Enter to add each one.",
-      },
-      {
-        title: "Importing from Google Drive",
-        detail:
-          "Each file field also offers a Google Drive button, which pulls a file straight from your Drive instead of your computer. If you don't see it, Drive hasn't been set up for this site — upload from your computer instead.",
+          "Keywords that help you find and group content. Type a tag and press Enter to add each one. Clients can see an item's tags but have no way to search or filter by them, so tags are for your benefit rather than theirs — see 'Tag content so you can find it again' for how to keep them consistent and how to filter by them.",
       },
       {
         title: "Make this content public",
@@ -165,9 +165,9 @@ export const GUIDES: Guide[] = [
           "If you have permission, you can set a password viewers must enter to open the content — on top of the other access rules above. Leave it blank for no password.",
       },
       {
-        title: "Save",
+        title: "Create the content",
         detail:
-          "Click Save to create the content. You'll see a 'Content created successfully' confirmation. New content starts as a Draft — see the 'Content statuses & review' guide for what happens next.",
+          "Click Create Content at the bottom of the form. You'll see a 'Content created successfully' confirmation. New content starts as a Draft — see the 'Content statuses & review' guide for what happens next.",
       },
     ],
   },
@@ -406,12 +406,12 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add content to it",
-        detail: "Open the bundle and use Search available content... to find items, then tick the ones you want. That search matches titles, descriptions and tags — so if you tag consistently, one word pulls up everything that belongs together. Untick an item to take it back out.",
+        detail: "On the bundle's card, click Content to open its 'Manage Content' window. Click Add Content, then use the 'Search available content...' box to find an item — that search matches titles, descriptions and tags, so if you tag consistently, one word pulls up everything that belongs together. Click Add on an item to put it in the bundle. The search closes each time you add something, so click Add Content again for the next one. Everything already in the bundle is listed above, each with a Remove button to take it back out.",
       },
       {
         title: "Save",
         detail:
-          "The bundle is now available to share or price as a group, just like a single piece of content.",
+          "There's no save step for a bundle's contents — adding and removing takes effect straight away, so click Close when you're finished. A bundle is a way of grouping content for yourself: it gives you Filter by Content Bundle in the Content tab's Filters panel. It doesn't hand clients anything on its own — a bundle can't be bought, and access granted on a bundle isn't read anywhere — so share, price and grant access on the individual items.",
       },
     ],
   },
@@ -781,9 +781,9 @@ export const GUIDES: Guide[] = [
           "Paste a comma-separated list — balance, gait, warm-up — instead of typing them one at a time. Each one is added as you go, and the last one lands when you press Enter or click away. This is the quickest way to tag something.",
       },
       {
-        title: "Capital letters are removed for you",
+        title: "Capital letters (and older tags that kept theirs)",
         detail:
-          "Tags are stored in lower case, so typing Autism saves autism. You never have to match capitals when you search later.",
+          "Anything you type now is saved in lower case, so typing Autism saves autism. Older tags kept their capitals, though — the ones the site came with are written in Title Case — so the filter can show Autism and autism as two separate chips holding different items. Where a chip already says what you mean, reuse its wording; and when you filter, check both spellings. This is a known problem and is being tracked.",
       },
       {
         title: "Remove a tag",
@@ -798,7 +798,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Find things by tag",
         detail:
-          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click chips to narrow the list, and use Clear at the top to reset everything.",
+          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click a chip to show only items carrying that tag. Picking more than one chip widens the list rather than narrowing it — you get every item carrying any of the tags you picked, not only the items carrying all of them. Use Clear at the top of the panel to reset everything.",
       },
       {
         title: "No tags yet? No filter yet",
@@ -848,7 +848,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Swap the file",
         detail:
-          "Under the file field, View opens the current file and Choose a new file to replace swaps it. Pick a file matching the attachment type — the form will tell you if it doesn't.",
+          "The file you have now sits in a grey box reading 'Current video file' (or audio, image, PDF) with a View link that opens it in a new tab. The box is only a label — to replace the file, use the file picker directly underneath it. Your choice is then listed as 'New:' with its size. Pick a file matching the attachment type; the form will tell you if it doesn't.",
       },
       {
         title: "Files over 500 MB",
@@ -897,7 +897,7 @@ export const GUIDES: Guide[] = [
       {
         title: "2. Is it available?",
         detail:
-          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction.",
+          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction. Read those dates here, but don't set them here: a date saved from Edit Content is stored as an invalid value and won't take effect. Dates set when the item is first created work correctly. It's a known problem and is being tracked.",
       },
       {
         title: "3. Is it public?",
