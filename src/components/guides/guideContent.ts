@@ -311,7 +311,7 @@ export const GUIDES: Guide[] = [
       {
         target: "demo-open-pricing",
         title: "Open Set Pricing",
-        description: "Next clicks Set Pricing to open the real dialog with this example.",
+        description: "Next clicks Set pricing to open the real dialog with this example.",
         position: "top",
         action: "click",
       },
