@@ -26,7 +26,7 @@
 
 Use these exact strings. Source file and line given for each.
 
-**Create form** (`src/components/ContentManager.tsx`): `Create New Content` :922 · `Title *` :927 · `Tags` :1132 · `Type a tag and press Enter...` :1141 · `Make this content public` :1153 · `Availability Settings` :1161 · `Set content as in-active` :1175 · `Start Date (optional)` :1184 · `End Date (optional)` :1221 · `Create Content` :1282
+**Create form** (`src/components/ContentManager.tsx`): `Create New Content` :922 · `Title *` :927 · `Tags` :1132 · `Type a tag and press Enter...` :1141 · `Make this content public` :1153 · `Availability Settings` :1161 · `Set content as in-active` :1175 · `Start Date (optional)` :1184 · `End Date (optional)` :1221 · `Create Content` (submit) :1282 · `Add Content` — the button that OPENS the form (`src/components/admin/ContentActions.tsx:75`)
 
 **Edit modal** (`src/components/ContentEditModal.tsx`): `Edit Content` :192 · `Title *` :245 · `Author Name` :276 · `Attachment Type *` :289 · `Choose a new file to replace` :319 · `View` :332 · `Tags` :377 · `Make this content public` :399 · `Active` :408 · `Update Content` :564 · banner headings `Changes Requested` / `Content Rejected` :214
 
@@ -100,9 +100,10 @@ describe("ContentManager create form", () => {
   it("submits isPublic: true when the public checkbox is ticked", async () => {
     render(<ContentManager />);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /create content/i })
-    );
+    // The button that OPENS the form is "Add Content" (ContentActions.tsx:75).
+    // "Create Content" is the SUBMIT button inside the dialog
+    // (ContentManager.tsx:1282). They are different controls.
+    await userEvent.click(screen.getByRole("button", { name: /add content/i }));
     await userEvent.type(screen.getByLabelText(/^title/i), "Warm-up rhythms");
     await userEvent.click(
       screen.getByRole("checkbox", { name: /make this content public/i })
@@ -194,9 +195,9 @@ matching the active checkbox 15 lines below it."
 
 ---
 
-### Task 2: Correct six wrong menu labels in the existing guides
+### Task 2: Correct eight wrong labels in the existing guides
 
-Six sentences describe a horizontal `⋯` menu (the icon is a vertical `MoreVertical`) and name menu items that do not exist.
+Seven sentences are wrong. Six describe a horizontal `⋯` menu (the icon is a vertical `MoreVertical`) or name menu items that do not exist; two tell staff to click `Create Content` to open the create form, when that button is labelled `Add Content`.
 
 **Files:**
 - Modify: `src/components/guides/guideContent.ts:174,260,275,300,340,445`
@@ -239,19 +240,25 @@ Line 340 (`pricing-store` written step) — from:
 to:
 > "Click the ⋮ button at the end of the content's row and choose Set Pricing."
 
-Line 445 (`write-article`) — from:
+Line 95 (`upload-content`) — the button that opens the form is `Add Content`; `Create Content` is the submit button inside it. From:
+> "In the Content tab, click Create Content to open the 'Create New Content' form. The fields below appear top to bottom."
+
+to:
+> "In the Content tab, click Add Content to open the 'Create New Content' form. The fields below appear top to bottom."
+
+Line 445 (`write-article`) — two errors on one line: the same Add Content mistake, plus the menu. From:
 > "From the Content tab, click Create Content for new content — or open an existing item's ⋯ menu and choose Edit to add text to it."
 
 to:
-> "From the Content tab, click Create Content for new content — or open an existing item's ⋮ menu and choose Edit Content to add text to it."
+> "From the Content tab, click Add Content for new content — or open an existing item's ⋮ menu and choose Edit Content to add text to it."
 
 - [ ] **Step 2: Verify no stale references remain**
 
 Run: `grep -n "⋯" src/components/guides/guideContent.ts`
 Expected: no output.
 
-Run: `grep -n "choose Share\b\|Submit for review\|Set pricing\|choose Edit\b\|Approve / Publish" src/components/guides/guideContent.ts`
-Expected: no output.
+Run: `grep -n "choose Share\b\|Submit for review\|Set pricing\|choose Edit\b\|Approve / Publish\|click Create Content" src/components/guides/guideContent.ts`
+Expected: no output. (`Create Content` still appears elsewhere as the name of the submit button — only "click Create Content", meaning the trigger, is wrong.)
 
 - [ ] **Step 3: Run the suite**
 
