@@ -12,6 +12,8 @@ describe("GUIDES", () => {
     expect(ids).toContain("create-bundle");
     expect(ids).toContain("write-article");
     expect(ids).toContain("organize-with-tags");
+    expect(ids).toContain("edit-content");
+    expect(ids).toContain("content-visibility");
   });
 
   it("has unique guide ids", () => {
@@ -27,12 +29,21 @@ describe("GUIDES", () => {
     }
   });
 
-  it("every admin guide has tour stops", () => {
+  it("every toured admin guide still has its tour stops", () => {
     // Client guides intentionally omit tour stops except for
     // client-getting-around — see the "client guides" describe block below.
-    // organize-with-tags is admin but written-only (tour demo host limitation).
-    for (const g of GUIDES.filter((g) => g.audience === "admin" && g.id !== "organize-with-tags")) {
-      expect(g.tourStops.length).toBeGreaterThan(0);
+    // Written-only guides (organize-with-tags, edit-content, content-visibility)
+    // need no tour stops.
+    const TOURED = [
+      "upload-content",
+      "share-content",
+      "content-statuses",
+      "pricing-store",
+      "create-bundle",
+      "write-article",
+    ];
+    for (const id of TOURED) {
+      expect(GUIDES.find((g) => g.id === id)?.tourStops.length).toBeGreaterThan(0);
     }
   });
 
@@ -146,5 +157,26 @@ describe("staff organize-with-tags guide", () => {
     const guide = GUIDES.find((g) => g.id === "organize-with-tags");
     expect(guide?.tourStops).toHaveLength(0);
     expect(guide?.writtenSteps.length).toBeGreaterThan(0);
+  });
+});
+
+describe("staff post-save guides", () => {
+  it("gates edit-content on EDIT_CONTENT", () => {
+    expect(getGuidesFor("admin", []).map((g) => g.id)).not.toContain("edit-content");
+    expect(
+      getGuidesFor("admin", [PERMISSIONS.EDIT_CONTENT]).map((g) => g.id)
+    ).toContain("edit-content");
+  });
+
+  it("offers content-visibility to everyone, including staff who cannot grant access", () => {
+    expect(getGuidesFor("admin", []).map((g) => g.id)).toContain("content-visibility");
+  });
+
+  it("keeps both guides written-only", () => {
+    for (const id of ["edit-content", "content-visibility"]) {
+      const guide = GUIDES.find((g) => g.id === id);
+      expect(guide?.tourStops).toHaveLength(0);
+      expect(guide?.writtenSteps.length).toBeGreaterThan(0);
+    }
   });
 });

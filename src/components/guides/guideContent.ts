@@ -822,6 +822,110 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "edit-content",
+    title: "Change content after you've saved it",
+    summary: "Find an item, change its details or swap the file, and act on a reviewer's feedback.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.EDIT_CONTENT,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Find the item",
+        detail:
+          "Go to the Content tab. Use Search Content for a word from the title, or narrow the list with Status, Attachment Type, or the tag chips.",
+      },
+      {
+        title: "Open it for editing",
+        detail:
+          "Click the ⋮ button at the end of the item's row and choose Edit Content.",
+      },
+      {
+        title: "Change the details",
+        detail:
+          "Title, description, attachment type, external URL, tags and visibility can all be changed here. Save with Update Content.",
+      },
+      {
+        title: "Swap the file",
+        detail:
+          "Under the file field, View opens the current file and Choose a new file to replace swaps it. Pick a file matching the attachment type — the form will tell you if it doesn't.",
+      },
+      {
+        title: "Files over 500 MB",
+        detail:
+          "Very large files can't be replaced from this form. Create the item again with the new file, or ask an admin.",
+      },
+      {
+        title: "If a reviewer sent it back",
+        detail:
+          "A Changes Requested or Content Rejected banner appears at the top with the reviewer's notes and the date. Make the changes, save, then submit it for review again from the ⋮ menu.",
+      },
+      {
+        title: "Editing does not restart review",
+        detail:
+          "Changing a published item leaves it published and the change is live straight away. Only Submit for Review and a reviewer's decision move an item between stages.",
+      },
+      {
+        title: "Two fields to leave alone for now",
+        detail:
+          "Author Name shows up blank on this form even when one is set, and saving clears it. Start and end dates don't save correctly from here either — set those when you first create the item. Both are known problems and are being tracked.",
+      },
+      {
+        title: "If saving is refused",
+        detail:
+          "Most staff can edit any item at any time. If your account has a custom permission set, you may be limited to items you created and only while they're a draft, rejected, or have changes requested — the message on screen will say which.",
+      },
+    ],
+  },
+  {
+    id: "content-visibility",
+    title: "Why clients can't see it yet",
+    summary: "Four things have to be true before a client sees an item — here's how to check each one.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Four things must all be true",
+        detail:
+          "An item reaches a client only when it is published, it is available, and either it is public or that client has been given access. Work down the list in order.",
+      },
+      {
+        title: "1. Is it published?",
+        detail:
+          "Check the item's status in the Content list. Draft, In review, Rejected and Changes Requested are all invisible to clients. Only Published is visible.",
+      },
+      {
+        title: "2. Is it available?",
+        detail:
+          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction.",
+      },
+      {
+        title: "3. Is it public?",
+        detail:
+          "A public item is visible to every signed-in client once it is published and available. The Make this content public checkbox is on both the create and edit forms.",
+      },
+      {
+        title: "4. Or has that client been given access?",
+        detail:
+          "If it isn't public, someone has to be granted access. Open the ⋮ menu on the item's row and choose Manage Access.",
+      },
+      {
+        title: "Granting access",
+        detail:
+          "In Manage Access you can grant to named people, to a whole role — client, parent or professional — or to a user group. An expiry date applies to every grant you make in that save. A grant reaches only the item you opened it from.",
+      },
+      {
+        title: "If you don't see Manage Access",
+        detail:
+          "Granting access needs a permission most staff don't have. If Manage Access isn't in the menu, ask an admin to grant it for you.",
+      },
+      {
+        title: "Quick checklist",
+        detail:
+          "A client says they can't find something: is it Published? Is Active on and are the dates right? Is it public, or were they — or their role or group — actually granted access? One of those four is almost always the answer.",
+      },
+    ],
+  },
 ];
 
 /**
