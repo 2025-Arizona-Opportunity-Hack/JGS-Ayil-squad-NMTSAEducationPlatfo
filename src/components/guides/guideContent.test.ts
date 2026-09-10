@@ -11,6 +11,7 @@ describe("GUIDES", () => {
     expect(ids).toContain("pricing-store");
     expect(ids).toContain("create-bundle");
     expect(ids).toContain("write-article");
+    expect(ids).toContain("organize-with-tags");
   });
 
   it("has unique guide ids", () => {
@@ -29,7 +30,8 @@ describe("GUIDES", () => {
   it("every admin guide has tour stops", () => {
     // Client guides intentionally omit tour stops except for
     // client-getting-around — see the "client guides" describe block below.
-    for (const g of GUIDES.filter((g) => g.audience === "admin")) {
+    // organize-with-tags is admin but written-only (tour demo host limitation).
+    for (const g of GUIDES.filter((g) => g.audience === "admin" && g.id !== "organize-with-tags")) {
       expect(g.tourStops.length).toBeGreaterThan(0);
     }
   });
@@ -131,5 +133,18 @@ describe("client guides", () => {
     for (const g of getGuidesFor("client", [PERMISSIONS.RECOMMEND_CONTENT])) {
       for (const stop of g.tourStops) expect(stable.has(stop.target)).toBe(true);
     }
+  });
+});
+
+describe("staff organize-with-tags guide", () => {
+  it("is offered to every staff member regardless of permission", () => {
+    const ids = getGuidesFor("admin", []).map((g) => g.id);
+    expect(ids).toContain("organize-with-tags");
+  });
+
+  it("is written-only", () => {
+    const guide = GUIDES.find((g) => g.id === "organize-with-tags");
+    expect(guide?.tourStops).toHaveLength(0);
+    expect(guide?.writtenSteps.length).toBeGreaterThan(0);
   });
 });

@@ -758,6 +758,70 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "organize-with-tags",
+    title: "Tag content so you can find it again",
+    summary: "Add tags as you go, keep them consistent, and use the tag filter to pull a set back out.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Where tags live",
+        detail:
+          "There's a Tags field on the Create New Content form and on Edit Content. The box reads 'Type a tag and press Enter...'.",
+      },
+      {
+        title: "Add a tag",
+        detail:
+          "Type a word and press Enter. A comma or Tab adds it too, and so does clicking away from the box. Each tag becomes a small badge.",
+      },
+      {
+        title: "Add several at once",
+        detail:
+          "Paste a comma-separated list — balance, gait, warm-up — and all of them are added together. This is the quickest way to tag something.",
+      },
+      {
+        title: "Capital letters are removed for you",
+        detail:
+          "Tags are stored in lower case, so typing Autism saves autism. You never have to match capitals when you search later.",
+      },
+      {
+        title: "Remove a tag",
+        detail:
+          "Click the × on a badge to take it off. Pressing Backspace in an empty box removes the last one you added.",
+      },
+      {
+        title: "Change tags later",
+        detail:
+          "Open the ⋮ menu at the end of the item's row, choose Edit Content, and edit the Tags field the same way. Editing tags does not send the item back for review.",
+      },
+      {
+        title: "Find things by tag",
+        detail:
+          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click chips to narrow the list, and use Clear at the top to reset everything.",
+      },
+      {
+        title: "No tags yet? No filter yet",
+        detail:
+          "The Filter by Tags section only appears once at least one item has a tag. If you can't see it, nothing has been tagged.",
+      },
+      {
+        title: "The search box does not search tags",
+        detail:
+          "Search Content matches titles and descriptions only. To find things by tag, use the chips instead. Two other places do search tags: the picker when you add content to a bundle, and the search in Archived.",
+      },
+      {
+        title: "Agree on your words",
+        detail:
+          "A tag is just text, so warmup and warm-up are two separate chips holding different items. Agree a short list as a team and stick to it — that is what makes tags worth having.",
+      },
+      {
+        title: "What clients see",
+        detail:
+          "Clients see an item's tags when they open it, but they have no way to search or filter by them. Tags are for finding things yourself.",
+      },
+    ],
+  },
 ];
 
 /**
