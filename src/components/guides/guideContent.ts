@@ -211,7 +211,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Use the item's Share action",
-        detail: "On the content row, choose Share. This opens the share dialog.",
+        detail: "On the content row, open the ⋮ menu and choose Share with 3rd Party. This opens the share dialog.",
       },
       {
         title: "Enter the recipient",
@@ -311,7 +311,7 @@ export const GUIDES: Guide[] = [
       {
         target: "demo-open-pricing",
         title: "Open Set Pricing",
-        description: "Next clicks Set pricing to open the real dialog with this example.",
+        description: "Next clicks Set Pricing to open the real dialog with this example.",
         position: "top",
         action: "click",
       },
@@ -342,7 +342,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Set the price",
         detail:
-          "Enter the price and save. (Setting pricing needs the right permission — if you don't see Set pricing, ask an admin.)",
+          "Enter the price and save. (Setting pricing needs the right permission — if you don't see Set Pricing, ask an admin.)",
       },
       {
         title: "It appears in the Shop",
