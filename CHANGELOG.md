@@ -36,7 +36,15 @@ All notable changes are recorded here. Versioning follows the policy in
   item was created restricted no matter what you chose. Items created before
   this fix keep their stored setting and may need changing by hand.
 - Fix: Guide instructions now match the buttons on screen. Several referred to
-  a menu item by the wrong name, or to the wrong menu icon.
+  a menu item by the wrong name, to the wrong menu icon, or to a control that
+  does not exist — adding content to a bundle is done with Add and Remove
+  buttons rather than tick boxes, the create form is saved with Create Content,
+  and there is no way to add a picture to a very large upload by hand. The
+  guides also no longer promise that clients can search by tag, that new tags
+  always match older ones, that extra tag chips narrow the list, or that a
+  bundle can be shared or sold as a group; and the warning about availability
+  dates not saving from the edit form now appears in the visibility guide too,
+  which staff can read without the edit guide.
 
 ## 0.7.0 — 2026-08-09
 - Fix: Access granted to a user group now applies only to the item it was

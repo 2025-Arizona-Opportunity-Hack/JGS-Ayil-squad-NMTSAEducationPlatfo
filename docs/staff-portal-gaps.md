@@ -2,7 +2,7 @@
 
 Written 2026-09-09, while documenting how staff store and tag content.
 
-Documenting the staff side turned up five things the guides have to work
+Documenting the staff side turned up six things the guides have to work
 around. None is caused by the guides; all of them affect people using the
 portal today.
 
@@ -56,6 +56,23 @@ editor's own draft has no way forward without help from an owner or admin.
 **Options:** give editors the Submit for Review permission, or let a reviewer
 publish a draft directly.
 
+## 6. A large upload gets no picture, and there is no way to add one
+
+Content over 500 MB uploads in chunks, and thumbnail generation is skipped on
+that path because the generator needs the whole file in one blob
+(`src/components/ContentManager.tsx:583-591`). Neither the create form nor the
+Edit form has a thumbnail field, so nobody can supply one by hand — the only
+manual thumbnail upload in the app is for bundles
+(`src/components/ContentGroupManager.tsx:436-469`). The staff Content list
+retries generation for videos as it renders them
+(`src/components/VideoThumbnail.tsx:39`), but the client portal only ever shows
+a stored thumbnail, so until that retry succeeds a large video appears to
+clients as a plain type icon
+(`src/components/client/ContentViewer.tsx:152-161`).
+
+**Options:** add a thumbnail field to the content forms, or generate the
+picture server-side once a chunked upload finishes.
+
 ## Also worth knowing
 
 **Professionals see everything.** Accounts with the professional role receive
@@ -65,6 +82,11 @@ and items that are switched off or out of date
 intended, since professionals are clinical staff, but it is worth confirming:
 it means unpublished work is visible to them as soon as it is created.
 
-**Access granted to a whole bundle does nothing.** Opening Manage Access from a
-bundle saves records that nothing ever reads
-(`convex/contentGroups.ts:227`). Grant access on the individual items instead.
+**A bundle does nothing for clients.** Opening Manage Access from a bundle saves
+records that nothing ever reads (`convex/contentGroups.ts:227`), and a price set
+from the bundle's Pricing button is stored and shown on the bundle card but
+cannot be bought: the Shop lists priced content only
+(`src/components/Shop.tsx:34`) and `createOrder` accepts a `contentId` and a
+`contentPricing` id, with no bundle equivalent (`convex/orders.ts:7-11`).
+Bundles are a staff-side grouping today — grant access and set prices on the
+individual items.
