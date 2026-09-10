@@ -172,6 +172,70 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
+    id: "organize-with-tags",
+    title: "Tag content so you can find it again",
+    summary: "Add tags as you go, keep them consistent, and use the tag filter to pull a set back out.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Where tags live",
+        detail:
+          "There's a Tags field on the Create New Content form and on Edit Content. The box reads 'Type a tag and press Enter...'.",
+      },
+      {
+        title: "Add a tag",
+        detail:
+          "Type a word and press Enter. A comma or Tab adds it too, and so does clicking away from the box. Each tag becomes a small badge.",
+      },
+      {
+        title: "Add several at once",
+        detail:
+          "Paste a comma-separated list — balance, gait, warm-up — instead of typing them one at a time. Each one is added as you go, and the last one lands when you press Enter or click away. This is the quickest way to tag something.",
+      },
+      {
+        title: "Capital letters (and older tags that kept theirs)",
+        detail:
+          "Anything you type now is saved in lower case, so typing Autism saves autism. Older tags kept their capitals, though — the ones the site came with are written in Title Case — so the filter can show Autism and autism as two separate chips holding different items. Where a chip already says what you mean, reuse its wording; and when you filter, check both spellings. This is a known problem and is being tracked.",
+      },
+      {
+        title: "Remove a tag",
+        detail:
+          "Click the × on a badge to take it off. Pressing Backspace in an empty box removes the last one you added.",
+      },
+      {
+        title: "Change tags later",
+        detail:
+          "Open the ⋮ menu at the end of the item's row, choose Edit Content, and edit the Tags field the same way. Editing tags does not send the item back for review.",
+      },
+      {
+        title: "Find things by tag",
+        detail:
+          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click a chip to show only items carrying that tag. Picking more than one chip widens the list rather than narrowing it — you get every item carrying any of the tags you picked, not only the items carrying all of them. Use Clear at the top of the panel to reset everything.",
+      },
+      {
+        title: "No tags yet? No filter yet",
+        detail:
+          "The Filter by Tags section only appears once at least one item has a tag. If you can't see it, nothing has been tagged.",
+      },
+      {
+        title: "The search box does not search tags",
+        detail:
+          "Search Content matches titles and descriptions only. To find things by tag, use the chips instead. Two other places do search tags: the picker when you add content to a bundle, and the search in Archived.",
+      },
+      {
+        title: "Agree on your words",
+        detail:
+          "A tag is just text, so warmup and warm-up are two separate chips holding different items. Agree a short list as a team and stick to it — that is what makes tags worth having.",
+      },
+      {
+        title: "What clients see",
+        detail:
+          "Clients see an item's tags when they open it, but they have no way to search or filter by them. Tags are for finding things yourself.",
+      },
+    ],
+  },
+  {
     id: "share-content",
     title: "Share content",
     summary: "Send a piece of content to someone with a shareable link.",
@@ -472,6 +536,110 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
+    id: "edit-content",
+    title: "Change content after you've saved it",
+    summary: "Find an item, change its details or swap the file, and act on a reviewer's feedback.",
+    audience: "admin",
+    requiredPermission: PERMISSIONS.EDIT_CONTENT,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Find the item",
+        detail:
+          "Go to the Content tab. Use Search Content for a word from the title, or narrow the list with Status, Attachment Type, or the tag chips.",
+      },
+      {
+        title: "Open it for editing",
+        detail:
+          "Click the ⋮ button at the end of the item's row and choose Edit Content.",
+      },
+      {
+        title: "Change the details",
+        detail:
+          "Title, description, attachment type, external URL, tags and visibility can all be changed here. Save with Update Content.",
+      },
+      {
+        title: "Swap the file",
+        detail:
+          "The file you have now sits in a grey box reading 'Current video file' (or audio, image, PDF) with a View link that opens it in a new tab. The box is only a label — to replace the file, use the file picker directly underneath it. Your choice is then listed as 'New:' with its size. Pick a file matching the attachment type; the form will tell you if it doesn't.",
+      },
+      {
+        title: "Files over 500 MB",
+        detail:
+          "Very large files can't be replaced from this form. Create the item again with the new file, or ask an admin.",
+      },
+      {
+        title: "If a reviewer sent it back",
+        detail:
+          "A Changes Requested or Content Rejected banner appears at the top with the reviewer's notes and the date. Make the changes, save, then submit it for review again from the ⋮ menu.",
+      },
+      {
+        title: "Editing does not restart review",
+        detail:
+          "Changing a published item leaves it published and the change is live straight away. Only Submit for Review and a reviewer's decision move an item between stages.",
+      },
+      {
+        title: "Two fields to leave alone for now",
+        detail:
+          "Author Name shows up blank on this form even when one is set, and saving clears it. Start and end dates don't save correctly from here either — set those when you first create the item. Both are known problems and are being tracked.",
+      },
+      {
+        title: "If saving is refused",
+        detail:
+          "Most staff can edit any item at any time. If your account has a custom permission set, you may be limited to items you created and only while they're a draft, rejected, or have changes requested — the message on screen will say which.",
+      },
+    ],
+  },
+  {
+    id: "content-visibility",
+    title: "Why clients can't see it yet",
+    summary: "Four things have to be true before a client sees an item — here's how to check each one.",
+    audience: "admin",
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Four things must all be true",
+        detail:
+          "An item reaches a client only when it is published, it is available, and either it is public or that client has been given access. Work down the list in order.",
+      },
+      {
+        title: "1. Is it published?",
+        detail:
+          "Check the item's status in the Content list. Draft, In review, Rejected and Changes Requested are all invisible to clients. Only Published is visible.",
+      },
+      {
+        title: "2. Is it available?",
+        detail:
+          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction. Read those dates here, but don't set them here: a date saved from Edit Content is stored as an invalid value and won't take effect. Dates set when the item is first created work correctly. It's a known problem and is being tracked.",
+      },
+      {
+        title: "3. Is it public?",
+        detail:
+          "A public item is visible to every signed-in client once it is published and available. The Make this content public checkbox is on both the create and edit forms.",
+      },
+      {
+        title: "4. Or has that client been given access?",
+        detail:
+          "If it isn't public, someone has to be granted access. Open the ⋮ menu on the item's row and choose Manage Access.",
+      },
+      {
+        title: "Granting access",
+        detail:
+          "In Manage Access you can grant to named people, to a whole role — client, parent or professional — or to a user group. An expiry date applies to every grant you make in that save. A grant reaches only the item you opened it from.",
+      },
+      {
+        title: "If you don't see Manage Access",
+        detail:
+          "Granting access needs a permission most staff don't have. If Manage Access isn't in the menu, ask an admin to grant it for you.",
+      },
+      {
+        title: "Quick checklist",
+        detail:
+          "A client says they can't find something: is it Published? Is Active on and are the dates right? Is it public, or were they — or their role or group — actually granted access? One of those four is almost always the answer.",
+      },
+    ],
+  },
+  {
     id: "client-getting-around",
     title: "Getting around",
     summary: "A quick look at where everything lives in your portal.",
@@ -755,174 +923,6 @@ export const GUIDES: Guide[] = [
       {
         title: "Send it",
         detail: "Once sent, the recommendation appears in that person's For You tab.",
-      },
-    ],
-  },
-  {
-    id: "organize-with-tags",
-    title: "Tag content so you can find it again",
-    summary: "Add tags as you go, keep them consistent, and use the tag filter to pull a set back out.",
-    audience: "admin",
-    tourStops: [],
-    writtenSteps: [
-      {
-        title: "Where tags live",
-        detail:
-          "There's a Tags field on the Create New Content form and on Edit Content. The box reads 'Type a tag and press Enter...'.",
-      },
-      {
-        title: "Add a tag",
-        detail:
-          "Type a word and press Enter. A comma or Tab adds it too, and so does clicking away from the box. Each tag becomes a small badge.",
-      },
-      {
-        title: "Add several at once",
-        detail:
-          "Paste a comma-separated list — balance, gait, warm-up — instead of typing them one at a time. Each one is added as you go, and the last one lands when you press Enter or click away. This is the quickest way to tag something.",
-      },
-      {
-        title: "Capital letters (and older tags that kept theirs)",
-        detail:
-          "Anything you type now is saved in lower case, so typing Autism saves autism. Older tags kept their capitals, though — the ones the site came with are written in Title Case — so the filter can show Autism and autism as two separate chips holding different items. Where a chip already says what you mean, reuse its wording; and when you filter, check both spellings. This is a known problem and is being tracked.",
-      },
-      {
-        title: "Remove a tag",
-        detail:
-          "Click the × on a badge to take it off. Pressing Backspace in an empty box removes the last one you added.",
-      },
-      {
-        title: "Change tags later",
-        detail:
-          "Open the ⋮ menu at the end of the item's row, choose Edit Content, and edit the Tags field the same way. Editing tags does not send the item back for review.",
-      },
-      {
-        title: "Find things by tag",
-        detail:
-          "In the Content tab, the Filters panel has a Filter by Tags heading with a chip for every tag in use. Click a chip to show only items carrying that tag. Picking more than one chip widens the list rather than narrowing it — you get every item carrying any of the tags you picked, not only the items carrying all of them. Use Clear at the top of the panel to reset everything.",
-      },
-      {
-        title: "No tags yet? No filter yet",
-        detail:
-          "The Filter by Tags section only appears once at least one item has a tag. If you can't see it, nothing has been tagged.",
-      },
-      {
-        title: "The search box does not search tags",
-        detail:
-          "Search Content matches titles and descriptions only. To find things by tag, use the chips instead. Two other places do search tags: the picker when you add content to a bundle, and the search in Archived.",
-      },
-      {
-        title: "Agree on your words",
-        detail:
-          "A tag is just text, so warmup and warm-up are two separate chips holding different items. Agree a short list as a team and stick to it — that is what makes tags worth having.",
-      },
-      {
-        title: "What clients see",
-        detail:
-          "Clients see an item's tags when they open it, but they have no way to search or filter by them. Tags are for finding things yourself.",
-      },
-    ],
-  },
-  {
-    id: "edit-content",
-    title: "Change content after you've saved it",
-    summary: "Find an item, change its details or swap the file, and act on a reviewer's feedback.",
-    audience: "admin",
-    requiredPermission: PERMISSIONS.EDIT_CONTENT,
-    tourStops: [],
-    writtenSteps: [
-      {
-        title: "Find the item",
-        detail:
-          "Go to the Content tab. Use Search Content for a word from the title, or narrow the list with Status, Attachment Type, or the tag chips.",
-      },
-      {
-        title: "Open it for editing",
-        detail:
-          "Click the ⋮ button at the end of the item's row and choose Edit Content.",
-      },
-      {
-        title: "Change the details",
-        detail:
-          "Title, description, attachment type, external URL, tags and visibility can all be changed here. Save with Update Content.",
-      },
-      {
-        title: "Swap the file",
-        detail:
-          "The file you have now sits in a grey box reading 'Current video file' (or audio, image, PDF) with a View link that opens it in a new tab. The box is only a label — to replace the file, use the file picker directly underneath it. Your choice is then listed as 'New:' with its size. Pick a file matching the attachment type; the form will tell you if it doesn't.",
-      },
-      {
-        title: "Files over 500 MB",
-        detail:
-          "Very large files can't be replaced from this form. Create the item again with the new file, or ask an admin.",
-      },
-      {
-        title: "If a reviewer sent it back",
-        detail:
-          "A Changes Requested or Content Rejected banner appears at the top with the reviewer's notes and the date. Make the changes, save, then submit it for review again from the ⋮ menu.",
-      },
-      {
-        title: "Editing does not restart review",
-        detail:
-          "Changing a published item leaves it published and the change is live straight away. Only Submit for Review and a reviewer's decision move an item between stages.",
-      },
-      {
-        title: "Two fields to leave alone for now",
-        detail:
-          "Author Name shows up blank on this form even when one is set, and saving clears it. Start and end dates don't save correctly from here either — set those when you first create the item. Both are known problems and are being tracked.",
-      },
-      {
-        title: "If saving is refused",
-        detail:
-          "Most staff can edit any item at any time. If your account has a custom permission set, you may be limited to items you created and only while they're a draft, rejected, or have changes requested — the message on screen will say which.",
-      },
-    ],
-  },
-  {
-    id: "content-visibility",
-    title: "Why clients can't see it yet",
-    summary: "Four things have to be true before a client sees an item — here's how to check each one.",
-    audience: "admin",
-    tourStops: [],
-    writtenSteps: [
-      {
-        title: "Four things must all be true",
-        detail:
-          "An item reaches a client only when it is published, it is available, and either it is public or that client has been given access. Work down the list in order.",
-      },
-      {
-        title: "1. Is it published?",
-        detail:
-          "Check the item's status in the Content list. Draft, In review, Rejected and Changes Requested are all invisible to clients. Only Published is visible.",
-      },
-      {
-        title: "2. Is it available?",
-        detail:
-          "Open Edit Content and check Availability Settings. Active must be on. If a start date is set it must already have passed, and if an end date is set it must still be in the future. Leaving a date empty places no restriction. Read those dates here, but don't set them here: a date saved from Edit Content is stored as an invalid value and won't take effect. Dates set when the item is first created work correctly. It's a known problem and is being tracked.",
-      },
-      {
-        title: "3. Is it public?",
-        detail:
-          "A public item is visible to every signed-in client once it is published and available. The Make this content public checkbox is on both the create and edit forms.",
-      },
-      {
-        title: "4. Or has that client been given access?",
-        detail:
-          "If it isn't public, someone has to be granted access. Open the ⋮ menu on the item's row and choose Manage Access.",
-      },
-      {
-        title: "Granting access",
-        detail:
-          "In Manage Access you can grant to named people, to a whole role — client, parent or professional — or to a user group. An expiry date applies to every grant you make in that save. A grant reaches only the item you opened it from.",
-      },
-      {
-        title: "If you don't see Manage Access",
-        detail:
-          "Granting access needs a permission most staff don't have. If Manage Access isn't in the menu, ask an admin to grant it for you.",
-      },
-      {
-        title: "Quick checklist",
-        detail:
-          "A client says they can't find something: is it Published? Is Active on and are the dates right? Is it public, or were they — or their role or group — actually granted access? One of those four is almost always the answer.",
       },
     ],
   },
