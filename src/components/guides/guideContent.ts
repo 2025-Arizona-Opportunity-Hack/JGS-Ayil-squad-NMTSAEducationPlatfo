@@ -125,14 +125,24 @@ export const GUIDES: Guide[] = [
           "Instead of uploading, you can point to a video or audio file already hosted somewhere else (for example YouTube) by pasting its link here.",
       },
       {
+        title: "Very large files",
+        detail:
+          "Anything over 500 MB uploads in pieces so it doesn't time out. Two things to know: no thumbnail is made automatically for those, so add a picture yourself if you want one; and you can't swap a file that large from the Edit Content form afterwards.",
+      },
+      {
         title: "Tags",
         detail:
           "Keywords that help you and clients find and group content. Type a tag and press Enter to add each one.",
       },
       {
+        title: "Importing from Google Drive",
+        detail:
+          "Each file field also offers a Google Drive button, which pulls a file straight from your Drive instead of your computer. If you don't see it, Drive hasn't been set up for this site — upload from your computer instead.",
+      },
+      {
         title: "Make this content public",
         detail:
-          "Checked = anyone with the link can view it. Unchecked = restricted, so only people you give access to (through sharing, a recommendation, or a purchase) can see it.",
+          "Checked = anyone with the link can view it, once it is published. Unchecked = restricted, so only people you give access to can see it. If a client says they can't find something, see 'Why clients can't see it yet'.",
       },
       {
         title: "Availability — active vs. inactive",
@@ -396,7 +406,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add content to it",
-        detail: "Choose which existing pieces of content belong in this bundle.",
+        detail: "Open the bundle and use Search available content... to find items, then tick the ones you want. That search matches titles, descriptions and tags — so if you tag consistently, one word pulls up everything that belongs together. Untick an item to take it back out.",
       },
       {
         title: "Save",
