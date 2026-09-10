@@ -52,4 +52,24 @@ describe("ContentManager create form", () => {
     await waitFor(() => expect(createContent).toHaveBeenCalled());
     expect(createContent.mock.calls[0][0]).toMatchObject({ isPublic: true });
   });
+
+  it("submits isPublic: false when the public checkbox is left unticked", async () => {
+    // Pins the untouched default. The ticked case above only proves the box
+    // can turn isPublic on; this one proves a form nobody touched still
+    // submits false, so a flipped default (or a submit path that forces
+    // public) can't ship unnoticed.
+    render(<ContentManager />);
+
+    await userEvent.click(screen.getByRole("button", { name: /add content/i }));
+    await userEvent.type(screen.getByLabelText(/^title/i), "Warm-up rhythms");
+    expect(
+      screen.getByRole("checkbox", { name: /make this content public/i })
+    ).not.toBeChecked();
+    await userEvent.click(
+      screen.getByRole("button", { name: /^create content$/i })
+    );
+
+    await waitFor(() => expect(createContent).toHaveBeenCalled());
+    expect(createContent.mock.calls[0][0]).toMatchObject({ isPublic: false });
+  });
 });
