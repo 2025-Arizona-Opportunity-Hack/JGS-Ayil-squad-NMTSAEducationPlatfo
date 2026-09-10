@@ -28,6 +28,16 @@ All notable changes are recorded here. Versioning follows the policy in
   longer blank the screen. Both pointed at an address that does not exist, so
   the whole portal disappeared with only the browser's Back button to recover;
   they now take you to Shop, where an approved item is actually purchased.
+- New: Three staff guides — tagging content so you can find it again, changing
+  content after you've saved it, and why a client can't see an item yet. All
+  three are in the Help menu alongside the existing guides.
+- Fix: The Make this content public checkbox on the Create New Content form now
+  works. It previously ticked on screen but saved as unchecked, so every new
+  item was created restricted no matter what you chose. Items created before
+  this fix keep their stored setting and may need changing by hand.
+- Fix: Guide instructions now match the buttons on screen. Several referred to
+  a menu item by the wrong name, or to the wrong menu icon.
+
 ## 0.7.0 — 2026-08-09
 - Fix: Access granted to a user group now applies only to the item it was
   granted on. Previously a group grant on any single item let every member of
