@@ -92,7 +92,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Open the form",
         detail:
-          "In the Content tab, click Create Content to open the 'Create New Content' form. The fields below appear top to bottom.",
+          "In the Content tab, click Add Content to open the 'Create New Content' form. The fields below appear top to bottom.",
       },
       {
         title: "Title (required)",
@@ -171,7 +171,7 @@ export const GUIDES: Guide[] = [
         target: "tab-content",
         title: "Sharing lives on your content",
         description:
-          "In real use you open a content item's ⋯ menu and choose Share. Next, I'll show you with a safe example.",
+          "In real use you open a content item's ⋮ menu and choose Share with 3rd Party. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
@@ -257,7 +257,7 @@ export const GUIDES: Guide[] = [
       {
         title: "How to submit for review",
         detail:
-          "On the item's row, open the ⋯ actions menu and choose Submit for review. This moves the item to 'In review' and hands it to a reviewer. Do this once the draft is complete.",
+          "On the item's row, open the ⋮ actions menu and choose Submit for Review. This moves the item to 'In review' and hands it to a reviewer. Do this once the draft is complete.",
       },
       {
         title: "In review",
@@ -272,7 +272,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Published",
         detail:
-          "Approved and live. Clients you've shared it with — or who purchased it — can now see it. Reviewers publish from the ⋯ menu via Approve / Publish. Note: a published item still needs to be active and within any start/end dates to actually appear to clients.",
+          "Approved and live. Clients you've shared it with — or who purchased it — can now see it. A reviewer opens Review Content from the ⋮ menu and chooses Approve & Publish. Note: a published item still needs to be active and within any start/end dates to actually appear to clients.",
       },
       {
         title: "Rejected",
@@ -297,7 +297,7 @@ export const GUIDES: Guide[] = [
         target: "tab-content",
         title: "Pricing lives on your content",
         description:
-          "In real use you open a content item's ⋯ menu and choose Set pricing. Next, I'll show you with a safe example.",
+          "In real use you open a content item's ⋮ menu and choose Set Pricing. Next, I'll show you with a safe example.",
         position: "right",
         action: "click",
       },
@@ -337,7 +337,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Open the item's actions menu",
-        detail: "Click the ⋯ button on the content's row and choose Set pricing.",
+        detail: "Click the ⋮ button at the end of the content's row and choose Set Pricing.",
       },
       {
         title: "Set the price",
@@ -442,7 +442,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Open the create (or edit) form",
         detail:
-          "From the Content tab, click Create Content for new content — or open an existing item's ⋯ menu and choose Edit to add text to it.",
+          "From the Content tab, click Add Content for new content — or open an existing item's ⋮ menu and choose Edit Content to add text to it.",
       },
       {
         title: "Add the required basics",
