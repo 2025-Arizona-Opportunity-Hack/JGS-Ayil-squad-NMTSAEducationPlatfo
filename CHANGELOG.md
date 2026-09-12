@@ -3,6 +3,18 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.21.0 — 2026-09-12
+
+- Feature: **attempt counts on shared certificates.** The anonymous
+  `certificates:getCertificateByShareToken` lookup now also returns
+  `attemptCount` (every attempt the learner made on that quiz, retakes after
+  the pass included) and `attemptsToPass` (the attemptNumber of the attempt
+  that earned the certificate). Counts only — the whitelist still never
+  exposes userId/attemptId/quizId or answers. Consumed by www.ohack.dev's
+  judge-review tooltip so OHack admins see how many tries a judge needed
+  without holding an LMS admin role. Test added for a fail→pass→retake run
+  and cross-learner isolation.
+
 ## 0.20.0 — 2026-08-31
 
 - Feature: **public-CDN media playback.** A content row whose `externalUrl`

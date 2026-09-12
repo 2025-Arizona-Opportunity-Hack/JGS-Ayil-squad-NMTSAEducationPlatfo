@@ -252,12 +252,46 @@ describe("getCertificateByShareToken", () => {
       score: 100,
       passingScore: 70,
       issuedAt: expect.any(Number),
+      attemptCount: 1,
+      attemptsToPass: 1,
     });
     // Explicitly no identifiers that could be used to reach other records
     expect(cert).not.toHaveProperty("userId");
     expect(cert).not.toHaveProperty("attemptId");
     expect(cert).not.toHaveProperty("quizId");
     expect(cert).not.toHaveProperty("shareToken");
+  });
+
+  it("reports attempt counts for the certificate's (quiz, user) only", async () => {
+    const t = convexTest(schema, modules);
+    const { clientId, quizId, questionId } = await setup(t);
+    const asClient = t.withIdentity({ subject: clientId });
+
+    // Fail once, pass on the second try, then retake once more after passing.
+    await asClient.mutation(api.quizzes.submitQuizAttempt, {
+      quizId,
+      answers: [{ questionId, selectedOptionIds: ["b"] }],
+    });
+    const pass = await asClient.mutation(api.quizzes.submitQuizAttempt, {
+      quizId,
+      answers: [{ questionId, selectedOptionIds: ["a"] }],
+    });
+    await asClient.mutation(api.quizzes.submitQuizAttempt, {
+      quizId,
+      answers: [{ questionId, selectedOptionIds: ["a"] }],
+    });
+
+    // Another learner's attempts on the same quiz must not leak into the count.
+    const otherId = await seedUser(t, "client", "other@example.com");
+    await t.withIdentity({ subject: otherId }).mutation(
+      api.quizzes.submitQuizAttempt,
+      { quizId, answers: [{ questionId, selectedOptionIds: ["b"] }] }
+    );
+
+    const cert = await t.query(api.certificates.getCertificateByShareToken, {
+      shareToken: pass.certificate!.shareToken,
+    });
+    expect(cert).toMatchObject({ attemptCount: 3, attemptsToPass: 2 });
   });
 
   it("returns null for an unknown token", async () => {

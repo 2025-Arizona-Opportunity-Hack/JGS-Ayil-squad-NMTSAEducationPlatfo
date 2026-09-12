@@ -10,7 +10,10 @@
  * - getCertificateByShareToken is deliberately anonymous-callable (the public
  *   /certificate/:token page and api/meta.ts unfurl bots use it) and returns
  *   an explicit whitelist — never the userId, attemptId, attempt answers, or
- *   any quiz internals.
+ *   any quiz internals. It does include attempt COUNTS for the (quiz, user)
+ *   behind the certificate (attemptCount / attemptsToPass) so a verifier
+ *   holding the share link — e.g. OHack's judge review — can see how many
+ *   tries the pass took without an LMS admin role.
  */
 import { ConvexError, v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
@@ -130,6 +133,10 @@ export const getMyCertificates = query({
 /**
  * Anonymous verification lookup for a shared certificate. Whitelist only —
  * this is a public endpoint reachable with nothing but the token.
+ *
+ * attemptCount = every attempt this learner made on this quiz (including any
+ * after the pass); attemptsToPass = the attemptNumber of the attempt that
+ * earned the certificate. Counts only — never the attempts themselves.
  */
 export const getCertificateByShareToken = query({
   args: { shareToken: v.string() },
@@ -139,6 +146,18 @@ export const getCertificateByShareToken = query({
       .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
       .unique();
     if (!certificate) return null;
+
+    const attempts = await ctx.db
+      .query("quizAttempts")
+      .withIndex("by_quiz_user", (q) =>
+        q.eq("quizId", certificate.quizId).eq("userId", certificate.userId)
+      )
+      .collect();
+    const passingAttempt = await ctx.db.get(certificate.attemptId);
+    const firstPass = attempts
+      .filter((a) => a.passed)
+      .sort((a, b) => a.attemptNumber - b.attemptNumber)[0];
+
     return {
       recipientName: certificate.recipientName,
       quizTitle: certificate.quizTitle,
@@ -146,6 +165,9 @@ export const getCertificateByShareToken = query({
       score: certificate.score,
       passingScore: certificate.passingScore,
       issuedAt: certificate.issuedAt,
+      attemptCount: attempts.length,
+      attemptsToPass:
+        passingAttempt?.attemptNumber ?? firstPass?.attemptNumber ?? null,
     };
   },
 });
