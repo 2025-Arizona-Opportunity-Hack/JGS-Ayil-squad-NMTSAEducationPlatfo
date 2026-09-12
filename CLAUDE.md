@@ -131,8 +131,12 @@ regression suite, and these rules are what it enforces:
   is the single copy; `submitQuizAttempt` auto-issues, `claimMyCertificate`
   re-validates the pass). `getCertificateByShareToken` is deliberately
   anonymous (share page `/certificate/:token` + `api/meta.ts`) and returns a
-  whitelist — never userId/attemptId/quizId or answers. Tests:
-  `convex/certificates.test.ts`.
+  whitelist — never userId/attemptId/quizId or answers. It DOES return
+  attempt counts for the cert's (quiz, user) — `attemptCount` (all attempts,
+  incl. retakes after the pass) + `attemptsToPass` (attemptNumber of the
+  earning attempt) — consumed by www.ohack.dev's judge-review tooltip
+  (`VolunteerTable.js` / `ApplicationReviewCard.js`), which otherwise needs
+  an LMS admin role for attempt data. Tests: `convex/certificates.test.ts`.
 - The `allowPublicSignup` site setting relaxes the join-request gate only —
   the role clamp in `users.createUserProfile` (code-less signups →
   client/parent) must stay intact. `autoApprovePurchases` removes the
