@@ -3,6 +3,14 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.9.0 — 2026-10-21
+
+- New: Owners and admins can read the client guides from their own Help menu.
+  Clients have a separate set of guides that staff never normally see, so there
+  was no way to check their wording still matched the portal after a change.
+  Open Help and choose Preview the client guides. It is reading only, and shows
+  every client guide including the one only professionals are offered.
+
 ## 0.8.0 — 2026-09-02
 
 - New: Help & Guides in the client portal: written guides for finding, watching,

@@ -19,6 +19,7 @@ import { AdminLayout } from "./admin/AdminLayout";
 import { OnboardingTour } from "./setup/OnboardingTour";
 import { useGuides } from "./guides/useGuides";
 import { GuidesLauncher } from "./guides/GuidesLauncher";
+import { ClientGuidesPreview } from "./guides/ClientGuidesPreview";
 import { getGuidesFor } from "./guides/guideContent";
 import { WrittenGuide } from "./guides/WrittenGuide";
 import { GuidedTour } from "./guides/GuidedTour";
@@ -37,11 +38,20 @@ export function AdminDashboard() {
     return localStorage.getItem("adminDashboardTab") || "content";
   });
 
+  const [clientGuidesPreviewOpen, setClientGuidesPreviewOpen] = useState(false);
+
   const adminGuides = useMemo(
     () => getGuidesFor("admin", userProfile?.effectivePermissions),
     [userProfile?.effectivePermissions],
   );
   const guides = useGuides(adminGuides);
+
+  // What a client sees. Built from this user's own permissions, which for an
+  // owner or admin means the whole set including the professional-only guide.
+  const clientGuides = useMemo(
+    () => getGuidesFor("client", userProfile?.effectivePermissions),
+    [userProfile?.effectivePermissions],
+  );
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -136,6 +146,19 @@ export function AdminDashboard() {
         onClose={guides.closeLauncher}
         onReadSteps={guides.readSteps}
         onStartTour={guides.startTour}
+        onPreviewClientGuides={
+          hasPermission(permissions, PERMISSIONS.MANAGE_SITE_SETTINGS)
+            ? () => {
+                guides.closeLauncher();
+                setClientGuidesPreviewOpen(true);
+              }
+            : undefined
+        }
+      />
+      <ClientGuidesPreview
+        guides={clientGuides}
+        open={clientGuidesPreviewOpen}
+        onClose={() => setClientGuidesPreviewOpen(false)}
       />
       <WrittenGuide
         guide={guides.writtenGuide}

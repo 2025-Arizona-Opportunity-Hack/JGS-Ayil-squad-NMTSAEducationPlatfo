@@ -98,3 +98,27 @@ describe("GuidesLauncher guide list", () => {
     expect(screen.getByRole("button", { name: /start tour/i })).toBeInTheDocument();
   });
 });
+describe("GuidesLauncher client-guides preview", () => {
+  it("offers the preview when a handler is supplied", async () => {
+    const onPreviewClientGuides = vi.fn();
+    render(
+      <GuidesLauncher
+        guides={ADMIN_GUIDES}
+        open
+        onClose={() => {}}
+        onReadSteps={() => {}}
+        onStartTour={() => {}}
+        onPreviewClientGuides={onPreviewClientGuides}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /preview the client guides/i }));
+    expect(onPreviewClientGuides).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the preview when no handler is supplied", () => {
+    render(
+      <GuidesLauncher guides={ADMIN_GUIDES} open onClose={() => {}} onReadSteps={() => {}} onStartTour={() => {}} />
+    );
+    expect(screen.queryByRole("button", { name: /preview the client guides/i })).not.toBeInTheDocument();
+  });
+});
