@@ -3,6 +3,38 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.10.0 — 2026-10-27
+
+- New: Search in Help & Guides, for clients and staff. Type a word or a whole
+  question ("how do I pay") and the guides narrow as you type, best match
+  first. Each guide also answers to everyday words its own text doesn't use, so
+  "buy", "receipt", or "log out" find the right one. When a guide turned up
+  because of a single step, that step is named under it. The number of matches
+  is announced to screen readers once typing pauses. Escape clears the search;
+  a second Escape closes Help.
+- New: A larger, labelled Help button, switched on from Site Settings → Help
+  button. It replaces the small `?` in the top bar of both portals with a
+  bordered button that says "Help". Off by default; nothing changes until an
+  admin turns it on.
+- Fix: Closing Help & Guides now returns focus to the button that opened it,
+  instead of dropping keyboard and screen-reader users at the top of the page.
+- Fix: The client portal's top bar no longer wraps "For You" onto two lines or
+  pushes the controls out of view on mid-sized screens. Below 1280px wide, the
+  tabs now sit on a row of their own beneath the logo and controls.
+- Fix: The staff top bar fits on the narrowest phones with the labelled Help
+  button on.
+- Fix: Both portals now follow the browser's text-size setting. Someone who has
+  made text larger gets the tablet or phone layout sooner, instead of a wide
+  layout their text no longer fits. Nothing changes at the usual text size. If
+  the top-bar buttons still can't fit — a narrow window with very large text —
+  they move onto their own line rather than overlap or fall off-screen.
+- Fix: Readability of the selected menu item. The client portal's teal is a
+  shade darker so teal text on its pale background is easier to read, and the
+  phone menu's selected item, white text on a light teal gradient, now uses a
+  darker gradient — it was well under the contrast that small text needs.
+- Fix: The Sign out button is now as tall as the other top-bar buttons, an
+  easier target to tap.
+
 ## 0.9.0 — 2026-10-21
 
 - New: Owners and admins can read the client guides from their own Help menu.

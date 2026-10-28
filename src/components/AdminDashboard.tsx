@@ -146,6 +146,7 @@ export function AdminDashboard() {
         onClose={guides.closeLauncher}
         onReadSteps={guides.readSteps}
         onStartTour={guides.startTour}
+        returnFocusTo={guides.launcherOpener}
         onPreviewClientGuides={
           hasPermission(permissions, PERMISSIONS.MANAGE_SITE_SETTINGS)
             ? () => {

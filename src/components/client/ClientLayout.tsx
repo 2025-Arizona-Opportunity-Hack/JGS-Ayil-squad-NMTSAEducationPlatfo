@@ -99,6 +99,7 @@ export function ClientLayout() {
         onClose={guides.closeLauncher}
         onReadSteps={guides.readSteps}
         onStartTour={guides.startTour}
+        returnFocusTo={guides.launcherOpener}
       />
       <WrittenGuide
         guide={guides.writtenGuide}

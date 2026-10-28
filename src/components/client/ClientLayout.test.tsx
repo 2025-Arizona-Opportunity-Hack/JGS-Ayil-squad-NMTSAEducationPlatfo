@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -50,7 +50,7 @@ describe("ClientLayout guides", () => {
       </MemoryRouter>
     );
     await userEvent.click(screen.getAllByRole("button", { name: /help and guides/i })[0]);
-    expect(screen.getByText(/getting around/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /getting around/i })).toBeInTheDocument();
   });
 
   it("offers client guides but not staff guides", async () => {
@@ -76,7 +76,7 @@ describe("ClientLayout guides", () => {
     mocks.profile.effectivePermissions = ["share_content", "recommend_content"];
     renderLayout();
     await userEvent.click(screen.getAllByRole("button", { name: /help and guides/i })[0]);
-    expect(screen.getByText(/recommending content to a client/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /recommending content to a client/i })).toBeInTheDocument();
   });
 
   // The whole chain on the real path: the opener is captured when the launcher
@@ -94,6 +94,20 @@ describe("ClientLayout guides", () => {
 
     expect(screen.queryByTestId("tour-tooltip")).not.toBeInTheDocument();
     expect(help).toHaveFocus();
+  });
+
+  // Radix returns focus only to a DialogTrigger, which the launcher has none
+  // of; without the explicit hand-back, focus fell to <body>.
+  it("returns focus to the help button when the launcher is closed", async () => {
+    renderLayout();
+    const help = screen.getAllByRole("button", { name: /help and guides/i })[0];
+
+    await userEvent.click(help);
+    expect(screen.getByRole("dialog", { name: /help & guides/i })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: /help & guides/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(help).toHaveFocus());
   });
 
   it("stops prompting once the header help button has been used", async () => {

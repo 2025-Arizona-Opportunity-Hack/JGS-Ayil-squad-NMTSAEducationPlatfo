@@ -19,6 +19,12 @@ export interface Guide {
    * tour that spotlights nothing.
    */
   requiredPermission?: Permission;
+  /**
+   * Everyday words people might search with that the guide's own wording
+   * doesn't use — "pay" for a guide that only ever says "purchase". Only read
+   * by the Help & Guides search; never shown.
+   */
+  keywords?: string[];
   writtenSteps: WrittenStep[];
   tourStops: TourStop[];
 }
@@ -29,6 +35,7 @@ export const GUIDES: Guide[] = [
     title: "Create content (all the fields)",
     summary: "Add a video, audio file, document, image, or article — with what every field on the form means.",
     audience: "admin",
+    keywords: ["upload", "add", "new", "file", "video", "audio", "pdf", "form"],
     tourStops: [
       {
         target: "tab-content",
@@ -176,6 +183,7 @@ export const GUIDES: Guide[] = [
     title: "Tag content so you can find it again",
     summary: "Add tags as you go, keep them consistent, and use the tag filter to pull a set back out.",
     audience: "admin",
+    keywords: ["label", "category", "categorise", "categorize", "filter", "sort"],
     tourStops: [],
     writtenSteps: [
       {
@@ -240,6 +248,7 @@ export const GUIDES: Guide[] = [
     title: "Share content",
     summary: "Send a piece of content to someone with a shareable link.",
     audience: "admin",
+    keywords: ["link", "send", "email", "share link"],
     tourStops: [
       {
         target: "tab-content",
@@ -308,6 +317,7 @@ export const GUIDES: Guide[] = [
     title: "Content statuses & review",
     summary: "Understand how content moves from a draft to published, and how the review step works.",
     audience: "admin",
+    keywords: ["draft", "publish", "published", "review", "approve", "approval"],
     tourStops: [
       {
         target: "tab-content",
@@ -365,6 +375,7 @@ export const GUIDES: Guide[] = [
     title: "Pricing & the store",
     summary: "Put a price on content so clients can buy it in the Shop.",
     audience: "admin",
+    keywords: ["price", "sell", "shop", "cost", "money", "paid", "payment"],
     requiredPermission: PERMISSIONS.SET_CONTENT_PRICING,
     tourStops: [
       {
@@ -435,6 +446,7 @@ export const GUIDES: Guide[] = [
     title: "Create a bundle",
     summary: "Group several pieces of content into a bundle so they can be shared or sold together.",
     audience: "admin",
+    keywords: ["group", "collection", "package", "set"],
     requiredPermission: PERMISSIONS.MANAGE_CONTENT_GROUPS,
     tourStops: [
       {
@@ -484,6 +496,7 @@ export const GUIDES: Guide[] = [
     title: "Write an article",
     summary: "Add formatted text, headings, and links — written in a content item's rich-text Description.",
     audience: "admin",
+    keywords: ["text", "blog", "post", "formatting", "rich text", "headings", "links"],
     tourStops: [
       {
         target: "tab-content",
@@ -540,6 +553,7 @@ export const GUIDES: Guide[] = [
     title: "Change content after you've saved it",
     summary: "Find an item, change its details or swap the file, and act on a reviewer's feedback.",
     audience: "admin",
+    keywords: ["change", "update", "replace", "fix", "feedback"],
     requiredPermission: PERMISSIONS.EDIT_CONTENT,
     tourStops: [],
     writtenSteps: [
@@ -595,6 +609,7 @@ export const GUIDES: Guide[] = [
     title: "Why clients can't see it yet",
     summary: "Four things have to be true before a client sees an item — here's how to check each one.",
     audience: "admin",
+    keywords: ["hidden", "visible", "not showing", "missing", "can't see", "access"],
     tourStops: [],
     writtenSteps: [
       {
@@ -644,6 +659,7 @@ export const GUIDES: Guide[] = [
     title: "Getting around",
     summary: "A quick look at where everything lives in your portal.",
     audience: "client",
+    keywords: ["menu", "navigate", "navigation", "tabs", "start", "lost"],
     tourStops: [
       {
         target: "client-nav-home",
@@ -712,6 +728,7 @@ export const GUIDES: Guide[] = [
     title: "Find something and open it",
     summary: "Search for content, open it, and get back again.",
     audience: "client",
+    keywords: ["search", "look", "locate", "missing", "lost", "back", "return"],
     tourStops: [],
     writtenSteps: [
       {
@@ -745,6 +762,7 @@ export const GUIDES: Guide[] = [
     title: "Watch, listen, or read",
     summary: "How each kind of content opens, and how to download a copy.",
     audience: "client",
+    keywords: ["video", "audio", "music", "song", "sound", "play", "watch", "listen", "read", "pdf", "download", "save", "volume", "full screen"],
     tourStops: [],
     writtenSteps: [
       {
@@ -777,6 +795,7 @@ export const GUIDES: Guide[] = [
     title: "Getting access to paid content",
     summary: "Request it, wait for approval, then pay — and where to finish if you stop partway.",
     audience: "client",
+    keywords: ["buy", "pay", "payment", "price", "cost", "money", "purchase", "checkout", "card", "approved"],
     tourStops: [],
     writtenSteps: [
       {
@@ -815,6 +834,7 @@ export const GUIDES: Guide[] = [
     title: "For You: your therapist's recommendations",
     summary: "Content picked for you, and the note explaining why.",
     audience: "client",
+    keywords: ["recommended", "recommendation", "therapist", "suggested", "picked", "note", "message"],
     tourStops: [],
     writtenSteps: [
       {
@@ -842,6 +862,7 @@ export const GUIDES: Guide[] = [
     title: "Your orders and receipts",
     summary: "What you've bought, your receipts, and when access runs out.",
     audience: "client",
+    keywords: ["receipt", "invoice", "bought", "purchases", "history", "expiry", "expired", "billing", "payment"],
     tourStops: [],
     writtenSteps: [
       {
@@ -868,6 +889,7 @@ export const GUIDES: Guide[] = [
     title: "Your profile and appearance",
     summary: "Change your name or photo, switch light and dark, and sign out.",
     audience: "client",
+    keywords: ["account", "settings", "name", "photo", "picture", "avatar", "dark mode", "light mode", "theme", "log out", "logout", "sign out"],
     tourStops: [],
     writtenSteps: [
       {
@@ -899,6 +921,7 @@ export const GUIDES: Guide[] = [
     title: "Recommending content to a client",
     summary: "Send a client a piece of content with a note about why.",
     audience: "client",
+    keywords: ["send", "share", "suggest", "email", "recommend"],
     requiredPermission: PERMISSIONS.RECOMMEND_CONTENT,
     tourStops: [],
     writtenSteps: [
