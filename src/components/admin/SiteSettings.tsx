@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NotificationSettings } from "./NotificationSettings";
+import { HelpButtonSetting } from "./HelpButtonSetting";
 
 // Predefined color schemes
 const colorSchemes = [
@@ -452,6 +453,9 @@ export function SiteSettings() {
           )}
         </Button>
       </div>
+
+      {/* Help button (saves on toggle) */}
+      <HelpButtonSetting />
 
       {/* Notification Settings */}
       <NotificationSettings />

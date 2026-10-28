@@ -13,6 +13,11 @@ const navItems = [
   { path: "/shop", label: "Shop", icon: ShoppingCart },
 ] as const;
 
+// The 700 shades keep the small white labels readable: about 5.4:1, where the
+// 500 shades they replaced managed only 2.5:1.
+const ACTIVE_ITEM =
+  "bg-gradient-to-r from-teal-700 to-cyan-700 text-white shadow-[0_3px_8px_rgba(13,148,136,0.35)]";
+
 export function BottomNav({ onMoreClick }: BottomNavProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,7 +48,7 @@ export function BottomNav({ onMoreClick }: BottomNavProps) {
                 "flex flex-col items-center justify-center min-w-[64px] min-h-[44px] gap-0.5 rounded-xl px-3 py-1.5 transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary focus-visible:ring-offset-2",
                 active
-                  ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-[0_3px_8px_rgba(13,148,136,0.35)]"
+                  ? ACTIVE_ITEM
                   : "text-client-text-secondary hover:text-client-text"
               )}
             >
@@ -60,7 +65,7 @@ export function BottomNav({ onMoreClick }: BottomNavProps) {
             "flex flex-col items-center justify-center min-w-[64px] min-h-[44px] gap-0.5 rounded-xl px-3 py-1.5 transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-client-primary focus-visible:ring-offset-2",
             isMoreActive
-              ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-[0_3px_8px_rgba(13,148,136,0.35)]"
+              ? ACTIVE_ITEM
               : "text-client-text-secondary hover:text-client-text"
           )}
         >

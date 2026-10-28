@@ -6,6 +6,17 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    // Tailwind's default breakpoints, in em rather than px. A media query's em
+    // is the browser's default text size, so someone who has made text larger
+    // gets the narrower layout sooner, instead of a wide layout their text no
+    // longer fits. At the usual 16px default these match the px values exactly.
+    screens: {
+      sm: "40em",
+      md: "48em",
+      lg: "64em",
+      xl: "80em",
+      "2xl": "96em",
+    },
     extend: {
       borderRadius: {
         lg: "var(--radius)",

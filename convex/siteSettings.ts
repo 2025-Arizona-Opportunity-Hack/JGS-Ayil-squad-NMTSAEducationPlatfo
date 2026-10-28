@@ -94,6 +94,7 @@ export const updateSiteSettings = mutation({
     description: v.optional(v.string()),
     logoId: v.optional(v.union(v.id("_storage"), v.null())),
     primaryColor: v.optional(v.string()),
+    prominentHelpButton: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId } = await requirePermission(ctx, PERMISSIONS.MANAGE_SITE_SETTINGS);
@@ -125,6 +126,9 @@ export const updateSiteSettings = mutation({
     }
     if (args.primaryColor !== undefined) {
       updateData.primaryColor = args.primaryColor;
+    }
+    if (args.prominentHelpButton !== undefined) {
+      updateData.prominentHelpButton = args.prominentHelpButton;
     }
 
     await ctx.db.patch(existingSettings._id, updateData);

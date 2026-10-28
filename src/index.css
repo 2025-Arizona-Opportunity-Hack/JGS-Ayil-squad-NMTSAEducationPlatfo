@@ -27,7 +27,9 @@
     --color-light: #ffffff;
     --color-dark: #171717;
     /* Client palette (Friendly Teal) — fixed, not affected by admin brand color */
-    --client-primary: 170 51% 32%;
+    /* 30% lightness keeps teal text readable (4.9:1) on its own 10% tint, as
+       on the selected nav tab; at 32% it fell just short of 4.5:1. */
+    --client-primary: 170 51% 30%;
     --client-accent: 239 84% 67%;
     --client-surface: 166 100% 99%;
     --client-card: 0 0% 100%;

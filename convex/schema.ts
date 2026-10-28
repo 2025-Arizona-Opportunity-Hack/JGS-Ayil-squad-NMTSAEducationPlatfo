@@ -11,6 +11,9 @@ const applicationTables = {
     logoId: v.optional(v.id("_storage")),
     faviconId: v.optional(v.id("_storage")),
     primaryColor: v.optional(v.string()),
+    // Swaps the header's small "?" icon for a larger button labelled "Help",
+    // in both portals. Off unless an admin turns it on.
+    prominentHelpButton: v.optional(v.boolean()),
     setupCompleted: v.boolean(),
     setupCompletedAt: v.optional(v.number()),
     setupCompletedBy: v.optional(v.id("users")),
