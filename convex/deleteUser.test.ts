@@ -189,6 +189,10 @@ describe("deleteUser (removes the account, keeps every record)", () => {
     const t = convexTest(schema);
     const admin = await seedUser(t, "admin", "admin@test.local");
     await t.withIdentity({ subject: admin }).mutation(api.users.resetUserPermissions, { userId: admin });
+    // ...but can't edit another admin's or their own custom permission list.
+    await expect(
+      t.withIdentity({ subject: admin }).mutation(api.users.updateUserPermissions, { userId: admin, permissions: [] }),
+    ).rejects.toThrow("Only owners can change an owner's or admin's role or permissions");
   });
 
   it("a removed profile exposes only what the removed screen needs", async () => {

@@ -299,11 +299,7 @@ export const updateUserRole = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    if (
-      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
-      callerProfile.role !== "owner" &&
-      targetProfile.userId !== callerProfile.userId
-    ) {
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -347,11 +343,7 @@ export const updateUserPermissions = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    if (
-      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
-      callerProfile.role !== "owner" &&
-      targetProfile.userId !== callerProfile.userId
-    ) {
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -380,6 +372,7 @@ export const resetUserPermissions = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
+    // Resetting yourself to your role's defaults can never add power.
     if (
       (targetProfile.role === "owner" || targetProfile.role === "admin") &&
       callerProfile.role !== "owner" &&

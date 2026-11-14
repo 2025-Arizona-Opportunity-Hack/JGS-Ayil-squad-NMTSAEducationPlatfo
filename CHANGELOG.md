@@ -18,9 +18,10 @@ All notable changes are recorded here. Versioning follows the policy in
   by a new Delete Users permission, which owners and admins have by default;
   people with a custom permission list get it only when it is added to their
   list.
-- Fix: Only owners can now change an owner's or another admin's role or
-  permissions (people can still change their own). Previously an admin could
-  demote another admin, or an owner, and then delete them.
+- Fix: Only owners can now change an owner's or an admin's role or
+  permissions; anyone can still reset their own to their role's defaults.
+  Previously an admin could demote another admin, or an owner, and then
+  delete them.
 
 ## 0.10.0 — 2026-10-27
 
