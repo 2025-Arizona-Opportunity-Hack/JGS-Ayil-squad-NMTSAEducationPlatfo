@@ -14,6 +14,7 @@ describe("GUIDES", () => {
     expect(ids).toContain("organize-with-tags");
     expect(ids).toContain("edit-content");
     expect(ids).toContain("content-visibility");
+    expect(ids).toContain("delete-user");
   });
 
   it("has unique guide ids", () => {
@@ -85,6 +86,13 @@ describe("getGuidesFor", () => {
     const ids = getGuidesFor("admin", ALL_STAFF).map((g) => g.id);
     expect(ids).toContain("create-bundle");
     expect(ids).toContain("pricing-store");
+  });
+
+  it("offers the delete-user guide only to staff who can delete users", () => {
+    const without = getGuidesFor("admin", [PERMISSIONS.VIEW_USERS]).map((g) => g.id);
+    expect(without).not.toContain("delete-user");
+    const withIt = getGuidesFor("admin", [PERMISSIONS.VIEW_USERS, PERMISSIONS.DELETE_USERS]).map((g) => g.id);
+    expect(withIt).toContain("delete-user");
   });
 
   it("includes ungated guides regardless of permissions", () => {

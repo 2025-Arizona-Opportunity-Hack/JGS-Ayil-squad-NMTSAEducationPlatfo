@@ -135,3 +135,10 @@ describe("searchGuides against the real client guides", () => {
     expect(ids(client, query)[0]).toBe(expected);
   });
 });
+
+describe("searching staff guides for removing someone", () => {
+  const staff = getGuidesFor("admin", [PERMISSIONS.VIEW_USERS, PERMISSIONS.DELETE_USERS]);
+  it.each(["delete user", "remove someone", "deactivate", "leaver"])("%s finds the delete-user guide first", (q) => {
+    expect(ids(staff, q)[0]).toBe("delete-user");
+  });
+});

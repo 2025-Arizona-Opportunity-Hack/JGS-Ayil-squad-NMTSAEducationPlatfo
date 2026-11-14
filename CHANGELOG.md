@@ -19,6 +19,10 @@ All notable changes are recorded here. Versioning follows the policy in
   (it only takes effect for owners and admins);
   people with a custom permission list get it only when it is added to their
   list.
+- New: A "Delete a user" guide in Help & Guides for staff who can delete
+  users. It covers who can delete whom, the steps in User Management, and
+  what happens to the person and their content. Search finds it for words like
+  "remove", "deactivate" or "leaver".
 - Fix: Only owners can now change an owner's or an admin's role or
   permissions, including their own.
   Previously an admin could demote another admin, or an owner, and then
