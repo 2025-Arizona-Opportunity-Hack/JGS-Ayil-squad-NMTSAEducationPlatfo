@@ -11,10 +11,16 @@ All notable changes are recorded here. Versioning follows the policy in
   delete their own account. Deleting keeps all of the person's data: their
   profile, content, groups, access, orders and requests stay exactly as they
   were, and they show in User Management as Removed. What changes is that the
-  person is signed out everywhere and can no longer sign in, sign up again
-  with the same email, reset their password or renew a session. Signing in
-  shows "This account has been removed". Controlled by a new Delete Users
-  permission, which owners and admins have by default.
+  person is shut out at once: every request they make is treated as signed
+  out, and they can no longer sign in, sign up again with the same email
+  (in any letter case), reset their password or renew a session. Signing in
+  with the right password shows "This account has been removed". Controlled
+  by a new Delete Users permission, which owners and admins have by default;
+  people with a custom permission list get it only when it is added to their
+  list.
+- Fix: Only owners can now change an owner's or an admin's role or
+  permissions. Previously an admin could demote another admin, or an owner,
+  and then delete them.
 
 ## 0.10.0 — 2026-10-27
 

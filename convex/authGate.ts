@@ -4,8 +4,9 @@
  * Removing a user keeps all their data and flags the profile with
  * `deletedAt`. This gate makes that flag stick at sign-in: signIn, signUp,
  * reset (sending a code), reset-verification and email-verification are all
- * refused for the account's email, and anything that still resolves to a
- * removed user is refused before a session is created.
+ * refused for the account's email (sign-in only after the password is
+ * checked), and anything that resolves to a removed user is refused before a
+ * session is created.
  */
 import { ConvexError } from "convex/values";
 
@@ -26,7 +27,11 @@ export function blockRemovedAccounts<Ctx>(
 ): Authorize<Ctx> {
   return async (params, ctx) => {
     const email = typeof params.email === "string" ? params.email.trim() : undefined;
-    if (email && (await isRemoved(ctx, { email }))) {
+    // For sign-in, wait until the password is proven, so the message never
+    // reveals which emails belonged to removed accounts. Every other flow
+    // (sign up, reset, verification) acts before returning a user, so it has
+    // to be refused up front.
+    if (email && params.flow !== "signIn" && (await isRemoved(ctx, { email }))) {
       throw new ConvexError(ACCOUNT_REMOVED_MESSAGE);
     }
     const result = await authorize(params, ctx);

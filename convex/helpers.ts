@@ -7,7 +7,11 @@
  */
 import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId as getTokenUserId } from "@convex-dev/auth/server";
+
+// The raw token check, ignoring removal. Only for code that must recognise a
+// removed account in order to refuse it with a clear message.
+export { getTokenUserId };
 import { Id } from "./_generated/dataModel";
 import {
   getEffectivePermissions,
@@ -16,6 +20,24 @@ import {
 } from "./permissions";
 
 // ─── Authentication & Authorization ─────────────────────────────────
+
+/**
+ * The signed-in user's id, or null when signed out OR the account was removed.
+ *
+ * The library's getAuthUserId only reads the access token, which stays valid
+ * for up to an hour after a user is removed. Every query and mutation uses
+ * this version instead, so a removed account is treated as signed out at once.
+ */
+export async function getAuthUserId(ctx: QueryCtx | MutationCtx): Promise<Id<"users"> | null> {
+  const userId = await getTokenUserId(ctx);
+  if (!userId) return null;
+  const profile = await ctx.db
+    .query("userProfiles")
+    .withIndex("by_user_id", (q) => q.eq("userId", userId))
+    .unique();
+  if (profile?.deletedAt !== undefined) return null;
+  return userId;
+}
 
 type AuthContext = QueryCtx | MutationCtx;
 
@@ -42,7 +64,8 @@ interface AuthResult {
  * const { userId, profile, permissions } = await requireAuth(ctx);
  */
 export async function requireAuth(ctx: AuthContext): Promise<AuthResult> {
-  const userId = await getAuthUserId(ctx);
+  // Raw token check, so a removed account gets the clear message below.
+  const userId = await getTokenUserId(ctx);
   if (!userId) throw new ConvexError("Not authenticated");
 
   const profile = await ctx.db

@@ -132,6 +132,72 @@ describe("deleteUser (removes the account, keeps every record)", () => {
     );
   });
 
+  it("a removed person's still-valid token is refused by functions outside requireAuth", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const admin = await seedUser(t, "admin", "admin@test.local");
+    const asAdmin = t.withIdentity({ subject: admin });
+    expect(await asAdmin.query(api.auth.loggedInUser, {})).not.toBeNull();
+
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: admin });
+
+    expect(await asAdmin.query(api.auth.loggedInUser, {})).toBeNull();
+    await expect(
+      asAdmin.mutation(api.users.updateProfile, { firstName: "Still", lastName: "Here" }),
+    ).rejects.toThrow("Not authenticated");
+    await t.run(async (ctx) => {
+      const [profile] = (await ctx.db.query("userProfiles").collect()).filter((p) => p.userId === admin);
+      expect(profile!.firstName).toBe("admin");
+    });
+  });
+
+  it("the removed lookup matches an email stored with capitals", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const userId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("users", { email: "Jane.Doe@Example.COM", name: "Jane" });
+      await ctx.db.insert("userProfiles", { userId: id, role: "client", firstName: "Jane", lastName: "Doe", isActive: true });
+      await ctx.db.insert("authAccounts", { userId: id, provider: "password", providerAccountId: "Jane.Doe@Example.COM" });
+      return id;
+    });
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId });
+    for (const typed of ["Jane.Doe@Example.COM", "jane.doe@example.com", " JANE.DOE@EXAMPLE.COM "]) {
+      expect(await t.query(internal.users.isAccountRemoved, { email: typed })).toBe(true);
+    }
+  });
+
+  it("deleting cancels reset and verification codes already sent", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    await t.run(async (ctx) => {
+      const accountId = await ctx.db.insert("authAccounts", { userId: client, provider: "password", providerAccountId: "client@test.local" });
+      await ctx.db.insert("authVerificationCodes", { accountId, provider: "resend", code: "hashed", expirationTime: Date.now() + 60_000 });
+    });
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: client });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("authVerificationCodes").collect()).toEqual([]);
+    });
+  });
+
+  it("an admin cannot demote an owner or another admin to get round the delete rule", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const admin = await seedUser(t, "admin", "admin@test.local");
+    const otherAdmin = await seedUser(t, "admin", "admin2@test.local");
+    const asAdmin = t.withIdentity({ subject: admin });
+    for (const target of [owner, otherAdmin]) {
+      await expect(asAdmin.mutation(api.users.updateUserRole, { userId: target, role: "client" })).rejects.toThrow(
+        "Only owners can change an owner's or admin's role or permissions",
+      );
+      await expect(asAdmin.mutation(api.users.updateUserPermissions, { userId: target, permissions: [] })).rejects.toThrow(
+        "Only owners can change an owner's or admin's role or permissions",
+      );
+    }
+    // An owner still can.
+    await t.withIdentity({ subject: owner }).mutation(api.users.updateUserRole, { userId: otherAdmin, role: "editor" });
+  });
+
   it("an admin removes a client", async () => {
     const t = convexTest(schema);
     const admin = await seedUser(t, "admin", "admin@test.local");

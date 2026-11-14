@@ -1,6 +1,6 @@
 import { query, mutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId, getTokenUserId } from "./helpers";
 import { canDeleteUser, getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 
@@ -8,7 +8,8 @@ import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 export const getCurrentUserProfile = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    // Raw token check: the app must learn the account was removed.
+    const userId = await getTokenUserId(ctx);
     if (!userId) return null;
 
     const profile = await ctx.db
@@ -273,7 +274,7 @@ export const updateUserRole = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { permissions } = await requirePermission(ctx, PERMISSIONS.UPDATE_USER_ROLES);
+    const { permissions, profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.UPDATE_USER_ROLES);
 
     // Promoting to admin requires PROMOTE_TO_ADMIN permission (owner only by default)
     if (args.role === "admin") {
@@ -286,6 +287,9 @@ export const updateUserRole = mutation({
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
+    }
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
     await ctx.db.patch(targetProfile._id, {
@@ -321,12 +325,15 @@ export const updateUserPermissions = mutation({
     permissions: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const { permissions: callerPerms } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
+    const { permissions: callerPerms, profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
+    }
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
     if (targetProfile.role === "owner") {
@@ -347,12 +354,15 @@ export const updateUserPermissions = mutation({
 export const resetUserPermissions = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
+    const { profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
+    }
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
     if (targetProfile.role === "owner") {
@@ -409,35 +419,47 @@ export const deleteUser = mutation({
       for (const token of tokens) await ctx.db.delete(token._id);
       await ctx.db.delete(session._id);
     }
+
+    // Cancel any reset or verification code already sent to them.
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const account of accounts) {
+      const codes = await ctx.db
+        .query("authVerificationCodes")
+        .withIndex("accountId", (q) => q.eq("accountId", account._id))
+        .collect();
+      for (const code of codes) await ctx.db.delete(code._id);
+    }
   },
 });
 
 // Used by the sign-in gate (convex/authGate.ts): is this email or user removed?
+// Emails are stored as typed, so compare without case. Removed accounts are
+// few, so we check each one rather than relying on an exact-match index.
 export const isAccountRemoved = internalQuery({
   args: { email: v.optional(v.string()), userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const userIds = new Set<string>();
-    if (args.userId) userIds.add(args.userId);
+    const removed = await ctx.db
+      .query("userProfiles")
+      .filter((q) => q.neq(q.field("deletedAt"), undefined))
+      .collect();
+    if (removed.length === 0) return false;
+
+    if (args.userId && removed.some((p) => p.userId === args.userId)) return true;
+
     if (args.email) {
       const email = args.email.trim().toLowerCase();
-      const accounts = await ctx.db
-        .query("authAccounts")
-        .withIndex("providerAndAccountId", (q) =>
-          q.eq("provider", "password").eq("providerAccountId", email),
-        )
-        .collect();
-      for (const account of accounts) userIds.add(account.userId);
-      const users = await ctx.db
-        .query("users")
-        .withIndex("email", (q) => q.eq("email", email))
-        .collect();
-      for (const user of users) userIds.add(user._id);
-    }
-    for (const id of userIds) {
-      const normalized = ctx.db.normalizeId("users", id);
-      if (!normalized) continue;
-      const profile = await getUserProfile(ctx, normalized);
-      if (profile?.deletedAt !== undefined) return true;
+      for (const profile of removed) {
+        const user = await ctx.db.get(profile.userId);
+        if (user?.email?.trim().toLowerCase() === email) return true;
+        const accounts = await ctx.db
+          .query("authAccounts")
+          .withIndex("userIdAndProvider", (q) => q.eq("userId", profile.userId))
+          .collect();
+        if (accounts.some((a) => a.providerAccountId.trim().toLowerCase() === email)) return true;
+      }
     }
     return false;
   },

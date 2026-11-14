@@ -25,7 +25,7 @@ async function requireAdmin(ctx: any): Promise<void> {
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new ConvexError("Not authenticated");
   const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId });
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+  if (!profile || profile.deletedAt !== undefined || (profile.role !== "admin" && profile.role !== "owner")) {
     throw new ConvexError("Only admins can use debug tools");
   }
 }
