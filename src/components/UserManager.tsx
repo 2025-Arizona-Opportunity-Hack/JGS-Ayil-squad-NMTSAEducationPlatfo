@@ -11,13 +11,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ConvexError } from "convex/values";
+import { toast } from "sonner";
+import { canDeleteUser, hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export function UserManager() {
   const users = useQuery(api.users.listUsers);
   const currentProfile = useQuery(api.users.getCurrentUserProfile);
   const updateUserRole = useMutation(api.users.updateUserRole);
   const promoteToAdmin = useMutation(api.users.promoteToAdmin);
+  const deleteUser = useMutation(api.users.deleteUser);
 
   // Permission-based checks
   const canUpdateRoles = hasPermission(currentProfile?.effectivePermissions, PERMISSIONS.UPDATE_USER_ROLES);
@@ -31,6 +45,19 @@ export function UserManager() {
       });
     } catch (error) {
       console.error("Error updating user role:", error);
+    }
+  };
+
+  const handleDelete = async (userId: string, name: string) => {
+    try {
+      await deleteUser({ userId: userId as any });
+      toast.success(`${name} was deleted`);
+    } catch (error) {
+      const message =
+        error instanceof ConvexError && typeof error.data === "string"
+          ? error.data
+          : "Couldn't delete this user. Please try again.";
+      toast.error(message);
     }
   };
 
@@ -119,6 +146,47 @@ export function UserManager() {
                     ) : (
                       <span className="text-sm text-muted-foreground px-3 py-2">{user.role}</span>
                     )}
+                    {currentProfile &&
+                      canDeleteUser(
+                        {
+                          userId: currentProfile.userId,
+                          role: currentProfile.role,
+                          permissions: currentProfile.effectivePermissions,
+                        },
+                        { userId: user.userId, role: user.role },
+                      ) && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="text-destructive">
+                              Delete
+                              <span className="sr-only"> {user.firstName} {user.lastName}</span>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Delete {user.firstName} {user.lastName}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This removes their account and signs them out everywhere. It also
+                                removes them from their groups and takes away content shared
+                                directly with them. Content they created stays. This can't be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() =>
+                                  void handleDelete(user.userId, `${user.firstName} ${user.lastName}`)
+                                }
+                              >
+                                Delete user
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                   </div>
                 </CardContent>
               </Card>

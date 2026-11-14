@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
+import { canDeleteUser, getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 
 // Get current user profile
@@ -342,6 +342,77 @@ export const resetUserPermissions = mutation({
     }
 
     await ctx.db.patch(targetProfile._id, { permissions: undefined });
+  },
+});
+
+// Delete a user and everything that only exists for them.
+// Owners can delete anyone but themselves; admins only people below admin.
+// Content they created, orders and purchase requests are kept as records.
+export const deleteUser = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const { userId: callerId, profile: callerProfile, permissions } =
+      await requirePermission(ctx, PERMISSIONS.DELETE_USERS);
+
+    const targetProfile = await getUserProfile(ctx, args.userId);
+    const targetRole = targetProfile?.role ?? "client";
+
+    if (args.userId === callerId) {
+      throw new ConvexError("You can't delete your own account");
+    }
+    if (
+      !canDeleteUser(
+        { userId: callerId, role: callerProfile.role, permissions },
+        { userId: args.userId, role: targetRole },
+      )
+    ) {
+      throw new ConvexError("Only owners can delete owners and admins");
+    }
+
+    const memberships = await ctx.db
+      .query("userGroupMembers")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    const grants = await ctx.db
+      .query("contentAccess")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    const bundleGrants = await ctx.db
+      .query("contentGroupAccess")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of [...memberships, ...grants, ...bundleGrants]) {
+      await ctx.db.delete(row._id);
+    }
+
+    // Sign-in data: sessions, refresh tokens, accounts and their codes.
+    const sessions = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const session of sessions) {
+      const tokens = await ctx.db
+        .query("authRefreshTokens")
+        .withIndex("sessionId", (q) => q.eq("sessionId", session._id))
+        .collect();
+      for (const token of tokens) await ctx.db.delete(token._id);
+      await ctx.db.delete(session._id);
+    }
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const account of accounts) {
+      const codes = await ctx.db
+        .query("authVerificationCodes")
+        .withIndex("accountId", (q) => q.eq("accountId", account._id))
+        .collect();
+      for (const code of codes) await ctx.db.delete(code._id);
+      await ctx.db.delete(account._id);
+    }
+
+    if (targetProfile) await ctx.db.delete(targetProfile._id);
+    if (await ctx.db.get(args.userId)) await ctx.db.delete(args.userId);
   },
 });
 
