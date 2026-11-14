@@ -203,6 +203,26 @@ describe("deleteUser (removes the account, keeps every record)", () => {
     );
   });
 
+  it("an admin given promote_to_admin can't promote themselves to undo an owner's restriction", async () => {
+    const t = convexTest(schema);
+    const admin = await seedUser(t, "admin", "admin@test.local");
+    const otherAdmin = await seedUser(t, "admin", "admin2@test.local");
+    await t.run(async (ctx) => {
+      const [p] = (await ctx.db.query("userProfiles").collect()).filter((x) => x.userId === admin);
+      await ctx.db.patch(p!._id, { permissions: ["promote_to_admin", "view_users"] });
+    });
+    const asAdmin = t.withIdentity({ subject: admin });
+    for (const target of [admin, otherAdmin]) {
+      await expect(asAdmin.mutation(api.users.promoteToAdmin, { userId: target })).rejects.toThrow(
+        "Only owners can change an owner's or admin's role or permissions",
+      );
+    }
+    await t.run(async (ctx) => {
+      const [p] = (await ctx.db.query("userProfiles").collect()).filter((x) => x.userId === admin);
+      expect(p!.permissions).toEqual(["promote_to_admin", "view_users"]);
+    });
+  });
+
   it("an editor granted the delete permission still can't delete anyone", async () => {
     const t = convexTest(schema);
     const editor = await seedUser(t, "editor", "editor@test.local");

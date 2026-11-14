@@ -113,7 +113,7 @@ export function UserManager() {
                       <span className="text-sm text-muted-foreground px-3 py-2">Removed</span>
                     ) : user.role === "owner" ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Owner</span>
-                    ) : user.role === "admin" && !canPromoteToAdmin ? (
+                    ) : user.role === "admin" && currentProfile?.role !== "owner" ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Admin</span>
                     ) : canUpdateRoles ? (
                       <>

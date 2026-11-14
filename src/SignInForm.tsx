@@ -508,9 +508,9 @@ export function SignInForm() {
                     console.error("Authentication error:", error);
                     const errorMessage = error.message || "";
 
+                    // Removed account first, then "already exists" (most specific).
                     if (isAccountRemovedError(error)) {
                       toast.error(ACCOUNT_REMOVED_TOAST.title, { description: ACCOUNT_REMOVED_TOAST.description });
-                    // Check for "already exists" FIRST (most specific)
                     } else if (errorMessage.includes("already exists")) {
                       toast.error("Account already exists", {
                         description: "An account with this email already exists. Try signing in instead.",

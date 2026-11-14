@@ -81,6 +81,8 @@ export { auth, signIn, signOut, isAuthenticated };
 // The library's `auth:store` mutation, with removed accounts refused in the same
 // transaction (see convex/authStoreGuard.ts). Must keep the name `store`.
 export const store = internalMutation({
+  // Internal only (clients can't call it); the library builds these calls and
+  // storeImpl dispatches on args.type, so the shape is checked there.
   args: { args: v.any() },
   handler: async (ctx, args: any) => {
     const result = await (libraryStore as any)._handler(ctx, args);

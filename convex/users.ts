@@ -314,12 +314,17 @@ export const updateUserRole = mutation({
 export const promoteToAdmin = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
+    const { profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
+    }
+    // Promoting clears custom permissions, so on an existing owner or admin
+    // (including yourself) it would undo an owner's restriction.
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
     await ctx.db.patch(targetProfile._id, {
@@ -395,6 +400,9 @@ export const deleteUser = mutation({
     const { userId: callerId, profile: callerProfile, permissions } =
       await requirePermission(ctx, PERMISSIONS.DELETE_USERS);
 
+    if (callerProfile.role !== "owner" && callerProfile.role !== "admin") {
+      throw new ConvexError("Only owners and admins can delete users");
+    }
     if (args.userId === callerId) {
       throw new ConvexError("You can't delete your own account");
     }
@@ -403,9 +411,6 @@ export const deleteUser = mutation({
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has already been removed");
-    }
-    if (callerProfile.role !== "owner" && callerProfile.role !== "admin") {
-      throw new ConvexError("Only owners and admins can delete users");
     }
     if (
       !canDeleteUser(
