@@ -1,61 +1,94 @@
-import { convexAuth, getAuthUserId } from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./helpers";
 import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
-import { ConvexError } from "convex/values";
-import { query } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import { internalMutation, query } from "./_generated/server";
+import { refuseRemovedInStore } from "./authStoreGuard";
+import { internal } from "./_generated/api";
+import { blockRemovedAccounts } from "./authGate";
 
-export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [
-    Password({
-      reset: ResendProvider({
-        apiKey: process.env.RESEND_API_KEY,
-        from: `NMTSA Platform <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
-        sendVerificationRequest: async ({ identifier: email, token }) => {
-          const apiKey = process.env.RESEND_API_KEY;
-          if (!apiKey) throw new ConvexError("RESEND_API_KEY is not configured");
-          const domain = process.env.RESEND_DOMAIN || "resend.dev";
-          const siteUrl = process.env.SITE_URL || "http://localhost:5173";
-          const resetUrl = `${siteUrl}/reset-password?code=${token}&email=${encodeURIComponent(email)}`;
+const password = Password({
+  reset: ResendProvider({
+    apiKey: process.env.RESEND_API_KEY,
+    from: `NMTSA Platform <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
+    sendVerificationRequest: async ({ identifier: email, token }) => {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) throw new ConvexError("RESEND_API_KEY is not configured");
+      const domain = process.env.RESEND_DOMAIN || "resend.dev";
+      const siteUrl = process.env.SITE_URL || "http://localhost:5173";
+      const resetUrl = `${siteUrl}/reset-password?code=${token}&email=${encodeURIComponent(email)}`;
 
-          const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: `NMTSA Platform <noreply@${domain}>`,
-              to: [email],
-              subject: "Reset your password",
-              html: `
-                <!DOCTYPE html>
-                <html>
-                  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                      <h1 style="color: white; margin: 0; font-size: 24px;">Reset Your Password</h1>
-                    </div>
-                    <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
-                      <p>You requested a password reset. Click the button below to set a new password:</p>
-                      <p style="text-align: center; margin: 30px 0;">
-                        <a href="${resetUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reset Password</a>
-                      </p>
-                      <p style="font-size: 14px; color: #666;">Or use this code: <strong>${token}</strong></p>
-                      <p style="font-size: 14px; color: #666;">If you didn't request this, you can safely ignore this email.</p>
-                    </div>
-                  </body>
-                </html>
-              `,
-            }),
-          });
-
-          if (!res.ok) {
-            const err = await res.text();
-            throw new ConvexError(`Failed to send reset email: ${err}`);
-          }
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-      }),
-    }),
-  ],
+        body: JSON.stringify({
+          from: `NMTSA Platform <noreply@${domain}>`,
+          to: [email],
+          subject: "Reset your password",
+          html: `
+            <!DOCTYPE html>
+            <html>
+              <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                  <h1 style="color: white; margin: 0; font-size: 24px;">Reset Your Password</h1>
+                </div>
+                <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
+                  <p>You requested a password reset. Click the button below to set a new password:</p>
+                  <p style="text-align: center; margin: 30px 0;">
+                    <a href="${resetUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reset Password</a>
+                  </p>
+                  <p style="font-size: 14px; color: #666;">Or use this code: <strong>${token}</strong></p>
+                  <p style="font-size: 14px; color: #666;">If you didn't request this, you can safely ignore this email.</p>
+                </div>
+              </body>
+            </html>
+          `,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new ConvexError(`Failed to send reset email: ${err}`);
+      }
+    },
+  }),
+});
+
+// Removed accounts are refused for every password flow (sign in, sign up,
+// password reset). The provider keeps its real logic in `options.authorize`.
+// Checked against @convex-dev/auth 0.0.80: convexAuth() merges `options` onto
+// the provider, so the wrapped function is the one sign-in calls. Re-check this
+// (and convex/authGate.test.ts) when upgrading the library.
+const passwordOptions = (password as unknown as { options: { authorize: any } }).options;
+passwordOptions.authorize = blockRemovedAccounts(
+  passwordOptions.authorize,
+  (ctx: any, who) => ctx.runQuery(internal.users.isAccountRemoved, who),
+);
+
+// Exported for convex/authGate.test.ts.
+export const passwordProvider = password;
+
+const { auth, signIn, signOut, store: libraryStore, isAuthenticated } = convexAuth({
+  providers: [password],
+});
+
+export { auth, signIn, signOut, isAuthenticated };
+
+// The library's `auth:store` mutation, with removed accounts refused in the same
+// transaction (see convex/authStoreGuard.ts). Must keep the name `store`.
+export const store = internalMutation({
+  // Internal only (clients can't call it); the library builds these calls and
+  // storeImpl dispatches on args.type, so the shape is checked there.
+  args: { args: v.any() },
+  handler: async (ctx, args: any) => {
+    const result = await (libraryStore as any)._handler(ctx, args);
+    await refuseRemovedInStore(ctx, args.args, result);
+    return result;
+  },
 });
 
 export const loggedInUser = query({

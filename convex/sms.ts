@@ -3,7 +3,7 @@ import { components } from "./_generated/api";
 import { internalAction, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "./helpers";
 import { SMS_ENABLED, assertSmsEnabled } from "./featureFlags";
 
 // Initialize Twilio component lazily to avoid startup errors when credentials are missing

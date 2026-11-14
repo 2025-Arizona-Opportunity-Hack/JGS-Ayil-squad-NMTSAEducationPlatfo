@@ -3,6 +3,31 @@
 All notable changes are recorded here. Versioning follows the policy in
 `CLAUDE.md`: every push to `main` bumps `package.json` and adds an entry below.
 
+## 0.11.0 — 2026-11-13
+
+- New: Owners and admins can delete users from User Management. Owners can
+  delete anyone except themselves, including admins and other owners. Admins
+  can delete anyone below admin, but not other admins or owners. Nobody can
+  delete their own account. Deleting keeps all of the person's data: their
+  profile, content, groups, access, orders and requests stay exactly as they
+  were, and they show in User Management as Removed. What changes is that the
+  person is shut out at once: every request they make is treated as signed
+  out, and they can no longer sign in, sign up again with the same email
+  (in any letter case), reset their password or renew a session. Signing in
+  with the right password shows "This account has been removed". Controlled
+  by a new Delete Users permission, which owners and admins have by default
+  (it only takes effect for owners and admins);
+  people with a custom permission list get it only when it is added to their
+  list.
+- New: A "Delete a user" guide in Help & Guides for staff who can delete
+  users. It covers who can delete whom, the steps in User Management, and
+  what happens to the person and their content. Search finds it for words like
+  "remove", "deactivate" or "leaver".
+- Fix: Only owners can now change an owner's or an admin's role or
+  permissions, including their own.
+  Previously an admin could demote another admin, or an owner, and then
+  delete them.
+
 ## 0.10.0 — 2026-10-27
 
 - New: Search in Help & Guides, for clients and staff. Type a word or a whole

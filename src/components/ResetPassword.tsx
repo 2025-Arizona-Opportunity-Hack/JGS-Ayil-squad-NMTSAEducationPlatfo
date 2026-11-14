@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { toast } from "sonner";
+import { ACCOUNT_REMOVED_TOAST, isAccountRemovedError } from "@/lib/accountRemoved";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +83,9 @@ export function ResetPassword() {
                 .catch((err) => {
                   console.error("Reset verification error:", err);
                   const msg = err.message || "";
-                  if (msg.includes("InvalidSecret") || msg.includes("code") || msg.includes("Server Error")) {
+                  if (isAccountRemovedError(err)) {
+                    toast.error(ACCOUNT_REMOVED_TOAST.title, { description: ACCOUNT_REMOVED_TOAST.description });
+                  } else if (msg.includes("InvalidSecret") || msg.includes("code") || msg.includes("Server Error")) {
                     toast.error("Invalid or expired code", {
                       description: "Please check the code and try again, or request a new one.",
                     });

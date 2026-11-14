@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   MANAGE_USERS: "manage_users",
   UPDATE_USER_ROLES: "update_user_roles",
   PROMOTE_TO_ADMIN: "promote_to_admin", // Owner-only by default
+  DELETE_USERS: "delete_users", // Owners delete anyone; admins only below admin
   
   // User groups
   MANAGE_USER_GROUPS: "manage_user_groups",
@@ -151,4 +152,22 @@ export function getEffectivePermissions(profile: { role: string; permissions?: s
   }
   // Otherwise, use default permissions for the role
   return getDefaultPermissions(profile.role);
+}
+
+/**
+ * Whether a caller may delete a target user.
+ * - Nobody deletes themselves.
+ * - The caller must be an owner or admin and hold DELETE_USERS (both have it
+ *   by default). A permission granted to anyone else is not enough.
+ * - Owners and admins can only be deleted by an owner.
+ */
+export function canDeleteUser(
+  caller: { userId: string; role: string; permissions: readonly string[] | undefined },
+  target: { userId: string; role: string },
+): boolean {
+  if (caller.userId === target.userId) return false;
+  if (caller.role !== "owner" && caller.role !== "admin") return false;
+  if (!caller.permissions?.includes(PERMISSIONS.DELETE_USERS)) return false;
+  if (target.role === "owner" || target.role === "admin") return caller.role === "owner";
+  return true;
 }

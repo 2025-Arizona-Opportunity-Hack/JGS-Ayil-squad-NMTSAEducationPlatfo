@@ -605,6 +605,52 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
+    id: "delete-user",
+    title: "Delete a user",
+    summary: "Remove someone's access when they leave. Their account is switched off and everything they made is kept.",
+    audience: "admin",
+    keywords: ["remove", "deactivate", "disable", "offboard", "leaver", "left", "revoke", "account", "user"],
+    requiredPermission: PERMISSIONS.DELETE_USERS,
+    tourStops: [],
+    writtenSteps: [
+      {
+        title: "Who can delete whom",
+        detail:
+          "Owners can delete anyone except themselves, including admins and other owners. Admins can delete anyone below admin, but not other admins or owners. Nobody can delete their own account.",
+      },
+      {
+        title: "Open Users",
+        detail:
+          "In the sidebar, under Users, choose Users. This opens User Management, which lists everyone on the site.",
+      },
+      {
+        title: "Click Delete on their row",
+        detail:
+          "Find the person and click Delete at the end of their row. If there's no Delete button, you aren't allowed to delete that person — for example, an admin looking at another admin.",
+      },
+      {
+        title: "Confirm",
+        detail:
+          "A box asks you to confirm and explains what will happen. Click Delete user to go ahead, or Cancel to stop. A message confirms they were deleted.",
+      },
+      {
+        title: "What happens to them",
+        detail:
+          "They're signed out everywhere straight away. They can't sign in, sign up again with the same email, or reset their password. If they try, they're told their account has been removed.",
+      },
+      {
+        title: "What is kept",
+        detail:
+          "Nothing they made or were given is deleted. Their content, groups, access, orders and requests all stay, and their name still shows on their content.",
+      },
+      {
+        title: "How they show afterwards",
+        detail:
+          "They stay in User Management with a Removed label, and their role can no longer be changed. There's no undo button yet, so check you have the right person before you confirm.",
+      },
+    ],
+  },
+  {
     id: "content-visibility",
     title: "Why clients can't see it yet",
     summary: "Four things have to be true before a client sees an item — here's how to check each one.",

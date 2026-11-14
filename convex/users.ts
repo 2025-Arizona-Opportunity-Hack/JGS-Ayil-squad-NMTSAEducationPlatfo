@@ -1,14 +1,15 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
-import { getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
+import { getAuthUserId, getTokenUserId } from "./helpers";
+import { canDeleteUser, getEffectivePermissions, hasPermission, PERMISSIONS } from "./permissions";
 import { requireAuth, requirePermission, getUserProfile } from "./helpers";
 
 // Get current user profile
 export const getCurrentUserProfile = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    // Raw token check: the app must learn the account was removed.
+    const userId = await getTokenUserId(ctx);
     if (!userId) return null;
 
     const profile = await ctx.db
@@ -20,6 +21,22 @@ export const getCurrentUserProfile = query({
       // For queries, we can't insert data, so return null
       // The mutation below will handle profile creation
       return null;
+    }
+
+    // A removed account keeps its profile but gets no access.
+    if (profile.deletedAt !== undefined) {
+      // Only what the removed-account screen needs.
+      return {
+        _id: profile._id,
+        userId: profile.userId,
+        role: profile.role,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        isActive: false,
+        profilePictureUrl: null,
+        effectivePermissions: [] as string[],
+        isRemoved: true as const,
+      };
     }
 
     // Get profile picture URL if exists
@@ -35,6 +52,7 @@ export const getCurrentUserProfile = query({
       ...profile,
       profilePictureUrl,
       effectivePermissions,
+      isRemoved: false as const,
     };
   },
 });
@@ -267,7 +285,7 @@ export const updateUserRole = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { permissions } = await requirePermission(ctx, PERMISSIONS.UPDATE_USER_ROLES);
+    const { permissions, profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.UPDATE_USER_ROLES);
 
     // Promoting to admin requires PROMOTE_TO_ADMIN permission (owner only by default)
     if (args.role === "admin") {
@@ -278,6 +296,12 @@ export const updateUserRole = mutation({
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
+    if (targetProfile.deletedAt !== undefined) {
+      throw new ConvexError("This user has been removed");
+    }
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
+    }
 
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
@@ -290,10 +314,18 @@ export const updateUserRole = mutation({
 export const promoteToAdmin = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
+    const { profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.PROMOTE_TO_ADMIN);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
+    if (targetProfile.deletedAt !== undefined) {
+      throw new ConvexError("This user has been removed");
+    }
+    // Promoting clears custom permissions, so on an existing owner or admin
+    // (including yourself) it would undo an owner's restriction.
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
+    }
 
     await ctx.db.patch(targetProfile._id, {
       role: "admin",
@@ -309,10 +341,16 @@ export const updateUserPermissions = mutation({
     permissions: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const { permissions: callerPerms } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
+    const { permissions: callerPerms, profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
+    if (targetProfile.deletedAt !== undefined) {
+      throw new ConvexError("This user has been removed");
+    }
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
+    }
 
     if (targetProfile.role === "owner") {
       throw new ConvexError("Cannot modify owner permissions");
@@ -332,16 +370,130 @@ export const updateUserPermissions = mutation({
 export const resetUserPermissions = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
+    const { profile: callerProfile } = await requirePermission(ctx, PERMISSIONS.MANAGE_USERS);
 
     const targetProfile = await getUserProfile(ctx, args.userId);
     if (!targetProfile) throw new ConvexError("User profile not found");
+    if (targetProfile.deletedAt !== undefined) {
+      throw new ConvexError("This user has been removed");
+    }
+    // Resetting restores role defaults, which can undo an owner's restriction,
+    // so it is owner-only for owner and admin accounts too, including your own.
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+      throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
+    }
 
     if (targetProfile.role === "owner") {
       throw new ConvexError("Cannot modify owner permissions");
     }
 
     await ctx.db.patch(targetProfile._id, { permissions: undefined });
+  },
+});
+
+// Remove a user. Nothing is deleted: the profile is flagged with deletedAt,
+// their sessions are ended, and the sign-in gate refuses them from then on.
+// Owners can remove anyone but themselves; admins only people below admin.
+export const deleteUser = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const { userId: callerId, profile: callerProfile, permissions } =
+      await requirePermission(ctx, PERMISSIONS.DELETE_USERS);
+
+    if (callerProfile.role !== "owner" && callerProfile.role !== "admin") {
+      throw new ConvexError("Only owners and admins can delete users");
+    }
+    if (args.userId === callerId) {
+      throw new ConvexError("You can't delete your own account");
+    }
+
+    const targetProfile = await getUserProfile(ctx, args.userId);
+    if (!targetProfile) throw new ConvexError("User profile not found");
+    if (targetProfile.deletedAt !== undefined) {
+      throw new ConvexError("This user has already been removed");
+    }
+    if (
+      !canDeleteUser(
+        { userId: callerId, role: callerProfile.role, permissions },
+        { userId: args.userId, role: targetProfile.role },
+      )
+    ) {
+      throw new ConvexError("Only owners can delete owners and admins");
+    }
+
+    await ctx.db.patch(targetProfile._id, {
+      isActive: false,
+      deletedAt: Date.now(),
+      deletedBy: callerId,
+    });
+
+    // End every session so no refresh token can renew access.
+    const sessions = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const session of sessions) {
+      const tokens = await ctx.db
+        .query("authRefreshTokens")
+        .withIndex("sessionId", (q) => q.eq("sessionId", session._id))
+        .collect();
+      for (const token of tokens) await ctx.db.delete(token._id);
+      await ctx.db.delete(session._id);
+    }
+
+    // Cancel any reset or verification code already sent to them.
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const account of accounts) {
+      const codes = await ctx.db
+        .query("authVerificationCodes")
+        .withIndex("accountId", (q) => q.eq("accountId", account._id))
+        .collect();
+      for (const code of codes) await ctx.db.delete(code._id);
+    }
+  },
+});
+
+// Used by the sign-in gate (convex/authGate.ts): is this email or user removed?
+// Emails are stored as typed. An active account with exactly this email always
+// wins; otherwise any removed account matching it without case counts.
+export const isAccountRemoved = internalQuery({
+  args: { email: v.optional(v.string()), userId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.userId) {
+      const userId = ctx.db.normalizeId("users", args.userId);
+      const profile = userId ? await getUserProfile(ctx, userId) : null;
+      if (profile?.deletedAt !== undefined) return true;
+    }
+    if (!args.email) return false;
+
+    const typed = args.email.trim();
+    const exactAccount = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) => q.eq("provider", "password").eq("providerAccountId", typed))
+      .unique();
+    if (exactAccount) {
+      const profile = await getUserProfile(ctx, exactAccount.userId);
+      return profile?.deletedAt !== undefined;
+    }
+
+    const email = typed.toLowerCase();
+    const removed = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_deleted_at", (q) => q.gt("deletedAt", 0))
+      .collect();
+    for (const profile of removed) {
+      const user = await ctx.db.get(profile.userId);
+      if (user?.email?.trim().toLowerCase() === email) return true;
+      const accounts = await ctx.db
+        .query("authAccounts")
+        .withIndex("userIdAndProvider", (q) => q.eq("userId", profile.userId))
+        .collect();
+      if (accounts.some((a) => a.providerAccountId.trim().toLowerCase() === email)) return true;
+    }
+    return false;
   },
 });
 
@@ -362,6 +514,7 @@ export const listUsers = query({
           email: user?.email,
           name: user?.name,
           effectivePermissions,
+          isRemoved: profile.deletedAt !== undefined,
         };
       })
     );
