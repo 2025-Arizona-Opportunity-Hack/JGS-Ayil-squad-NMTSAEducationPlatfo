@@ -22,6 +22,8 @@ function getResend(): Resend {
 
 // Helper to verify the caller is an admin/owner
 async function requireAdmin(ctx: any): Promise<void> {
+  // Actions have no database, so this uses the library's token check and
+  // refuses removed accounts from the profile below instead.
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new ConvexError("Not authenticated");
   const profile = await ctx.runQuery(internal.sms.getUserProfile, { userId });

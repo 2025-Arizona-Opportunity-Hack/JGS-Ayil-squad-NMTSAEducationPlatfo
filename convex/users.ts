@@ -25,7 +25,18 @@ export const getCurrentUserProfile = query({
 
     // A removed account keeps its profile but gets no access.
     if (profile.deletedAt !== undefined) {
-      return { ...profile, profilePictureUrl: null, effectivePermissions: [], isRemoved: true as const };
+      // Only what the removed-account screen needs.
+      return {
+        _id: profile._id,
+        userId: profile.userId,
+        role: profile.role,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        isActive: false,
+        profilePictureUrl: null,
+        effectivePermissions: [] as string[],
+        isRemoved: true as const,
+      };
     }
 
     // Get profile picture URL if exists
@@ -288,7 +299,11 @@ export const updateUserRole = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+    if (
+      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
+      callerProfile.role !== "owner" &&
+      targetProfile.userId !== callerProfile.userId
+    ) {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -332,7 +347,11 @@ export const updateUserPermissions = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+    if (
+      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
+      callerProfile.role !== "owner" &&
+      targetProfile.userId !== callerProfile.userId
+    ) {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -361,7 +380,11 @@ export const resetUserPermissions = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
+    if (
+      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
+      callerProfile.role !== "owner" &&
+      targetProfile.userId !== callerProfile.userId
+    ) {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -436,30 +459,41 @@ export const deleteUser = mutation({
 });
 
 // Used by the sign-in gate (convex/authGate.ts): is this email or user removed?
-// Emails are stored as typed, so compare without case. Removed accounts are
-// few, so we check each one rather than relying on an exact-match index.
+// Emails are stored as typed. An active account with exactly this email always
+// wins; otherwise any removed account matching it without case counts.
 export const isAccountRemoved = internalQuery({
   args: { email: v.optional(v.string()), userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    if (args.userId) {
+      const userId = ctx.db.normalizeId("users", args.userId);
+      const profile = userId ? await getUserProfile(ctx, userId) : null;
+      if (profile?.deletedAt !== undefined) return true;
+    }
+    if (!args.email) return false;
+
+    const typed = args.email.trim();
+    const exactAccount = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) => q.eq("provider", "password").eq("providerAccountId", typed))
+      .unique();
+    if (exactAccount) {
+      const profile = await getUserProfile(ctx, exactAccount.userId);
+      return profile?.deletedAt !== undefined;
+    }
+
+    const email = typed.toLowerCase();
     const removed = await ctx.db
       .query("userProfiles")
-      .filter((q) => q.neq(q.field("deletedAt"), undefined))
+      .withIndex("by_deleted_at", (q) => q.gt("deletedAt", 0))
       .collect();
-    if (removed.length === 0) return false;
-
-    if (args.userId && removed.some((p) => p.userId === args.userId)) return true;
-
-    if (args.email) {
-      const email = args.email.trim().toLowerCase();
-      for (const profile of removed) {
-        const user = await ctx.db.get(profile.userId);
-        if (user?.email?.trim().toLowerCase() === email) return true;
-        const accounts = await ctx.db
-          .query("authAccounts")
-          .withIndex("userIdAndProvider", (q) => q.eq("userId", profile.userId))
-          .collect();
-        if (accounts.some((a) => a.providerAccountId.trim().toLowerCase() === email)) return true;
-      }
+    for (const profile of removed) {
+      const user = await ctx.db.get(profile.userId);
+      if (user?.email?.trim().toLowerCase() === email) return true;
+      const accounts = await ctx.db
+        .query("authAccounts")
+        .withIndex("userIdAndProvider", (q) => q.eq("userId", profile.userId))
+        .collect();
+      if (accounts.some((a) => a.providerAccountId.trim().toLowerCase() === email)) return true;
     }
     return false;
   },

@@ -8,10 +8,6 @@
 import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { getAuthUserId as getTokenUserId } from "@convex-dev/auth/server";
-
-// The raw token check, ignoring removal. Only for code that must recognise a
-// removed account in order to refuse it with a clear message.
-export { getTokenUserId };
 import { Id } from "./_generated/dataModel";
 import {
   getEffectivePermissions,
@@ -20,6 +16,10 @@ import {
 } from "./permissions";
 
 // ─── Authentication & Authorization ─────────────────────────────────
+
+// The raw token check, ignoring removal. Only for code that must recognise a
+// removed account in order to refuse it with a clear message.
+export { getTokenUserId };
 
 /**
  * The signed-in user's id, or null when signed out OR the account was removed.

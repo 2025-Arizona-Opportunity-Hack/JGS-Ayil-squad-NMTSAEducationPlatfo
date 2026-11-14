@@ -166,6 +166,46 @@ describe("deleteUser (removes the account, keeps every record)", () => {
     }
   });
 
+  it("an active account with the exact email wins over a removed one that differs only by case", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const [active, removed] = await t.run(async (ctx) => {
+      const ids = [];
+      for (const email of ["Bob@x.test", "bob@x.test"]) {
+        const id = await ctx.db.insert("users", { email, name: "Bob" });
+        await ctx.db.insert("userProfiles", { userId: id, role: "client", firstName: "Bob", lastName: "X", isActive: true });
+        await ctx.db.insert("authAccounts", { userId: id, provider: "password", providerAccountId: email });
+        ids.push(id);
+      }
+      return ids;
+    });
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: removed! });
+    expect(await t.query(internal.users.isAccountRemoved, { email: "Bob@x.test" })).toBe(false);
+    expect(await t.query(internal.users.isAccountRemoved, { email: "bob@x.test" })).toBe(true);
+    expect(await t.query(internal.users.isAccountRemoved, { userId: active! })).toBe(false);
+  });
+
+  it("an admin can still reset their own permissions", async () => {
+    const t = convexTest(schema);
+    const admin = await seedUser(t, "admin", "admin@test.local");
+    await t.withIdentity({ subject: admin }).mutation(api.users.resetUserPermissions, { userId: admin });
+  });
+
+  it("a removed profile exposes only what the removed screen needs", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    await t.run(async (ctx) => {
+      const [p] = (await ctx.db.query("userProfiles").collect()).filter((x) => x.userId === client);
+      await ctx.db.patch(p!._id, { phoneVerificationCode: "123456", permissions: ["share_content"] });
+    });
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: client });
+    const seen = await t.withIdentity({ subject: client }).query(api.users.getCurrentUserProfile, {});
+    expect(seen).toMatchObject({ isRemoved: true, effectivePermissions: [] });
+    expect(seen).not.toHaveProperty("phoneVerificationCode");
+    expect(seen).not.toHaveProperty("permissions");
+  });
+
   it("deleting cancels reset and verification codes already sent", async () => {
     const t = convexTest(schema);
     const owner = await seedUser(t, "owner", "owner@test.local");

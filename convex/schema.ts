@@ -57,7 +57,8 @@ const applicationTables = {
   })
     .index("by_user_id", ["userId"])
     .index("by_role", ["role"])
-    .index("by_phone", ["phoneNumber"]),
+    .index("by_phone", ["phoneNumber"])
+    .index("by_deleted_at", ["deletedAt"]),
 
   // Content items
   content: defineTable({
