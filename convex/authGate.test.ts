@@ -49,7 +49,8 @@ describe("blockRemovedAccounts", () => {
 describe("the real password provider", () => {
   it("is the gated one, so a removed account's reset is refused before anything is sent", async () => {
     const { passwordProvider } = await import("./auth");
-    const authorize = (passwordProvider as unknown as { options: { authorize: (p: object, c: object) => Promise<unknown> } }).options.authorize;
+    // convexAuth() merges `options` onto the provider; this is the function sign-in calls.
+    const authorize = (passwordProvider as unknown as { authorize: (p: object, c: object) => Promise<unknown> }).authorize;
     const ctx = { runQuery: vi.fn(async () => true) };
     await expect(authorize({ flow: "reset", email: "gone@test.local" }, ctx)).rejects.toThrow(ACCOUNT_REMOVED_MESSAGE);
     expect(ctx.runQuery).toHaveBeenCalledOnce();

@@ -15,11 +15,12 @@ All notable changes are recorded here. Versioning follows the policy in
   out, and they can no longer sign in, sign up again with the same email
   (in any letter case), reset their password or renew a session. Signing in
   with the right password shows "This account has been removed". Controlled
-  by a new Delete Users permission, which owners and admins have by default;
+  by a new Delete Users permission, which owners and admins have by default
+  (it only takes effect for owners and admins);
   people with a custom permission list get it only when it is added to their
   list.
 - Fix: Only owners can now change an owner's or an admin's role or
-  permissions; anyone can still reset their own to their role's defaults.
+  permissions, including their own.
   Previously an admin could demote another admin, or an owner, and then
   delete them.
 

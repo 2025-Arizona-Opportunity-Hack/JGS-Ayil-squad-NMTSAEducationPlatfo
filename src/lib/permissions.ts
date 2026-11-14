@@ -184,7 +184,8 @@ export const PERMISSION_CATEGORIES = {
 /**
  * Whether a caller may delete a target user.
  * - Nobody deletes themselves.
- * - The caller needs DELETE_USERS (owners and admins by default).
+ * - The caller must be an owner or admin and hold DELETE_USERS (both have it
+ *   by default). A permission granted to anyone else is not enough.
  * - Owners and admins can only be deleted by an owner.
  */
 export function canDeleteUser(
@@ -192,6 +193,7 @@ export function canDeleteUser(
   target: { userId: string; role: string },
 ): boolean {
   if (caller.userId === target.userId) return false;
+  if (caller.role !== "owner" && caller.role !== "admin") return false;
   if (!caller.permissions?.includes(PERMISSIONS.DELETE_USERS)) return false;
   if (target.role === "owner" || target.role === "admin") return caller.role === "owner";
   return true;

@@ -2,7 +2,7 @@ import { convexAuth } from "@convex-dev/auth/server";
 import { getAuthUserId } from "./helpers";
 import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
-import { ConvexError } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { refuseRemovedInStore } from "./authStoreGuard";
 import { internal } from "./_generated/api";
@@ -81,6 +81,7 @@ export { auth, signIn, signOut, isAuthenticated };
 // The library's `auth:store` mutation, with removed accounts refused in the same
 // transaction (see convex/authStoreGuard.ts). Must keep the name `store`.
 export const store = internalMutation({
+  args: { args: v.any() },
   handler: async (ctx, args: any) => {
     const result = await (libraryStore as any)._handler(ctx, args);
     await refuseRemovedInStore(ctx, args.args, result);

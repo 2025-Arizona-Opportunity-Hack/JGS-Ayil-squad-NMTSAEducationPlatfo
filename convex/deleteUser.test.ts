@@ -41,6 +41,12 @@ describe("canDeleteUser", () => {
     expect(canDeleteUser(admin, { userId: "a", role: "admin" })).toBe(false);
   });
 
+  it("refuses a non-admin even if they were granted the delete permission", () => {
+    expect(
+      canDeleteUser({ userId: "e", role: "editor", permissions: ["delete_users"] }, { userId: "x", role: "client" }),
+    ).toBe(false);
+  });
+
   it("refuses roles without the delete permission", () => {
     for (const role of ["editor", "contributor", "professional", "parent", "client"]) {
       const caller = { userId: "c", role, permissions: getDefaultPermissions(role) };
@@ -185,14 +191,30 @@ describe("deleteUser (removes the account, keeps every record)", () => {
     expect(await t.query(internal.users.isAccountRemoved, { userId: active! })).toBe(false);
   });
 
-  it("an admin can still reset their own permissions", async () => {
+  it("an admin can't reset or edit their own permissions, so an owner's restriction sticks", async () => {
     const t = convexTest(schema);
     const admin = await seedUser(t, "admin", "admin@test.local");
-    await t.withIdentity({ subject: admin }).mutation(api.users.resetUserPermissions, { userId: admin });
-    // ...but can't edit another admin's or their own custom permission list.
+    const asAdmin = t.withIdentity({ subject: admin });
+    await expect(asAdmin.mutation(api.users.resetUserPermissions, { userId: admin })).rejects.toThrow(
+      "Only owners can change an owner's or admin's role or permissions",
+    );
+    await expect(asAdmin.mutation(api.users.updateUserPermissions, { userId: admin, permissions: [] })).rejects.toThrow(
+      "Only owners can change an owner's or admin's role or permissions",
+    );
+  });
+
+  it("an editor granted the delete permission still can't delete anyone", async () => {
+    const t = convexTest(schema);
+    const editor = await seedUser(t, "editor", "editor@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    await t.run(async (ctx) => {
+      const [p] = (await ctx.db.query("userProfiles").collect()).filter((x) => x.userId === editor);
+      await ctx.db.patch(p!._id, { permissions: ["delete_users", "view_users"] });
+    });
     await expect(
-      t.withIdentity({ subject: admin }).mutation(api.users.updateUserPermissions, { userId: admin, permissions: [] }),
-    ).rejects.toThrow("Only owners can change an owner's or admin's role or permissions");
+      t.withIdentity({ subject: editor }).mutation(api.users.deleteUser, { userId: client }),
+    ).rejects.toThrow("Only owners and admins can delete users");
+    expect(await t.query(internal.users.isAccountRemoved, { userId: client })).toBe(false);
   });
 
   it("a removed profile exposes only what the removed screen needs", async () => {

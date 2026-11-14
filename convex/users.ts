@@ -372,12 +372,9 @@ export const resetUserPermissions = mutation({
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has been removed");
     }
-    // Resetting yourself to your role's defaults can never add power.
-    if (
-      (targetProfile.role === "owner" || targetProfile.role === "admin") &&
-      callerProfile.role !== "owner" &&
-      targetProfile.userId !== callerProfile.userId
-    ) {
+    // Resetting restores role defaults, which can undo an owner's restriction,
+    // so it is owner-only for owner and admin accounts too, including your own.
+    if ((targetProfile.role === "owner" || targetProfile.role === "admin") && callerProfile.role !== "owner") {
       throw new ConvexError("Only owners can change an owner's or admin's role or permissions");
     }
 
@@ -406,6 +403,9 @@ export const deleteUser = mutation({
     if (!targetProfile) throw new ConvexError("User profile not found");
     if (targetProfile.deletedAt !== undefined) {
       throw new ConvexError("This user has already been removed");
+    }
+    if (callerProfile.role !== "owner" && callerProfile.role !== "admin") {
+      throw new ConvexError("Only owners and admins can delete users");
     }
     if (
       !canDeleteUser(
