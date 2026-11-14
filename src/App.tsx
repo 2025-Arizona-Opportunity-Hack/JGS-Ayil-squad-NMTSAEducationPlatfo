@@ -104,6 +104,24 @@ export default function App() {
     );
   }
 
+  // A removed account keeps its data but gets no access.
+  if (user && userProfile?.isRemoved) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-4" role="alert">
+          <h2 className="text-2xl font-bold text-foreground">This account has been removed</h2>
+          <p className="text-muted-foreground">
+            You no longer have access to this site. Contact the organisation if you think this is a
+            mistake.
+          </p>
+          <Button onClick={() => void signOut()} variant="outline" className="w-full">
+            Sign out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // If we have a user but userProfile is still loading
   if (user && userProfile === undefined) {
     return (

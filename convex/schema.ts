@@ -48,6 +48,10 @@ const applicationTables = {
     phoneVerificationCode: v.optional(v.string()),
     phoneVerificationExpires: v.optional(v.number()),
     smsNotificationsEnabled: v.optional(v.boolean()),
+    // Set when the account is removed. All data is kept; the person can no
+    // longer sign in, reset their password or use an existing session.
+    deletedAt: v.optional(v.number()),
+    deletedBy: v.optional(v.id("users")),
     // Temporary field for migration
     organizationId: v.optional(v.string()),
   })

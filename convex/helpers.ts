@@ -51,6 +51,7 @@ export async function requireAuth(ctx: AuthContext): Promise<AuthResult> {
     .unique();
 
   if (!profile) throw new ConvexError("Profile not found");
+  if (profile.deletedAt !== undefined) throw new ConvexError("This account has been removed.");
 
   const permissions = getEffectivePermissions(profile);
 

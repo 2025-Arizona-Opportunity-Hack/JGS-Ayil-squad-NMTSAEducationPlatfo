@@ -3,6 +3,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { toast } from "sonner";
+import { ACCOUNT_REMOVED_TOAST, isAccountRemovedError } from "@/lib/accountRemoved";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -124,6 +125,11 @@ export function SignInForm() {
                 })
                 .catch((err) => {
                   console.error("Reset error:", err);
+                  if (isAccountRemovedError(err)) {
+                    toast.error(ACCOUNT_REMOVED_TOAST.title, { description: ACCOUNT_REMOVED_TOAST.description });
+                    setSubmitting(false);
+                    return;
+                  }
                   toast.error("Could not send reset email", {
                     description: "Please check your email address and try again.",
                   });
@@ -191,7 +197,9 @@ export function SignInForm() {
                 .catch((err) => {
                   console.error("Reset verification error:", err);
                   const msg = err.message || "";
-                  if (msg.includes("InvalidSecret") || msg.includes("code")) {
+                  if (isAccountRemovedError(err)) {
+                    toast.error(ACCOUNT_REMOVED_TOAST.title, { description: ACCOUNT_REMOVED_TOAST.description });
+                  } else if (msg.includes("InvalidSecret") || msg.includes("code")) {
                     toast.error("Invalid or expired code", {
                       description: "Please check the code and try again.",
                     });
@@ -301,7 +309,10 @@ export function SignInForm() {
                     console.error("Authentication error:", error);
                     const errorMessage = error.message || "";
 
-                    if (
+                    if (isAccountRemovedError(error)) {
+                      toast.error(ACCOUNT_REMOVED_TOAST.title, { description: ACCOUNT_REMOVED_TOAST.description });
+                      setError("removed");
+                    } else if (
                       errorMessage.includes("InvalidSecret") ||
                       errorMessage.includes("Invalid password") ||
                       errorMessage.includes("credentials") ||

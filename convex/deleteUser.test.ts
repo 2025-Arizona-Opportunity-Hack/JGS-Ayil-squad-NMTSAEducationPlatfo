@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { canDeleteUser, getDefaultPermissions } from "./permissions";
 
 async function seedUser(t: ReturnType<typeof convexTest>, role: string, email: string) {
@@ -16,13 +16,6 @@ async function seedUser(t: ReturnType<typeof convexTest>, role: string, email: s
     });
     return userId;
   });
-}
-
-async function exists(t: ReturnType<typeof convexTest>, userId: any) {
-  return await t.run(async (ctx) => ({
-    user: (await ctx.db.get(userId)) !== null,
-    profile: (await ctx.db.query("userProfiles").collect()).some((p: any) => p.userId === userId),
-  }));
 }
 
 describe("canDeleteUser", () => {
@@ -56,8 +49,8 @@ describe("canDeleteUser", () => {
   });
 });
 
-describe("deleteUser", () => {
-  it("an owner deletes an admin, with their profile, memberships and access grants", async () => {
+describe("deleteUser (removes the account, keeps every record)", () => {
+  it("an owner removes an admin: data stays, sessions end, the profile is flagged", async () => {
     const t = convexTest(schema);
     const owner = await seedUser(t, "owner", "owner@test.local");
     const admin = await seedUser(t, "admin", "admin@test.local");
@@ -75,59 +68,106 @@ describe("deleteUser", () => {
 
     await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: admin });
 
-    expect(await exists(t, admin)).toEqual({ user: false, profile: false });
     await t.run(async (ctx) => {
-      expect(await ctx.db.query("userGroupMembers").collect()).toEqual([]);
-      expect(await ctx.db.query("contentAccess").collect()).toEqual([]);
-      // Sign-in data goes too, so the deleted person is signed out everywhere.
+      expect(await ctx.db.get(admin)).not.toBeNull();
+      const [profile] = (await ctx.db.query("userProfiles").collect()).filter((p) => p.userId === admin);
+      expect(profile).toMatchObject({ isActive: false, deletedBy: owner, firstName: "admin" });
+      expect(typeof profile!.deletedAt).toBe("number");
+      expect(await ctx.db.query("userGroupMembers").collect()).toHaveLength(1);
+      expect(await ctx.db.query("contentAccess").collect()).toHaveLength(1);
+      expect(await ctx.db.query("content").collect()).toHaveLength(1);
+      expect(await ctx.db.query("authAccounts").collect()).toHaveLength(1);
+      // Sessions and refresh tokens are ended, so nothing can be renewed.
       expect(await ctx.db.query("authSessions").collect()).toEqual([]);
       expect(await ctx.db.query("authRefreshTokens").collect()).toEqual([]);
-      expect(await ctx.db.query("authAccounts").collect()).toEqual([]);
-      // Content the deleted person created is kept.
-      expect((await ctx.db.query("content").collect()).map((c) => c.title)).toEqual(["Kept item"]);
     });
   });
 
-  it("an admin deletes a client", async () => {
+  it("a removed person is refused by every permission-checked function", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const admin = await seedUser(t, "admin", "admin@test.local");
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: admin });
+    await expect(t.withIdentity({ subject: admin }).query(api.users.listUsers, {})).rejects.toThrow(
+      "This account has been removed.",
+    );
+  });
+
+  it("the app is told the account is removed, with no permissions", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: client });
+    expect(await t.withIdentity({ subject: client }).query(api.users.getCurrentUserProfile, {})).toMatchObject({
+      isRemoved: true,
+      effectivePermissions: [],
+    });
+  });
+
+  it("the sign-in lookup finds a removed account by email, in any case, and by user", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    await t.run((ctx) =>
+      ctx.db.insert("authAccounts", { userId: client, provider: "password", providerAccountId: "client@test.local" }),
+    );
+    expect(await t.query(internal.users.isAccountRemoved, { email: "client@test.local" })).toBe(false);
+    await t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: client });
+    expect(await t.query(internal.users.isAccountRemoved, { email: " Client@Test.local " })).toBe(true);
+    expect(await t.query(internal.users.isAccountRemoved, { userId: client })).toBe(true);
+    expect(await t.query(internal.users.isAccountRemoved, { email: "owner@test.local" })).toBe(false);
+  });
+
+  it("a removed user can't be removed again or have their role changed", async () => {
+    const t = convexTest(schema);
+    const owner = await seedUser(t, "owner", "owner@test.local");
+    const client = await seedUser(t, "client", "client@test.local");
+    const asOwner = t.withIdentity({ subject: owner });
+    await asOwner.mutation(api.users.deleteUser, { userId: client });
+    await expect(asOwner.mutation(api.users.deleteUser, { userId: client })).rejects.toThrow(
+      "This user has already been removed",
+    );
+    await expect(asOwner.mutation(api.users.updateUserRole, { userId: client, role: "editor" })).rejects.toThrow(
+      "This user has been removed",
+    );
+  });
+
+  it("an admin removes a client", async () => {
     const t = convexTest(schema);
     const admin = await seedUser(t, "admin", "admin@test.local");
     const client = await seedUser(t, "client", "client@test.local");
     await t.withIdentity({ subject: admin }).mutation(api.users.deleteUser, { userId: client });
-    expect(await exists(t, client)).toEqual({ user: false, profile: false });
+    expect(await t.query(internal.users.isAccountRemoved, { userId: client })).toBe(true);
   });
 
-  it("an admin cannot delete another admin or an owner", async () => {
+  it("an admin cannot remove another admin or an owner", async () => {
     const t = convexTest(schema);
     const owner = await seedUser(t, "owner", "owner@test.local");
     const admin = await seedUser(t, "admin", "admin@test.local");
     const otherAdmin = await seedUser(t, "admin", "admin2@test.local");
     const asAdmin = t.withIdentity({ subject: admin });
-    await expect(asAdmin.mutation(api.users.deleteUser, { userId: otherAdmin })).rejects.toThrow(
-      "Only owners can delete owners and admins",
-    );
-    await expect(asAdmin.mutation(api.users.deleteUser, { userId: owner })).rejects.toThrow(
-      "Only owners can delete owners and admins",
-    );
-    expect(await exists(t, otherAdmin)).toEqual({ user: true, profile: true });
-    expect(await exists(t, owner)).toEqual({ user: true, profile: true });
+    for (const target of [otherAdmin, owner]) {
+      await expect(asAdmin.mutation(api.users.deleteUser, { userId: target })).rejects.toThrow(
+        "Only owners can delete owners and admins",
+      );
+      expect(await t.query(internal.users.isAccountRemoved, { userId: target })).toBe(false);
+    }
   });
 
-  it("nobody can delete their own account", async () => {
+  it("nobody can remove their own account", async () => {
     const t = convexTest(schema);
     const owner = await seedUser(t, "owner", "owner@test.local");
     await expect(
       t.withIdentity({ subject: owner }).mutation(api.users.deleteUser, { userId: owner }),
     ).rejects.toThrow("You can't delete your own account");
-    expect(await exists(t, owner)).toEqual({ user: true, profile: true });
   });
 
-  it("an editor cannot delete anyone", async () => {
+  it("an editor cannot remove anyone", async () => {
     const t = convexTest(schema);
     const editor = await seedUser(t, "editor", "editor@test.local");
     const client = await seedUser(t, "client", "client@test.local");
     await expect(
       t.withIdentity({ subject: editor }).mutation(api.users.deleteUser, { userId: client }),
     ).rejects.toThrow("Missing required permission: delete_users");
-    expect(await exists(t, client)).toEqual({ user: true, profile: true });
   });
 });

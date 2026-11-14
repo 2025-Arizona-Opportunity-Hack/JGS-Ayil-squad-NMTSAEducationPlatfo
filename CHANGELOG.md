@@ -8,10 +8,12 @@ All notable changes are recorded here. Versioning follows the policy in
 - New: Owners and admins can delete users from User Management. Owners can
   delete anyone except themselves, including admins and other owners. Admins
   can delete anyone below admin, but not other admins or owners. Nobody can
-  delete their own account. A confirmation explains what happens: the person is
-  signed out everywhere and removed from their groups, and content shared
-  directly with them is taken away. Content they created, their orders and
-  their purchase requests are kept. Controlled by a new Delete Users
+  delete their own account. Deleting keeps all of the person's data: their
+  profile, content, groups, access, orders and requests stay exactly as they
+  were, and they show in User Management as Removed. What changes is that the
+  person is signed out everywhere and can no longer sign in, sign up again
+  with the same email, reset their password or renew a session. Signing in
+  shows "This account has been removed". Controlled by a new Delete Users
   permission, which owners and admins have by default.
 
 ## 0.10.0 — 2026-10-27

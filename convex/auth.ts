@@ -3,10 +3,10 @@ import { Password } from "@convex-dev/auth/providers/Password";
 import ResendProvider from "@auth/core/providers/resend";
 import { ConvexError } from "convex/values";
 import { query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { blockRemovedAccounts } from "./authGate";
 
-export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [
-    Password({
+const password = Password({
       reset: ResendProvider({
         apiKey: process.env.RESEND_API_KEY,
         from: `NMTSA Platform <noreply@${process.env.RESEND_DOMAIN || "resend.dev"}>`,
@@ -54,8 +54,18 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           }
         },
       }),
-    }),
-  ],
+});
+
+// Removed accounts are refused for every password flow (sign in, sign up,
+// password reset). The provider keeps its real logic in `options.authorize`.
+const passwordOptions = (password as unknown as { options: { authorize: any } }).options;
+passwordOptions.authorize = blockRemovedAccounts(
+  passwordOptions.authorize,
+  (ctx: any, who) => ctx.runQuery(internal.users.isAccountRemoved, who),
+);
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [password],
 });
 
 export const loggedInUser = query({

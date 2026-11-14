@@ -1,0 +1,33 @@
+import { describe, it, expect, vi } from "vitest";
+import { blockRemovedAccounts, ACCOUNT_REMOVED_MESSAGE } from "./authGate";
+
+const removedEmail = "gone@test.local";
+const removedUser = "user-gone";
+const isRemoved = async (_ctx: unknown, who: { email?: string; userId?: string }) =>
+  who.email?.toLowerCase() === removedEmail || who.userId === removedUser;
+
+describe("blockRemovedAccounts", () => {
+  for (const flow of ["signIn", "signUp", "reset", "reset-verification", "email-verification"]) {
+    it(`refuses the ${flow} flow for a removed email before the provider runs`, async () => {
+      const authorize = vi.fn(async () => ({ userId: "x" }));
+      const gated = blockRemovedAccounts(authorize, isRemoved);
+      await expect(gated({ flow, email: " Gone@Test.local " }, {})).rejects.toThrow(ACCOUNT_REMOVED_MESSAGE);
+      expect(authorize).not.toHaveBeenCalled();
+    });
+  }
+
+  it("refuses when the provider resolves to a removed user", async () => {
+    const gated = blockRemovedAccounts(async () => ({ userId: removedUser }), isRemoved);
+    await expect(gated({ flow: "signIn", email: "other@test.local" }, {})).rejects.toThrow(ACCOUNT_REMOVED_MESSAGE);
+  });
+
+  it("lets everyone else through unchanged", async () => {
+    const gated = blockRemovedAccounts(async () => ({ userId: "u1", sessionId: "s1" }), isRemoved);
+    expect(await gated({ flow: "signIn", email: "ok@test.local" }, {})).toEqual({ userId: "u1", sessionId: "s1" });
+  });
+
+  it("passes through a flow that signs nobody in, such as sending a reset code", async () => {
+    const gated = blockRemovedAccounts(async () => null, isRemoved);
+    expect(await gated({ flow: "reset", email: "ok@test.local" }, {})).toBeNull();
+  });
+});

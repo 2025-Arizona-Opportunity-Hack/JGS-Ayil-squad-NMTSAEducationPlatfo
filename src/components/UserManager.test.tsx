@@ -26,6 +26,7 @@ const users = [
   person("admin1", "admin", "Adam"),
   person("admin2", "admin", "Ada"),
   person("client1", "client", "Cleo"),
+  { ...person("client2", "client", "Rory"), isRemoved: true },
 ];
 
 function signInAs(userId: string, role: string) {
@@ -66,6 +67,13 @@ describe("UserManager delete", () => {
     expect(deleteButtonFor("Adam")).toBeNull();
     expect(deleteButtonFor("Ada")).toBeNull();
     expect(deleteButtonFor("Cleo")).toBeInTheDocument();
+  });
+
+  it("a removed person is labelled Removed and offers no actions", () => {
+    signInAs("owner1", "owner");
+    render(<UserManager />);
+    expect(deleteButtonFor("Rory")).toBeNull();
+    expect(screen.getAllByText("Removed").length).toBeGreaterThanOrEqual(1);
   });
 
   it("an editor sees no delete buttons", () => {

@@ -51,7 +51,7 @@ export function UserManager() {
   const handleDelete = async (userId: string, name: string) => {
     try {
       await deleteUser({ userId: userId as any });
-      toast.success(`${name} was deleted`);
+      toast.success(`${name} was deleted. They can no longer sign in.`);
     } catch (error) {
       const message =
         error instanceof ConvexError && typeof error.data === "string"
@@ -102,13 +102,16 @@ export function UserManager() {
                         <Badge variant={getRoleBadgeVariant(user.role)}>
                           {user.role}
                         </Badge>
+                        {user.isRemoved && <Badge variant="outline">Removed</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {/* Owner cannot be changed; Admin can only be changed by owner */}
-                    {user.role === "owner" ? (
+                    {user.isRemoved ? (
+                      <span className="text-sm text-muted-foreground px-3 py-2">Removed</span>
+                    ) : user.role === "owner" ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Owner</span>
                     ) : user.role === "admin" && !canPromoteToAdmin ? (
                       <span className="text-sm text-muted-foreground px-3 py-2">Admin</span>
@@ -147,6 +150,7 @@ export function UserManager() {
                       <span className="text-sm text-muted-foreground px-3 py-2">{user.role}</span>
                     )}
                     {currentProfile &&
+                      !user.isRemoved &&
                       canDeleteUser(
                         {
                           userId: currentProfile.userId,
@@ -168,9 +172,9 @@ export function UserManager() {
                                 Delete {user.firstName} {user.lastName}?
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                This removes their account and signs them out everywhere. It also
-                                removes them from their groups and takes away content shared
-                                directly with them. Content they created stays. This can't be undone.
+                                They will be signed out everywhere and won't be able to sign in or
+                                reset their password again. Nothing they created or were given is
+                                deleted. They will show here as Removed.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
