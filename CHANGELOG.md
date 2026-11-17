@@ -9,6 +9,8 @@ All notable changes are recorded here. Versioning follows the policy in
   component data the Convex server now sends, so production deploys could
   fail at "Uploading functions to Convex" (the 0.11.0 release failed this way
   on 2026-11-14). Regenerated `convex/_generated` with the new version.
+- Removed the unused `@convex-dev/presence` and `@convex-dev/prosemirror-sync`
+  packages, which only allowed Convex below 1.35.
 
 ## 0.11.0 — 2026-11-13
 
